@@ -1,0 +1,9 @@
+# Marwa-Bot laptop kit — الأساسيات لتشغيل مروة والعقدة على أي جهاز
+# (كود المنظومة الكامل له متطلباته في pos_system/requirements_full.txt)
+
+supabase>=2.32          # عميل REST للسحابة (laptop_sync + محرك المرآة)
+requests>=2.31          # HTTP عام + أدوات النظام
+openpyxl>=3.1           # أدوات الإكسيل (تصدير/استيراد الكتالوج)
+psycopg2-binary>=2.9    # لمحرك الترحيلات المباشر (cloud/schema_migrator.py)
+mss>=10.0               # لقطات الشاشة (system_worker)
+flask>=3.0              # خادم الويب هوك السحابي (اختياري)

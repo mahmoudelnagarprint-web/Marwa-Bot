@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "spreadsheet_url": "https://docs.google.com/spreadsheets/d/14Du-Cqxdr5r1TDVTog0hUjObAihieIHJOOhGv-scq5Q/edit?usp=sharing",
+  "spreadsheet_id": "14Du-Cqxdr5r1TDVTog0hUjObAihieIHJOOhGv-scq5Q",
+  "tabs": {
+    "clients": "clients",
+    "products": "products",
+    "orders": "orders",
+    "order_items": "order_items",
+    "sync_log": "sync_log"
+  }
+}

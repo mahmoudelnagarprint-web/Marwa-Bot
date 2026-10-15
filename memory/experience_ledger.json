@@ -1,0 +1,1065 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-13T12:30:00+03:00",
+  "description": "Cumulative experience ledger for Meta-Agent self-improvement. Records every agent invocation, outcome, errors, and lessons.",
+  "entries": [
+    {
+      "timestamp": "2026-10-13T09:53:22.137344+00:00",
+      "agent_id": null,
+      "input_text": "فحص سريع",
+      "matched_keywords": [],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action"
+      ],
+      "error": "unrouted"
+    },
+    {
+      "timestamp": "2026-10-13T09:53:22.610244+00:00",
+      "agent_id": "meta",
+      "input_text": "إحصائيات الوكلاء",
+      "matched_keywords": [
+        "إحصائيات",
+        "إحصائي"
+      ],
+      "result_action": "show_stats",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T09:56:40.528684+00:00",
+      "agent_id": "coder",
+      "input_text": "راجع الكود",
+      "matched_keywords": [
+        "راجع الكود"
+      ],
+      "result_action": "log_coding_task",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T09:56:40.882624+00:00",
+      "agent_id": "meta",
+      "input_text": "إحصائيات الوكلاء",
+      "matched_keywords": [
+        "إحصائيات",
+        "إحصائي"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": "TypeError: '<' not supported between instances of 'str' and 'NoneType'"
+    },
+    {
+      "timestamp": "2026-10-13T10:04:17.095709+00:00",
+      "agent_id": "meta",
+      "input_text": "إحصائيات الوكلاء",
+      "matched_keywords": [
+        "إحصائيات",
+        "إحصائي"
+      ],
+      "result_action": "show_stats",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:04:17.404073+00:00",
+      "agent_id": null,
+      "input_text": "آخر استدعاءات",
+      "matched_keywords": [],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action"
+      ],
+      "error": "unrouted"
+    },
+    {
+      "timestamp": "2026-10-13T10:08:17.241282+00:00",
+      "agent_id": "meta",
+      "input_text": "آخر استدعاءات",
+      "matched_keywords": [
+        "استدعاء",
+        "استدعاءات"
+      ],
+      "result_action": "show_recent_invocations",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:08:17.447748+00:00",
+      "agent_id": "meta",
+      "input_text": "سجل الخبرة",
+      "matched_keywords": [
+        "سجل الخبرة",
+        "خبرة"
+      ],
+      "result_action": "show_ledger_summary",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:19:02.784612+00:00",
+      "agent_id": "data_healer",
+      "input_text": "الروتين الصباحي",
+      "matched_keywords": [
+        "روتين الصباحي",
+        "روتين الصباح",
+        "الروتين"
+      ],
+      "result_action": "morning_routine",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:21:41.861442+00:00",
+      "agent_id": "data_healer",
+      "input_text": "مطابقة السحابة",
+      "matched_keywords": [
+        "مطابقة"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:21:42.082115+00:00",
+      "agent_id": "data_healer",
+      "input_text": "منتجات مكررة",
+      "matched_keywords": [
+        "منتجات مكررة",
+        "مكرر"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:21:42.317100+00:00",
+      "agent_id": "data_healer",
+      "input_text": "فحص سريع",
+      "matched_keywords": [
+        "فحص"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:21:42.520237+00:00",
+      "agent_id": "meta",
+      "input_text": "إحصائيات الوكلاء",
+      "matched_keywords": [
+        "إحصائيات",
+        "إحصائي"
+      ],
+      "result_action": "show_stats",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:51:40.660878+00:00",
+      "agent_id": "data_healer",
+      "input_text": "مخزون سالب",
+      "matched_keywords": [
+        "مخزون سالب"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:58:13.721579+00:00",
+      "agent_id": "crm",
+      "input_text": "الطلبات المتأخرة",
+      "matched_keywords": [
+        "الطلبات",
+        "طلبات",
+        "متأخر",
+        "متأخرة"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:58:13.961708+00:00",
+      "agent_id": "crm",
+      "input_text": "شوف ملف عميل جهاااد",
+      "matched_keywords": [
+        "عميل"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T10:58:14.203475+00:00",
+      "agent_id": "crm",
+      "input_text": "العملاء اللي عليهم فلوس",
+      "matched_keywords": [
+        "عملاء",
+        "فلوس"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:07:41.727587+00:00",
+      "agent_id": "crm",
+      "input_text": "الطلبات",
+      "matched_keywords": [
+        "الطلبات",
+        "طلبات"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:07:41.979563+00:00",
+      "agent_id": "crm",
+      "input_text": "طلبات اليوم",
+      "matched_keywords": [
+        "طلبات اليوم",
+        "طلبات"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:07:42.217052+00:00",
+      "agent_id": "crm",
+      "input_text": "الجاهز",
+      "matched_keywords": [
+        "جاهز"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:39:51.259944+00:00",
+      "agent_id": "cfo",
+      "input_text": "الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:39:51.465105+00:00",
+      "agent_id": "cfo",
+      "input_text": "المستحقات",
+      "matched_keywords": [
+        "مستحقات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:39:51.661823+00:00",
+      "agent_id": null,
+      "input_text": "شطب دين احمد",
+      "matched_keywords": [],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action"
+      ],
+      "error": "unrouted"
+    },
+    {
+      "timestamp": "2026-10-13T11:43:40.108789+00:00",
+      "agent_id": "cfo",
+      "input_text": "شطب دين احمد",
+      "matched_keywords": [
+        "شطب",
+        "دين"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:43:40.365152+00:00",
+      "agent_id": "cfo",
+      "input_text": "طرق الدفع",
+      "matched_keywords": [
+        "طرق الدفع"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:43:40.655435+00:00",
+      "agent_id": "cfo",
+      "input_text": "المصروفات",
+      "matched_keywords": [
+        "مصروف",
+        "مصروفات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:48:11.373108+00:00",
+      "agent_id": "cfo",
+      "input_text": "الأكثر مبيعًا",
+      "matched_keywords": [
+        "أكثر مبيع"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:48:11.622805+00:00",
+      "agent_id": "cfo",
+      "input_text": "هوامش الربح",
+      "matched_keywords": [
+        "ربح",
+        "هوامش"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:48:11.855546+00:00",
+      "agent_id": "cfo",
+      "input_text": "سجل مصروف 50 جنيه",
+      "matched_keywords": [
+        "مصروف",
+        "سجل"
+      ],
+      "result_action": "propose_expense",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T11:48:12.078850+00:00",
+      "agent_id": "cfo",
+      "input_text": "آخر الحركات",
+      "matched_keywords": [
+        "حركات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T12:11:10.333654+00:00",
+      "agent_id": "marketing",
+      "input_text": "المنتجات الراكدة",
+      "matched_keywords": [
+        "راكد"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T12:11:10.590618+00:00",
+      "agent_id": "marketing",
+      "input_text": "اقترح باقات",
+      "matched_keywords": [
+        "باقات"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T12:14:35.200289+00:00",
+      "agent_id": "marketing",
+      "input_text": "التسويق",
+      "matched_keywords": [
+        "تسويق"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:10:36.121469+00:00",
+      "agent_id": null,
+      "input_text": "امكانيات عامل النظام",
+      "matched_keywords": [],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action"
+      ],
+      "error": "unrouted"
+    },
+    {
+      "timestamp": "2026-10-13T14:10:36.354042+00:00",
+      "agent_id": "system_worker",
+      "input_text": "اطفئ الجهاز",
+      "matched_keywords": [
+        "اطفئ",
+        "الجهاز"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:13:47.746919+00:00",
+      "agent_id": "system_worker",
+      "input_text": "امكانيات عامل النظام",
+      "matched_keywords": [
+        "امكانيات"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:13:47.989165+00:00",
+      "agent_id": "system_worker",
+      "input_text": "افتح rdworks",
+      "matched_keywords": [
+        "افتح",
+        "فتح",
+        "rdworks"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:14:06.053246+00:00",
+      "agent_id": "coder",
+      "input_text": "فحص بايثون",
+      "matched_keywords": [
+        "فحص بايثون"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:14:09.338347+00:00",
+      "agent_id": "coder",
+      "input_text": "ابحث في الكود عن record_client_payment",
+      "matched_keywords": [
+        "ابحث في الكود",
+        "بحث"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:19:18.531834+00:00",
+      "agent_id": "coder",
+      "input_text": "ابحث في الكود عن record_client_payment",
+      "matched_keywords": [
+        "ابحث في الكود",
+        "بحث"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:19:18.780251+00:00",
+      "agent_id": "coder",
+      "input_text": "رصد الأخطاء",
+      "matched_keywords": [
+        "رصد الأخطاء"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:22:28.093737+00:00",
+      "agent_id": "coder",
+      "input_text": "ابحث في الكود عن record_client_payment",
+      "matched_keywords": [
+        "ابحث في الكود",
+        "بحث"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:22:28.327578+00:00",
+      "agent_id": "meta",
+      "input_text": "تقرير الأداء",
+      "matched_keywords": [
+        "تقرير",
+        "أداء",
+        "تقرير الأداء"
+      ],
+      "result_action": "show_performance",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:22:28.537031+00:00",
+      "agent_id": "meta",
+      "input_text": "اقتراحات التطوير",
+      "matched_keywords": [
+        "اقتراحات"
+      ],
+      "result_action": "self_improve_proposals",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T14:23:22.731148+00:00",
+      "agent_id": "system_worker",
+      "input_text": "ابعت أمر للماكينة screenshot",
+      "matched_keywords": [
+        "screenshot",
+        "أمر للماكينة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:03:52.568961+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شغل شريط التوجيه",
+      "matched_keywords": [
+        "شريط",
+        "التوجيه"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:03:53.324796+00:00",
+      "agent_id": "coder",
+      "input_text": "نزّل أداة https://github.com/psf/requests",
+      "matched_keywords": [
+        "git",
+        "github",
+        "نزّل أداة"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:05:24.227508+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شغل شريط التوجيه",
+      "matched_keywords": [
+        "شريط",
+        "التوجيه"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:05:24.467717+00:00",
+      "agent_id": "coder",
+      "input_text": "نزّل أداة https://github.com/psf/requests",
+      "matched_keywords": [
+        "git",
+        "github",
+        "نزّل أداة"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:05:24.732963+00:00",
+      "agent_id": "system_worker",
+      "input_text": "ضغط زر بدء في RDWorks",
+      "matched_keywords": [
+        "rdworks",
+        "ضغط زر"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:07:33.919829+00:00",
+      "agent_id": "system_worker",
+      "input_text": "ضغط زر بدء في RDWorks",
+      "matched_keywords": [
+        "rdworks",
+        "ضغط زر"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:07:34.269113+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف النوافذ المتاحة",
+      "matched_keywords": [
+        "متاح",
+        "النوافذ"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:09:03.686552+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف النوافذ المتاحة",
+      "matched_keywords": [
+        "متاح",
+        "النوافذ"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:10:29.015574+00:00",
+      "agent_id": "system_worker",
+      "input_text": "اعرض النوافذ المتاحة",
+      "matched_keywords": [
+        "متاح",
+        "النوافذ"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:10:30.947813+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف نافذة",
+      "matched_keywords": [
+        "شوف نافذة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:11:39.997351+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف نافذة",
+      "matched_keywords": [
+        "شوف نافذة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:11:40.722659+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف نافذة تشمل Chrome",
+      "matched_keywords": [
+        "شوف نافذة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:13:32.437321+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف نافذة فيها Taskbar",
+      "matched_keywords": [
+        "شوف نافذة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:13:34.812338+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف نافذة فيها Chrome",
+      "matched_keywords": [
+        "شوف نافذة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-13T15:16:06.069679+00:00",
+      "agent_id": "system_worker",
+      "input_text": "شوف نافذة فيها Taskbar",
+      "matched_keywords": [
+        "شوف نافذة"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T09:32:15.917724+00:00",
+      "agent_id": "data_healer",
+      "input_text": "صنف المنتجات",
+      "matched_keywords": [
+        "صنف المنتجات"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T09:38:50.796945+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "عرض الخامات المتاحة",
+      "matched_keywords": [
+        "خامات",
+        "الخامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T09:38:51.058117+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "تكلفة كاب تخرج",
+      "matched_keywords": [
+        "تكلفة"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T09:38:51.341969+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "بطاقة شغل كاب تخرج",
+      "matched_keywords": [
+        "بطاقة شغل"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T10:23:48.405458+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "عرض الخامات المتاحة",
+      "matched_keywords": [
+        "خامات",
+        "الخامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T10:25:20.225657+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "تكلفة تابلو 30x40",
+      "matched_keywords": [
+        "تكلفة"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T10:25:20.469889+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "تكلفة بوكس خشب",
+      "matched_keywords": [
+        "تكلفة"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-14T10:25:20.726380+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "تكلفة درع اكليرليك",
+      "matched_keywords": [
+        "تكلفة"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    }
+  ],
+  "lessons": [
+    {
+      "timestamp": "2026-10-13T09:42:41.281151+00:00",
+      "lesson": "فحص الأسعار الصفرية يجب أن يتحقق من price_retail و price_wholesale معاً",
+      "source_agent": "meta",
+      "confidence": 0.9
+    }
+  ]
+}

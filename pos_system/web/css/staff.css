@@ -1,0 +1,189 @@
+/* Staff Management Page - Additional Styles */
+
+/* Fix tab-btn styling to match app design */
+.tab-btn {
+    background: transparent;
+    border: none;
+    padding: 15px 25px;
+    cursor: pointer;
+    font-family: 'Cairo', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748B;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s;
+}
+
+.tab-btn:hover {
+    color: #2563EB;
+}
+
+.tab-btn.active {
+    color: #2563EB;
+    border-bottom-color: #2563EB;
+    font-weight: 600;
+}
+
+/* Staff Card */
+.staff-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #E2E8F0;
+}
+
+.staff-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    border-color: #2563EB;
+}
+
+.staff-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2em;
+    font-weight: bold;
+}
+
+.staff-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.staff-status {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #94A3B8;
+    border: 2px solid white;
+}
+
+.staff-status.online { background: #10B981; }
+
+.staff-details { text-align: center; }
+.staff-details h4 { margin: 0; font-size: 1.1rem; color: #1E293B; }
+.staff-details span { color: #64748B; font-size: 0.9rem; }
+
+.staff-stats {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    background: #F8FAFC;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.stat-item { text-align: center; }
+.stat-val { font-weight: bold; display: block; color: #1E293B; }
+.stat-label { font-size: 0.75rem; color: #94A3B8; }
+
+.staff-actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.staff-actions button {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #E2E8F0;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9em;
+}
+
+.staff-actions button:hover {
+    background: #F1F5F9;
+}
+
+.staff-actions button.danger:hover {
+    background: #FEE2E2;
+    border-color: #FECACA;
+    color: #DC2626;
+}
+
+/* Leaderboard Cards */
+.lb-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border: 2px solid #E2E8F0;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.lb-card.gold { 
+    border-color: #F59E0B; 
+    background: linear-gradient(135deg, #FFFBEB, white); 
+}
+.lb-card.silver { 
+    border-color: #94A3B8; 
+    background: linear-gradient(135deg, #F1F5F9, white); 
+}
+
+.lb-rank {
+    font-size: 4rem;
+    font-weight: 900;
+    opacity: 0.1;
+    position: absolute;
+    right: 10px;
+    top: -10px;
+    color: #1E293B;
+}
+
+.lb-info h3 { margin: 0; font-size: 1.2rem; color: #1E293B; }
+.lb-info p { margin: 5px 0 0; color: #64748B; }
+.lb-prize { margin-top: 5px; font-weight: bold; color: #10B981; cursor: pointer; }
+
+/* Chat Bubbles */
+.chat-bubble {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    position: relative;
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+}
+
+.chat-bubble.mine {
+    margin-left: auto;
+    background: #2563EB;
+    color: white;
+    border-radius: 16px 16px 0 16px;
+}
+
+.chat-bubble.others {
+    margin-right: auto;
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px 16px 16px 0;
+}
+
+/* QR Timer */
+#qr-timer {
+    font-family: 'Consolas', monospace;
+}

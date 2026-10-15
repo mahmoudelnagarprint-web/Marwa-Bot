@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Ramadan ERP - Mobile</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/mobile.css">
+    <script type="text/javascript" src="/eel.js"></script>
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-logo">
+                <div class="logo-icon">🌙</div>
+                <h1>Ramadan ERP</h1>
+                <p>تسجيل دخول الموظفين</p>
+            </div>
+            
+            <div class="login-form">
+                <div class="pin-display" id="pin-display">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+                
+                <div class="keypad">
+                    <button onclick="enterPin(1)">1</button>
+                    <button onclick="enterPin(2)">2</button>
+                    <button onclick="enterPin(3)">3</button>
+                    <button onclick="enterPin(4)">4</button>
+                    <button onclick="enterPin(5)">5</button>
+                    <button onclick="enterPin(6)">6</button>
+                    <button onclick="enterPin(7)">7</button>
+                    <button onclick="enterPin(8)">8</button>
+                    <button onclick="enterPin(9)">9</button>
+                    <button class="key-empty"></button>
+                    <button onclick="enterPin(0)">0</button>
+                    <button class="key-delete" onclick="deletePin()"><i class="fa-solid fa-delete-left"></i></button>
+                </div>
+                
+                <div id="login-error" class="error-msg"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App (After Login) -->
+    <div id="app-screen" class="screen">
+        
+        <!-- Top Header -->
+        <header class="app-header">
+            <div class="header-user" onclick="navigateTo('profile')">
+                <div class="user-avatar" id="header-avatar">م</div>
+                <div class="user-info">
+                    <span class="user-name" id="header-name">مرحباً</span>
+                    <span class="user-role" id="header-role">موظف</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn sync-btn" onclick="manualSync()" title="مزامنة">
+                    <i class="fa-solid fa-sync"></i>
+                    <span class="pending-badge" id="pending-badge" style="display:none;">0</span>
+                </button>
+                <button class="icon-btn" onclick="checkInOut('check_in')"><i class="fa-solid fa-right-to-bracket"></i></button>
+                <button class="icon-btn" onclick="checkInOut('check_out')"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </header>
+
+        <!-- Page Container -->
+        <div class="page-container">
+            
+            <!-- Orders Page -->
+            <div id="page-orders" class="page active">
+                <div class="page-header">
+                    <h2>📦 الطلبات</h2>
+                    <button class="btn-refresh" onclick="loadOrders()"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+                
+                <div class="tabs-container">
+                    <button class="tab active" data-tab="prep" onclick="switchOrderTab('prep')">
+                        <i class="fa-solid fa-clock"></i> جاري التجهيز
+                        <span class="badge" id="badge-prep">0</span>
+                    </button>
+                    <button class="tab" data-tab="ready" onclick="switchOrderTab('ready')">
+                        <i class="fa-solid fa-check"></i> جاهز
+                        <span class="badge" id="badge-ready">0</span>
+                    </button>
+                    <button class="tab" data-tab="done" onclick="switchOrderTab('done')">
+                        <i class="fa-solid fa-truck"></i> تم التسليم
+                        <span class="badge" id="badge-done">0</span>
+                    </button>
+                </div>
+                
+                <div class="orders-list" id="orders-list">
+                    <!-- Order cards injected by JS -->
+                </div>
+            </div>
+
+            <!-- New Order Page -->
+            <div id="page-pos" class="page">
+                <div class="page-header">
+                    <h2>➕ طلب جديد</h2>
+                </div>
+                
+                <!-- Client Selection -->
+                <div class="form-section">
+                    <label>العميل</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="pos-client-search" placeholder="بحث عن عميل..." oninput="searchClients(this.value)">
+                        <button onclick="openNewClientModal()" style="width:auto; padding:0 15px; font-weight:bold;">+ جديد</button>
+                    </div>
+                    <div id="client-results" class="dropdown-results"></div>
+                    <div id="selected-client" class="selected-item" style="display:none;"></div>
+                </div>
+                
+                <!-- Product Search -->
+                <div class="form-section">
+                    <label>المنتجات</label>
+                    <input type="text" id="pos-product-search" placeholder="بحث عن منتج..." oninput="searchProducts(this.value)">
+                    <div id="product-results" class="dropdown-results"></div>
+                </div>
+                
+                <!-- Cart -->
+                <div class="cart-section">
+                    <h4>السلة</h4>
+                    <div id="cart-items" class="cart-items">
+                        <p class="empty-cart">السلة فارغة</p>
+                    </div>
+                    
+                    <div class="cart-summary">
+                        <div class="summary-row">
+                            <span>المجموع:</span>
+                            <span id="cart-subtotal">0</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>الخصم:</span>
+                            <input type="number" id="cart-discount" value="0" onchange="updateCartTotal()">
+                        </div>
+                        <div class="summary-row total">
+                            <span>الصافي:</span>
+                            <span id="cart-total">0</span>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-primary full-width" onclick="saveOrder()">
+                        <i class="fa-solid fa-save"></i> حفظ الطلب
+                    </button>
+                </div>
+            </div>
+
+            <!-- Products Page -->
+            <div id="page-products" class="page">
+                <div class="page-header">
+                    <h2>📦 المنتجات</h2>
+                </div>
+                
+                <input type="text" class="search-input" placeholder="🔍 بحث عن منتج..." oninput="filterProducts(this.value)">
+                
+                <div class="products-grid" id="products-grid">
+                    <!-- Product cards -->
+                </div>
+            </div>
+
+            <!-- Profile Page -->
+            <div id="page-profile" class="page">
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profile-avatar">م</div>
+                    <h2 id="profile-name">اسم الموظف</h2>
+                    <span class="profile-role" id="profile-role">موظف</span>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <i class="fa-solid fa-calendar-check"></i>
+                        <span class="stat-value" id="stat-days">0</span>
+                        <span class="stat-label">أيام الحضور</span>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-clock"></i>
+                        <span class="stat-value" id="stat-late">0</span>
+                        <span class="stat-label">تأخيرات</span>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-box"></i>
+                        <span class="stat-value" id="stat-orders">0</span>
+                        <span class="stat-label">طلبات</span>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fa-solid fa-sack-dollar"></i>
+                        <span class="stat-value" id="stat-comm">0</span>
+                        <span class="stat-label">عمولة</span>
+                    </div>
+                </div>
+                
+                <div class="profile-actions">
+                    <button class="btn-check-in" onclick="checkInOut('check_in')">
+                        <i class="fa-solid fa-right-to-bracket"></i> تسجيل حضور
+                    </button>
+                    <button class="btn-check-out" onclick="checkInOut('check_out')">
+                        <i class="fa-solid fa-right-from-bracket"></i> تسجيل انصراف
+                    </button>
+                </div>
+                
+                <button class="btn-logout" onclick="logout()">
+                    <i class="fa-solid fa-sign-out-alt"></i> تسجيل خروج
+                </button>
+            </div>
+
+            <!-- Floating Summon Button -->
+            <button class="fab-summon" onclick="summonStaff()" title="طلب استدعاء">
+                <i class="fa-solid fa-bell"></i>
+            </button>
+
+            <!-- Clients Page -->
+            <div id="page-clients" class="page">
+                <div class="page-header">
+                    <h2>👥 العملاء</h2>
+                    <div class="input-with-btn" style="width: auto;">
+                        <button onclick="openNewClientModal()" style="padding: 5px 15px;">+</button>
+                    </div>
+                </div>
+                <input type="text" class="search-input" placeholder="🔍 بحث عن عميل..." oninput="filterClientsPage(this.value)">
+                <div id="clients-list-page" style="display:flex; flex-direction:column; gap:10px; padding-bottom:80px;"></div>
+            </div>
+
+            <!-- Tasks Page -->
+            <div id="page-tasks" class="page">
+                <div class="page-header">
+                    <h2>📋 المهام</h2>
+                    <button class="btn-refresh" onclick="loadTasks()"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+                
+                <div class="tabs-container">
+                    <button class="tab active" data-tab="pending" onclick="switchTaskTab('pending')">
+                         قيد التنفيذ
+                    </button>
+                    <button class="tab" data-tab="done" onclick="switchTaskTab('done')">
+                        <i class="fa-solid fa-check-double"></i> المكتملة
+                    </button>
+                </div>
+                
+                <div id="tasks-list" class="orders-list"></div>
+            </div>
+
+            <!-- Chat Page -->
+            <div id="page-chat" class="page">
+                <div class="page-header">
+                    <h2>💬 المحادثات</h2>
+                </div>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages"></div>
+                    <div class="chat-input-area">
+                        <label for="chat-img-upload" class="btn-upload"><i class="fa-solid fa-image"></i></label>
+                        <input type="file" id="chat-img-upload" accept="image/*" style="display:none" onchange="previewChatImage(this)">
+                        <input type="text" class="chat-input" id="chat-input" placeholder="كتب رسالة...">
+                        <button class="icon-btn" onclick="sendChatMessage()" style="background:var(--primary); color:white;">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div id="chat-img-preview-container" style="display:none; padding:10px; background:#222; border-radius:10px; margin-top:5px; position:relative;">
+                        <img id="chat-img-preview" style="max-height:100px; border-radius:10px;">
+                        <button onclick="clearChatImage()" style="color:white; background:red; border:none; width:20px; height:20px; border-radius:50%; position:absolute; top:5px; right:5px; cursor:pointer;">X</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Production Page -->
+            <div id="page-production" class="page">
+                <div class="page-header">
+                    <h2>🏭 ملخص الإنتاج</h2>
+                    <button class="btn-refresh" onclick="loadProduction()"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+                <div id="production-list" style="padding-bottom:100px;"></div>
+            </div>
+
+            <!-- Inventory Page -->
+            <div id="page-inventory" class="page">
+                <div class="page-header">
+                    <h2>📦 جرد المخزون</h2>
+                    <button class="btn-refresh" onclick="loadInventory()"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+                <input type="text" class="search-input" placeholder="🔍 بحث عن منتج..." oninput="filterInventory(this.value)">
+                <div id="inventory-list" style="padding-bottom:100px; display:flex; flex-direction:column; gap:10px;"></div>
+            </div>
+
+            <!-- Laser Ops Page -->
+            <div id="page-laser" class="page">
+                <div class="page-header">
+                    <h2>🔴 غرفة عمليات الليزر</h2>
+                    <button class="btn-refresh" onclick="loadLaserOps()"><i class="fa-solid fa-rotate"></i></button>
+                </div>
+
+                <h4 style="color:#DC2626; margin:10px 0 5px;">📦 قائمة الإنتاج</h4>
+                <div id="laser-ops-products" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+                <h4 style="color:#f59e0b; margin:15px 0 5px;">🖼️ صور الليزر</h4>
+                <div id="laser-ops-images" style="display:flex; flex-direction:column; gap:8px; padding-bottom:100px;"></div>
+
+                <!-- Camera Upload FAB -->
+                <input type="file" id="laser-camera-input" accept="image/*" capture="camera" style="display:none" onchange="uploadLaserImage(this)">
+                <button onclick="document.getElementById('laser-camera-input').click()" 
+                    style="position:fixed; bottom:85px; left:20px; width:56px; height:56px; border-radius:50%; background:#DC2626; color:white; border:none; font-size:24px; box-shadow:0 4px 12px rgba(220,38,38,0.4); cursor:pointer; z-index:100;">
+                    📸
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="navigateTo('orders')">
+                <i class="fa-solid fa-clipboard-list"></i>
+                <span>الطلبات</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('clients')">
+                <i class="fa-solid fa-users"></i>
+                <span>العملاء</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('inventory')">
+                <i class="fa-solid fa-boxes-stacked"></i>
+                <span>الجرد</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('chat')">
+                <i class="fa-solid fa-comments"></i>
+                <span>المحادثة</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('laser')">
+                <i class="fa-solid fa-crosshairs" style="color:#DC2626;"></i>
+                <span>ليزر</span>
+            </button>
+            <button class="nav-item" onclick="navigateTo('profile')">
+                <i class="fa-solid fa-user"></i>
+                <span>حسابي</span>
+            </button>
+        </nav>
+        
+    </div>
+
+    <!-- New Client Modal -->
+    <div id="modal-client" class="modal-overlay">
+        <div class="modal-content">
+            <h3>اضافة عميل جديد</h3>
+            <div class="form-group">
+                <label>الاسم</label>
+                <input type="text" id="new-client-name" placeholder="اسم العميل">
+            </div>
+            <div class="form-group">
+                <label>رقم الهاتف</label>
+                <input type="tel" id="new-client-phone" placeholder="01xxxxxxxxx">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal('modal-client')">إلغاء</button>
+                <button class="btn-save" onclick="saveNewClient()">حفظ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div id="modal-order-details" class="modal-overlay">
+        <div class="modal-content" style="max-height:80vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 id="order-modal-title">تفاصيل الطلب</h3>
+                <button onclick="closeModal('modal-order-details')" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-primary);">×</button>
+            </div>
+            <div id="order-details-content"></div>
+        </div>
+    </div>
+
+    <!-- Client Statement Modal -->
+    <div id="modal-client-statement" class="modal-overlay">
+        <div class="modal-content" style="max-height:85vh; overflow-y:auto; width:95%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 id="statement-modal-title">كشف حساب</h3>
+                <button onclick="closeModal('modal-client-statement')" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-primary);">×</button>
+            </div>
+            <div id="client-statement-content"></div>
+        </div>
+    </div>
+
+
+    <script src="js/offline-queue.js"></script>
+    <script src="js/mobile.js"></script>
+    
+    <!-- Sync Toast Styles -->
+    <style>
+        .pending-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--danger);
+            color: white;
+            font-size: 10px;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sync-btn { position: relative; }
+        
+        .sync-toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            padding: 12px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 9999;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+        .sync-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .sync-toast.success { border-left: 4px solid var(--accent); }
+        .sync-toast.error { border-left: 4px solid var(--danger); }
+        
+        .offline-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--warning);
+            color: #1a1a1a;
+            padding: 5px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 9999;
+            display: none;
+        }
+        .offline-indicator.show { display: block; }
+    </style>
+</body>
+</html>

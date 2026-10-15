@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الخزنة والحسابات الذكية - Ramadan ERP</title>
+    
+    <!-- Modern Typography & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=2">
+    <link rel="stylesheet" href="css/accounts.css">
+    
+    <script type="text/javascript" src="/eel.js"></script>
+    <style>
+        body {
+            font-family: 'Cairo', 'Outfit', sans-serif !important;
+        }
+        /* Sidebar Active State override */
+        .nav-link.active-page {
+            background: var(--primary-grad) !important;
+            color: white !important;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3) !important;
+        }
+        
+        .glow-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-color);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--success-color);
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- SIDEBAR -->
+    <aside>
+        <div class="brand">🌙 Ramadan ERP</div>
+        <nav>
+            <a href="index.html" class="nav-link">
+                <span class="nav-icon">📊</span> الرئيسية (Dashboard)
+            </a>
+            <a href="#" class="nav-link active-page">
+                <span class="nav-icon">💰</span> الخزنة (Accounts)
+            </a>
+            <a href="index.html" class="nav-link">
+                <span class="nav-icon">⚙️</span> الإعدادات
+            </a>
+            <a href="index.html" class="nav-link">
+                <span class="nav-icon">👥</span> العملاء والديون
+            </a>
+            <a href="index.html" class="nav-link">
+                <span class="nav-icon">📦</span> المنتجات (الكتالوج)
+            </a>
+            <a href="index.html" class="nav-link">
+                <span class="nav-icon">📋</span> الطلبات
+            </a>
+            <a href="web/pos.html" class="nav-link">
+                <span class="nav-icon">🛒</span> الكاشير (POS)
+            </a>
+            <a href="index.html" class="nav-link">
+                <span class="nav-icon">🚚</span> المشتريات
+            </a>
+            <a href="staff.html" class="nav-link">
+                <span class="nav-icon">👔</span> الموظفين (Staff)
+            </a>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main style="padding: 40px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
+            <div>
+                <h1 class="page-title" style="font-weight:900; margin:0;">💰 الخزنة والتحليلات الذكية</h1>
+                <p style="color:var(--text-secondary); margin-top:5px; font-size:1.05em;">إدارة التدفقات النقدية، تتبع الالتزامات والتنبؤ بالأداء المالي</p>
+            </div>
+            <!-- Theme Toggle -->
+            <button class="btn btn-outline" onclick="toggleTheme()" style="padding: 10px 15px; border-radius: 12px; font-size: 1.2em;">🌓</button>
+        </div>
+
+        <!-- 3-TAB SWITCHER -->
+        <div class="modern-tabs">
+            <button class="modern-tab-btn active" id="btn_tab_revenue" onclick="switchTab('tab_revenue')">🟢 مركز الإيرادات</button>
+            <button class="modern-tab-btn" id="btn_tab_obligations" onclick="switchTab('tab_obligations')">🔴 الالتزامات والنواقص</button>
+            <button class="modern-tab-btn" id="btn_tab_insights" onclick="switchTab('tab_insights')">🔵 الأرشيف والتحليلات</button>
+        </div>
+
+        <!-- =======================================================
+             🟢 TAB 1: REVENUE & PROFIT CENTER
+             ======================================================= -->
+        <div id="tab_revenue" class="tab-content active">
+            <!-- 1. Hero Card: Cash in Drawer -->
+            <div class="hero-card" style="margin-bottom: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px;">
+                <div style="font-size:1.15em; font-weight:700; opacity:0.95; display:flex; justify-content:center; align-items:center; gap:8px;">
+                    <span class="glow-dot"></span> السيولة النقدية بالدرج الآن (Cash in Drawer)
+                </div>
+                <div class="hero-value" id="kpi_cash_on_hand" style="margin: 15px 0;">0.00</div>
+                <div style="font-size:0.95em; opacity:0.8; margin-bottom: 20px;">إجمالي المقبوضات مطروحاً منها كافة المصروفات المباشرة</div>
+                <div style="display:flex; gap:15px;">
+                    <button class="btn" onclick="openExpenseModal()" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 800; border-radius: 12px; padding: 10px 24px; font-size:1.05em; display:inline-flex; align-items:center; gap:8px; cursor:pointer; transition: all 0.3s ease;">
+                        💸 تسجيل مصروف (Record Expense)
+                    </button>
+                    <button class="btn" onclick="closeDailyShift()" style="background: rgba(255, 255, 255, 0.15); color: white; border: 1px solid rgba(255, 255, 255, 0.3); font-weight: 800; border-radius: 12px; padding: 10px 24px; font-size:1.05em; display:inline-flex; align-items:center; gap:8px; cursor:pointer; transition: all 0.3s ease;">
+                        🔒 غلق اليومية والوردية (Close Shift)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Financial KPI Grid -->
+            <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                <div class="kpi-card-glass">
+                    <div class="kpi-title">📈 الدخل الكلي (أسبوعي)</div>
+                    <div class="kpi-val-text" id="kpi_weekly_revenue" style="color:var(--success-color);">0.00</div>
+                    <div style="font-size:0.85em; color:var(--text-secondary); margin-top:5px;">إجمالي المقبوضات والمبيعات آخر 7 أيام</div>
+                </div>
+                <div class="kpi-card-glass">
+                    <div class="kpi-title">📦 تكلفة الخامات (أسبوعي)</div>
+                    <div class="kpi-val-text" id="kpi_weekly_cogs" style="color:var(--info-color);">0.00</div>
+                    <div style="font-size:0.85em; color:var(--text-secondary); margin-top:5px;">تكلفة المنتجات المباعة في آخر 7 أيام</div>
+                </div>
+                <div class="kpi-card-glass">
+                    <div class="kpi-title">📤 المصروفات والالتزامات (أسبوعي)</div>
+                    <div class="kpi-val-text" id="kpi_weekly_expenses_obligations" style="color:var(--danger-color);">0.00</div>
+                    <div style="font-size:0.85em; color:var(--text-secondary); margin-top:5px;">مصاريف المحل والالتزامات المدفوعة أسبوعياً</div>
+                </div>
+                <div class="kpi-card-glass" style="border-right: 4px solid var(--primary-color);">
+                    <div class="kpi-title">💎 صافي الربح (أسبوعي)</div>
+                    <div class="kpi-val-text" id="kpi_weekly_net_profit" style="color:var(--primary-color);">0.00</div>
+                    <div style="font-size:0.85em; color:var(--text-secondary); margin-top:5px;">صافي الربح الفعلي بعد خصم كافة التكاليف</div>
+                </div>
+                <div class="kpi-card-glass">
+                    <div class="kpi-title">👤 مسحوبات شخصية (أسبوعي)</div>
+                    <div class="kpi-val-text" id="kpi_weekly_personal_draws" style="color:var(--warning-color);">0.00</div>
+                    <div style="font-size:0.85em; color:var(--text-secondary); margin-top:5px;">إجمالي السحوبات الشخصية المسجلة أسبوعياً</div>
+                </div>
+                <div class="kpi-card-glass">
+                    <div class="kpi-title">👥 إجمالي ديون العملاء معاً</div>
+                    <div class="kpi-val-text" id="kpi_total_debt" style="color:#f59e0b;">0.00</div>
+                    <div style="font-size:0.85em; color:var(--text-secondary); margin-top:5px;">الذمم المالية المستحقة لجميع العملاء (كلي)</div>
+                </div>
+            </div>
+
+            <!-- 3. Advanced KPI Grid (Breakdown & Predictive Analytics) -->
+            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:25px; margin-bottom:30px;">
+                <!-- Predictive Analytics Card -->
+                <div class="glass-panel" style="border-right: 4px solid var(--primary-color);">
+                    <h3 style="margin-top:0; font-weight:800; display:flex; align-items:center; gap:8px;">🔮 محرك التنبؤ المالي الذكي (CFO Insights)</h3>
+                    <p style="color:var(--text-secondary); margin-bottom:20px;">بناءً على وتيرة مبيعاتك وأرباحك خلال الثلاثين يوماً الأخيرة، يقدر النظام التنبؤات التالية:</p>
+                    
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                        <div style="background:rgba(99, 102, 241, 0.06); padding:20px; border-radius:15px; border:1px solid rgba(99, 102, 241, 0.1);">
+                            <div style="font-size:0.9em; color:var(--text-secondary); font-weight:700;">صافي الربح الشهري المتوقع</div>
+                            <div style="font-size:2em; font-weight:900; color:var(--primary-color); margin-top:8px;" id="pred_monthly_profit">0.00 EGP</div>
+                            <div style="font-size:0.8em; color:var(--text-secondary); margin-top:5px;">محتسب على أساس المتوسط اليومي الفعلي</div>
+                        </div>
+
+                        <div style="background:rgba(16, 185, 129, 0.06); padding:20px; border-radius:15px; border:1px solid rgba(16, 185, 129, 0.1);">
+                            <div style="font-size:0.9em; color:var(--text-secondary); font-weight:700;">مقارنة التدفق النقدي اليومي</div>
+                            <div style="font-size:2em; font-weight:900; color:var(--success-color); margin-top:8px;" id="pred_today_vs_yesterday">0.0%</div>
+                            <div style="font-size:0.8em; color:var(--text-secondary); margin-top:5px;" id="comparison_label">مقارنة مبيعات اليوم مع الأمس</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Debt Breakdown -->
+                <div class="glass-panel">
+                    <h3 style="margin-top:0; font-weight:800;">👥 تفصيل الديون المعلقة</h3>
+                    <div style="margin-top:20px; display:flex; flex-direction:column; gap:15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700; color:var(--text-secondary);">ديون البيع بالجملة (Wholesale):</span>
+                            <span style="font-weight:900; font-size:1.15em;" id="kpi_wholesale_debt">0.00</span>
+                        </div>
+                        <div style="height:1px; background:rgba(148, 163, 184, 0.15);"></div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700; color:var(--text-secondary);">ديون قطاع التجزئة (Retail):</span>
+                            <span style="font-weight:900; font-size:1.15em;" id="kpi_retail_debt">0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- =======================================================
+             🔴 TAB 2: SMART OBLIGATIONS & EXPENSES
+             ======================================================= -->
+        <div id="tab_obligations" class="tab-content">
+            <div style="display:grid; grid-template-columns: 2fr 1fr; gap:30px;">
+                <!-- Obligations List & Smart Cuts -->
+                <div class="glass-panel">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="margin:0; font-weight:800;">📅 التزاماتك الشهرية المجدولة</h3>
+                        <button class="btn btn-primary" onclick="openObsModal()" style="border-radius:12px;">➕ التزام جديد</button>
+                    </div>
+
+                    <div id="scheduled_obs_list" style="display:flex; flex-direction:column; gap:15px;">
+                        <!-- JS Render -->
+                    </div>
+                </div>
+
+                <!-- Column 2: Shortages and Weekly COGS -->
+                <div style="display:flex; flex-direction:column; gap:20px;">
+                    <!-- Shortages (Low Stock/Required Materials) -->
+                    <div class="glass-panel" style="border-left: 4px solid var(--danger-color); margin-bottom:0;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                            <h3 style="margin:0; font-weight:800;">⚠️ النواقص والمواد المطلوبة</h3>
+                            <button class="btn btn-outline" onclick="openShortageModal()" style="border-radius:10px; padding:6px 12px; font-size:0.9em;">➕ إضافة نقص</button>
+                        </div>
+
+                        <div id="shortages_list" style="display:flex; flex-direction:column; gap:12px;">
+                            <!-- JS Render -->
+                        </div>
+                    </div>
+
+                    <!-- Weekly COGS & Purchase Export Card -->
+                    <div class="glass-panel" style="border-left: 4px solid var(--success-color);">
+                        <h3 style="margin-top:0; font-weight:800; display:flex; align-items:center; gap:8px;">📦 المواد المباعة أسبوعياً (COGS)</h3>
+                        <p style="color:var(--text-secondary); margin-bottom:15px; font-size:0.95em;">إجمالي تكلفة المنتجات المباعة في آخر 7 أيام والمطلوب إعادتها للمخزون:</p>
+                        <div style="background:rgba(16, 185, 129, 0.06); padding:15px; border-radius:12px; border:1px solid rgba(16, 185, 129, 0.1); text-align: center; margin-bottom: 15px;">
+                            <div style="font-size:0.85em; color:var(--text-secondary); font-weight:700;">تكلفة نواقص المبيعات (7 أيام)</div>
+                            <div style="font-size:1.8em; font-weight:900; color:var(--success-color); margin-top:6px;" id="kpi_weekly_cogs">0.00 EGP</div>
+                        </div>
+                        <button class="btn btn-success" onclick="exportToPurchases()" style="width:100%; font-weight:bold; border-radius:12px; padding:10px; cursor:pointer;">📤 تصدير النواقص للمشتريات الأسبوعية</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- =======================================================
+             🔵 TAB 3: LEDGER, ARCHIVE & INSIGHTS
+             ======================================================= -->
+        <div id="tab_insights" class="tab-content">
+            <!-- Floating Recommendation Card -->
+            <div class="rec-card" id="insights_recommendation_card">
+                <span style="font-size: 2em; line-height: 1;">💡</span>
+                <div>
+                    <h4 style="margin:0 0 5px 0; font-weight:800; color:var(--info-color);">توصية الإنتاج الذكية للـ ERP</h4>
+                    <p style="margin:0; font-size:0.95em; color:var(--text-primary);" id="insights_recommendation_text">
+                        يتم الآن تحليل المبيعات لتقديم توصيات ذكية...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Layout: Archive Timeline and Vault Ledger -->
+            <div style="display:flex; flex-direction:column; gap:30px;">
+                <!-- Chronological Vault Ledger -->
+                <div class="glass-panel">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <div>
+                            <h3 style="margin:0; font-weight:800;">📝 دفتر اليومية الشامل (Ledger)</h3>
+                            <p style="color:var(--text-secondary); margin:5px 0 0 0; font-size:0.9em;">جميع الحركات النقدية داخل وخارج الخزينة</p>
+                        </div>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <label for="filter_date_start" style="font-weight:bold;">من:</label>
+                            <input type="date" id="filter_date_start" style="padding:8px 12px; border-radius:8px;">
+                            <label for="filter_date_end" style="font-weight:bold;">إلى:</label>
+                            <input type="date" id="filter_date_end" style="padding:8px 12px; border-radius:8px;">
+                            <button class="btn btn-outline" onclick="loadLedger()" style="padding:8px 16px;">🔎 بحث</button>
+                            <button class="btn" onclick="openExpenseModal()" style="background-color: var(--danger-color); color: white; border-radius: 10px; padding: 8px 16px;">💸 تسجيل مصروف</button>
+                            <button class="btn btn-success" onclick="openTransModal()">➕ حركة مالية</button>
+                        </div>
+                    </div>
+
+                    <div class="table-container-glass">
+                        <table class="table-glass">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>✅</th>
+                                    <th>التاريخ والوقت</th>
+                                    <th>النوع</th>
+                                    <th>التصنيف</th>
+                                    <th style="text-align:left;">المبلغ (EGP)</th>
+                                    <th>البيان والملاحظات</th>
+                                    <th>الموظف</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledger_body">
+                                <!-- JS Render -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Daily Archive View -->
+                <div class="glass-panel">
+                    <h3 style="margin-top:0; font-weight:800;">📅 السجل والأرشيف المالي اليومي</h3>
+                    <p style="color:var(--text-secondary); margin-bottom:20px;">لقطات وموازنات الخزينة المرحلة عند إغلاق الأيام السابقة</p>
+
+                    <div class="table-container-glass">
+                        <table class="table-glass">
+                            <thead>
+                                <tr>
+                                    <th>التاريخ</th>
+                                    <th style="text-align:left;">رصيد الخزينة بالدرج (total_cash)</th>
+                                    <th style="text-align:left;">صافي الربح اليومي (total_profit)</th>
+                                    <th style="text-align:left;">مصروفات اليوم (total_expenses)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="archive_body">
+                                <!-- JS Render -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- TOAST BOX -->
+    <div id="toast" class="toast-box">
+        <span id="toast_icon">🔔</span>
+        <span id="toast_msg"></span>
+    </div>
+
+    <!-- MODAL: ADD TRANSACTION -->
+    <div id="transModal" class="modal-overlay">
+        <div class="modal-content" style="width: 500px;">
+            <div style="padding: 25px;">
+                <h2 style="margin-bottom:20px; font-weight:800;">تسجيل معاملة بالخزينة</h2>
+
+                <div class="trans-type-select">
+                    <div class="trans-option selected" id="opt_income" onclick="setTransType('Income')" style="border-radius:12px;">📥 قبض إيراد (Income)</div>
+                    <div class="trans-option expense" id="opt_expense" onclick="setTransType('Expense')" style="border-radius:12px;">📤 صرف مصروف (Expense)</div>
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">التصنيف</label>
+                    <input list="cat_list" id="t_cat" placeholder="اختر أو اكتب تصنيفاً..." style="width:100%;">
+                    <datalist id="cat_list"></datalist>
+                </div>
+
+                <div class="form-group" style="margin-top:15px; display: none;" id="expense_type_group">
+                    <label style="font-weight:bold;">نوع المصروف</label>
+                    <select id="t_expense_type" style="width:100%; padding:10px; border-radius:8px;">
+                        <option value="Business">🏢 مصروفات عمل (تخصم من الإيراد)</option>
+                        <option value="Personal">👤 مسحوبات شخصية (تخصم من الربح)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">المبلغ</label>
+                    <input type="number" id="t_amount" placeholder="0.00" style="width:100%;">
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">البيان/الوصف</label>
+                    <input type="text" id="t_desc" placeholder="ملاحظات تفصيلية..." style="width:100%;">
+                </div>
+
+                <div class="modal-footer" style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeModal('transModal')" style="border-radius:10px;">إلغاء</button>
+                    <button class="btn btn-primary" onclick="saveTransaction()" style="border-radius:10px;">حفظ المعاملة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD EXPENSE SPECIFIC -->
+    <div id="expenseModal" class="modal-overlay">
+        <div class="modal-content" style="width: 450px;">
+            <div style="padding: 25px;">
+                <h3 style="font-weight:900; margin-top:0;">تسجيل مصروف جديد 💸</h3>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">التصنيف</label>
+                    <input list="cat_list" id="exp_cat" placeholder="اختر أو اكتب تصنيفاً..." style="width:100%;">
+                </div>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">نوع المصروف</label>
+                    <select id="exp_expense_type" style="width:100%; padding:10px; border-radius:8px;">
+                        <option value="Business">🏢 مصروف عمل (يخصم من الإيراد الكلي)</option>
+                        <option value="Personal">👤 مسحوبات شخصية (تخصم من الربح الصافي)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">المبلغ</label>
+                    <input type="number" id="exp_amount" placeholder="0.00" style="width:100%;">
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">البيان/الوصف</label>
+                    <input type="text" id="exp_desc" placeholder="ملاحظات تفصيلية..." style="width:100%;">
+                </div>
+
+                <div class="modal-footer" style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeModal('expenseModal')" style="border-radius:10px;">إلغاء</button>
+                    <button class="btn btn-primary" onclick="saveExpenseOnly()" style="border-radius:10px; background-color: var(--danger-color); border-color: var(--danger-color);">تسجيل المصروف</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD OBLIGATION -->
+    <div id="obsModal" class="modal-overlay">
+        <div class="modal-content" style="width: 450px;">
+            <div style="padding: 25px;">
+                <h3 style="font-weight:900; margin-top:0;">إضافة التزام مالي مجدول</h3>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">عنوان الالتزام (مثال: إيجار المقر، فاتورة الكهرباء)</label>
+                    <input type="text" id="ob_title" placeholder="أدخل العنوان..." style="width:100%;">
+                </div>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">المبلغ الإجمالي المستحق شهرياً</label>
+                    <input type="number" id="ob_total_monthly" placeholder="0.00" style="width:100%;">
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">قيمة القسط الأسبوعي المستهدف</label>
+                    <input type="number" id="ob_weekly_target" placeholder="0.00" style="width:100%;">
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">تاريخ الاستحقاق الشهري القادم</label>
+                    <input type="date" id="ob_next_due" style="width:100%;">
+                </div>
+
+                <div class="modal-footer" style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeModal('obsModal')" style="border-radius:10px;">إلغاء</button>
+                    <button class="btn btn-primary" onclick="saveObligation()" style="border-radius:10px;">حفظ الالتزام</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT OBLIGATION -->
+    <div id="editObsModal" class="modal-overlay">
+        <div class="modal-content" style="width: 450px;">
+            <div style="padding: 25px;">
+                <h3 style="font-weight:900; margin-top:0;">تعديل التزام مالي مجدول</h3>
+                <input type="hidden" id="edit_ob_id">
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">عنوان الالتزام</label>
+                    <input type="text" id="edit_ob_title" placeholder="أدخل العنوان..." style="width:100%;">
+                </div>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">المبلغ الإجمالي المستحق شهرياً</label>
+                    <input type="number" id="edit_ob_total_monthly" placeholder="0.00" style="width:100%;">
+                </div>
+
+                <div class="modal-footer" style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeModal('editObsModal')" style="border-radius:10px;">إلغاء</button>
+                    <button class="btn btn-primary" onclick="saveEditObligation()" style="border-radius:10px;">حفظ التعديلات</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: OBLIGATION HISTORY -->
+    <div id="obHistoryModal" class="modal-overlay">
+        <div class="modal-content" style="width: 600px; max-width: 90%;">
+            <div style="padding: 25px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3 style="font-weight:900; margin:0;" id="ob_history_title">سجل سداد الالتزام</h3>
+                    <button class="btn btn-outline" onclick="exportObHistoryCSV()" style="padding: 6px 12px; font-size: 0.9em; font-weight: bold; border-color: var(--success-color); color: var(--success-color);">📥 تصدير CSV</button>
+                </div>
+                <input type="hidden" id="history_ob_id">
+                <input type="hidden" id="history_ob_total">
+                <input type="hidden" id="history_ob_name">
+
+                <div class="table-container-glass" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table-glass">
+                       <thead>
+                           <tr>
+                               <th>التاريخ</th>
+                               <th>نوع القسط</th>
+                               <th style="text-align:left;">المبلغ المدفوع (EGP)</th>
+                               <th style="text-align:left;">المجمع الكلي</th>
+                           </tr>
+                       </thead>
+                       <tbody id="ob_history_body">
+                           <!-- JS Render -->
+                       </tbody>
+                    </table>
+                </div>
+
+                <div class="modal-footer" style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeModal('obHistoryModal')" style="border-radius:10px;">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD SHORTAGE -->
+    <div id="shortageModal" class="modal-overlay">
+        <div class="modal-content" style="width: 400px;">
+            <div style="padding: 25px;">
+                <h3 style="font-weight:900; margin-top:0;">إضافة مادة أو خامة ناقصة</h3>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">اسم الخامة الناقصة</label>
+                    <input type="text" id="sh_name" placeholder="مثال: ألواح أكريليك شفاف 4 مم..." style="width:100%;">
+                </div>
+                
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">التكلفة التقديرية للقطعة</label>
+                    <input type="number" id="sh_cost" placeholder="0.00" style="width:100%;">
+                </div>
+
+                <div class="form-group" style="margin-top:15px;">
+                    <label style="font-weight:bold;">الكمية المطلوبة</label>
+                    <input type="number" id="sh_qty" value="1" min="1" style="width:100%;">
+                </div>
+
+                <div class="modal-footer" style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeModal('shortageModal')" style="border-radius:10px;">إلغاء</button>
+                    <button class="btn btn-primary" onclick="saveShortage()" style="border-radius:10px;">إضافة للنواقص</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const API_BASE = 'http://localhost:7777/api';
+        let currentType = 'Income';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Theme setup
+            if (localStorage.getItem('theme') === 'dark' || (window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('theme'))) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+
+            // Set default date range (Current Month)
+            const date = new Date();
+            const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split('T')[0];
+            const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
+            document.getElementById('filter_date_start').value = firstDay;
+            document.getElementById('filter_date_end').value = lastDay;
+
+            // Load all data
+            refreshAllData();
+            loadCategories();
+        });
+
+        // Toggle Dark/Light Theme
+        function toggleTheme() {
+            if (document.documentElement.getAttribute('data-theme') === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Switch Tabs with clean animations
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.modern-tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            
+            // Map tabId to button element
+            let btnId = 'btn_' + tabId;
+            document.getElementById(btnId).classList.add('active');
+            
+            // Refresh data context based on active tab
+            if (tabId === 'tab_revenue') {
+                refreshStatsOnly();
+            } else if (tabId === 'tab_obligations') {
+                loadObligations();
+                loadShortages();
+            } else if (tabId === 'tab_insights') {
+                loadAnalytics();
+                loadLedger();
+                loadArchive();
+            }
+        }
+
+        // Show sweet custom toast
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast_icon');
+            icon.innerText = type === 'success' ? '✅' : '⚠️';
+            document.getElementById('toast_msg').innerText = msg;
+            toast.classList.add('active');
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 3000);
+        }
+
+        // Modal Helpers
+        function openTransModal() { document.getElementById('transModal').classList.add('active'); }
+        function openObsModal() { document.getElementById('obsModal').classList.add('active'); }
+        function openShortageModal() { document.getElementById('shortageModal').classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        // --- PHASE 2 AJAX OPERATIONS ---
+
+        // Refresh absolutely everything
+        function refreshAllData() {
+            refreshStatsOnly();
+            loadDebtBreakdown();
+            loadObligations();
+            loadShortages();
+            loadAnalytics();
+            loadLedger();
+            loadArchive();
+        }
+
+        async function refreshStatsOnly() {
+            try {
+                const res = await fetch(`${API_BASE}/financial/stats`);
+                const data = await res.json();
+                document.getElementById('kpi_cash_on_hand').textContent = formatCurrency(data.cash_on_hand || 0);
+                document.getElementById('kpi_total_debt').textContent = formatCurrency(data.total_debt || 0);
+            } catch (e) {
+                console.error("Error refreshing stats:", e);
+            }
+        }
+
+        // Sum client debts based on type
+        async function loadDebtBreakdown() {
+            try {
+                const res = await fetch(`${API_BASE}/mobile/clients`);
+                const clients = await res.json();
+                let wholesaleDebt = 0;
+                let retailDebt = 0;
+                clients.forEach(c => {
+                    const bal = parseFloat(c.balance || 0);
+                    if (c.type === 'Wholesale') {
+                        wholesaleDebt += bal;
+                    } else {
+                        retailDebt += bal;
+                    }
+                });
+                document.getElementById('kpi_wholesale_debt').textContent = formatCurrency(wholesaleDebt);
+                document.getElementById('kpi_retail_debt').textContent = formatCurrency(retailDebt);
+            } catch (e) {
+                console.error("Error loading debt breakdown:", e);
+            }
+        }
+
+        // Fetch & render scheduled obligations
+        async function loadObligations() {
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations`);
+                const obs = await res.json();
+                const container = document.getElementById('scheduled_obs_list');
+                container.innerHTML = '';
+
+                if (obs.length === 0) {
+                    container.innerHTML = '<div style="text-align:center; color:var(--text-secondary); padding:40px;">لا توجد التزامات مجدولة حالياً.</div>';
+                    return;
+                }
+
+                obs.forEach(o => {
+                    const total = o.total_monthly_amount || 1;
+                    const accumulated = o.accumulated_amount || 0;
+                    const pct = Math.min(100, Math.round((accumulated / total) * 100));
+                    
+                    let badgeClass = 'tag-due';
+                    let badgeText = 'مستحق الدفع الأسبوعي';
+                    if (pct >= 100) {
+                        badgeClass = 'tag-paid';
+                        badgeText = 'تم الدفع 100%';
+                    } else if (pct > 0) {
+                        badgeClass = 'tag-paid';
+                        badgeText = `جاري التحصيل (${pct}%)`;
+                    }
+
+                    const div = document.createElement('div');
+                    div.className = 'item-card';
+                    div.innerHTML = `
+                        <div style="flex:1;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                                <span style="font-weight:900; font-size:1.15em;">${o.title}</span>
+                                <span class="${badgeClass}">${badgeText}</span>
+                            </div>
+                            <div style="font-size:0.9em; color:var(--text-secondary); margin-bottom: 8px;">موعد الاستحقاق: ${o.next_due_date}</div>
+                            
+                            <!-- Progress Bar -->
+                            <div class="progress-container" style="margin-bottom: 5px;">
+                                <div class="progress-fill" style="width: ${pct}%;"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.85em; color:var(--text-secondary); font-weight:bold; margin-bottom: 8px;">
+                                <span>المجمع: ${formatCurrency(accumulated)}</span>
+                                <span>المطلوب: ${formatCurrency(total)}</span>
+                            </div>
+
+                            <!-- Tracking Progress Counters -->
+                            <div style="display:flex; gap:15px; font-size:0.85em; color:var(--text-secondary); background:rgba(255,255,255,0.03); padding:6px 12px; border-radius:8px; width: fit-content;">
+                                <span>📅 أيام السداد: <strong style="color:var(--primary-color);">${o.paid_days || 0} يوم</strong></span>
+                                <span>🗓️ أسابيع السداد: <strong style="color:var(--success-color);">${o.paid_weeks || 0} أسبوع</strong></span>
+                            </div>
+                        </div>
+                        <div style="margin-right: 25px; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+                            <div style="display:flex; gap:8px;">
+                                ${pct < 100 ? `<button class="btn btn-success" style="padding:6px 12px; border-radius:8px; font-size:0.85em;" onclick="executeDailyPay(${o.id})">📅 سداد يومي (${formatCurrency(o.daily_target_amount || 0, false)} ج.م)</button>` : ''}
+                                ${pct < 100 ? `<button class="btn btn-primary" style="padding:6px 12px; border-radius:8px; font-size:0.85em;" onclick="executeWeeklyPay(${o.id})">🗓️ سداد أسبوعي (${formatCurrency(o.weekly_target_amount || 0, false)} ج.م)</button>` : ''}
+                            </div>
+                            <div style="display:flex; gap:10px; align-items:center; margin-top: 5px;">
+                                <button style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:0.95em; padding:3px; display:flex; align-items:center; gap:4px;" onclick="openEditObsModal(${o.id}, '${o.title.replace(/'/g, "\\'")}', ${total})">✏️ تعديل</button>
+                                <button style="background:none; border:none; color:var(--info-color); cursor:pointer; font-size:0.95em; padding:3px; display:flex; align-items:center; gap:4px;" onclick="openObHistoryModal(${o.id}, '${o.title.replace(/'/g, "\\'")}', ${total})">🗓️ سجل السداد</button>
+                                <button style="background:none; border:none; color:var(--danger-color); cursor:pointer; font-size:0.95em; padding:3px; display:flex; align-items:center; gap:4px;" onclick="deleteObligation(${o.id})">🗑️ حذف</button>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (e) {
+                console.error("Error loading obligations:", e);
+            }
+        }
+
+        async function saveObligation() {
+            const title = document.getElementById('ob_title').value;
+            const total = document.getElementById('ob_total_monthly').value;
+            const weekly = document.getElementById('ob_weekly_target').value;
+            const due = document.getElementById('ob_next_due').value;
+
+            if (!title || !total || !weekly || !due) {
+                return alert('يرجى ملء جميع الحقول المطلوبة!');
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: title,
+                        total_monthly_amount: parseFloat(total),
+                        weekly_deduction_target: parseFloat(weekly),
+                        next_due_date: due
+                    })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast('تمت إضافة الالتزام بنجاح!');
+                    closeModal('obsModal');
+                    // Reset inputs
+                    document.getElementById('ob_title').value = '';
+                    document.getElementById('ob_total_monthly').value = '';
+                    document.getElementById('ob_weekly_target').value = '';
+                    document.getElementById('ob_next_due').value = '';
+                    loadObligations();
+                } else alert(j.message);
+            } catch (err) { console.error(err); }
+        }
+
+        async function deleteObligation(id) {
+            if (!confirm('هل تريد فعلاً حذف هذا الالتزام المالي؟')) return;
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations/${id}`, {
+                    method: 'DELETE'
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast('تم حذف الالتزام المالي.');
+                    loadObligations();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function openEditObsModal(id, title, total) {
+            document.getElementById('edit_ob_id').value = id;
+            document.getElementById('edit_ob_title').value = title;
+            document.getElementById('edit_ob_total_monthly').value = total;
+            document.getElementById('editObsModal').classList.add('active');
+        }
+
+        async function saveEditObligation() {
+            const id = document.getElementById('edit_ob_id').value;
+            const title = document.getElementById('edit_ob_title').value;
+            const total = document.getElementById('edit_ob_total_monthly').value;
+
+            if (!title || !total) return alert('يرجى ملء جميع الحقول المطلوبة!');
+
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: title,
+                        total_monthly_amount: parseFloat(total)
+                    })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast('تم تعديل الالتزام بنجاح!');
+                    closeModal('editObsModal');
+                    loadObligations();
+                } else alert(j.message);
+            } catch (err) { console.error(err); }
+        }
+
+        async function openObHistoryModal(id, title, total) {
+            document.getElementById('history_ob_id').value = id;
+            document.getElementById('history_ob_total').value = total;
+            document.getElementById('history_ob_name').value = title;
+            document.getElementById('ob_history_title').textContent = `سجل سداد الالتزام: ${title}`;
+            
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations/${id}/history`);
+                const history = await res.json();
+                
+                const tbody = document.getElementById('ob_history_body');
+                tbody.innerHTML = '';
+                
+                if (history.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-secondary); padding:20px;">لا توجد دفعات مسجلة لهذا الالتزام حتى الآن.</td></tr>';
+                } else {
+                    let accumulatedSum = 0;
+                    // Sort ascending to calculate accumulated sum chronologically
+                    const sortedHistory = [...history].reverse();
+                    
+                    const rowsHtml = sortedHistory.map(h => {
+                        accumulatedSum += h.amount_paid;
+                        const dateStr = new Date(h.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+                        const typeStr = h.payment_type === 'daily' ? '📅 سداد يومي' : '🗓️ سداد أسبوعي';
+                        return `
+                            <tr>
+                                <td>${dateStr}</td>
+                                <td><span class="tag-paid" style="background: rgba(99,102,241,0.1); color: var(--primary-color);">${typeStr}</span></td>
+                                <td style="font-weight:bold; font-feature-settings: 'tnum'; text-align:left;">${formatCurrency(h.amount_paid, false)}</td>
+                                <td style="font-weight:900; font-feature-settings: 'tnum'; text-align:left; color:var(--success-color);">${formatCurrency(accumulatedSum, false)}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    // Display descending (newest first)
+                    tbody.innerHTML = rowsHtml.reverse().join('');
+                }
+                
+                document.getElementById('obHistoryModal').classList.add('active');
+            } catch (e) {
+                console.error("Error loading obligation history:", e);
+                showToast("فشل تحميل سجل سداد الالتزام.", "warning");
+            }
+        }
+
+        async function exportObHistoryCSV() {
+            const id = document.getElementById('history_ob_id').value;
+            const title = document.getElementById('history_ob_name').value;
+            
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations/${id}/history`);
+                const history = await res.json();
+                
+                if (history.length === 0) {
+                    return alert("لا توجد بيانات لتصديرها!");
+                }
+                
+                let csvContent = "\ufeff"; // Add BOM for excel Arabic encoding support
+                csvContent += "التاريخ والوقت,نوع السداد,المبلغ المدفوع (EGP)\n";
+                
+                history.forEach(h => {
+                    const dateStr = new Date(h.date).toLocaleString('ar-EG');
+                    const typeStr = h.payment_type === 'daily' ? "سداد يومي" : "سداد أسبوعي";
+                    csvContent += `"${dateStr}","${typeStr}",${h.amount_paid}\n`;
+                });
+                
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `سجل_سداد_${title.replace(/\s+/g, '_')}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (e) {
+                console.error("Error exporting obligation history:", e);
+                alert("فشل تصدير سجل السداد.");
+            }
+        }
+
+        async function executeDailyPay(id) {
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations/${id}/pay_daily`, {
+                    method: 'POST'
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast(`تم خصم قسط يومي بقيمة ${formatCurrency(j.deduction)} ج.م من الدرج!`);
+                    refreshStatsOnly();
+                    loadObligations();
+                } else showToast(j.error || j.message, 'warning');
+            } catch (err) { console.error(err); }
+        }
+
+        async function executeWeeklyPay(id) {
+            try {
+                const res = await fetch(`${API_BASE}/financial/scheduled_obligations/${id}/pay_weekly`, {
+                    method: 'POST'
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast(`تم خصم قسط أسبوعي بقيمة ${formatCurrency(j.deduction)} ج.م من الدرج!`);
+                    refreshStatsOnly();
+                    loadObligations();
+                } else showToast(j.error || j.message, 'warning');
+            } catch (err) { console.error(err); }
+        }
+
+        async function closeDailyShift() {
+            if (!confirm('⚠️ هل أنت متأكد من رغبتك في غلق الوردية اليومية الحالية؟ سيتم ترحيل كافة المبيعات والأرباح وتصفير مؤشرات التدفق المالي لوردية جديدة.')) return;
+            try {
+                const res = await fetch(`${API_BASE}/financial/shift/close`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user: 'System' })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    alert(`✅ تم إغلاق الوردية بنجاح!\n\n📅 تفاصيل الوردية المغلقة (#${j.shift_id}):\n💵 إجمالي الإيراد: ${formatCurrency(j.total_revenue)}\n📉 إجمالي التكلفة (COGS): ${formatCurrency(j.total_cost)}\n💎 صافي الأرباح: ${formatCurrency(j.net_profit)}`);
+                    refreshAllData();
+                } else {
+                    alert('خطأ في إغلاق الوردية: ' + (j.message || j.error));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('فشل الاتصال بالخادم لإغلاق الوردية.');
+            }
+        }
+
+        async function exportToPurchases() {
+            if (!confirm('⚠️ هل أنت متأكد من رغبتك في تصدير النواقص للمشتريات الأسبوعية؟\nسيقوم النظام بتجميع كافة القطع المباعة في آخر 7 أيام وإنشاء مسودة فاتورة مشتريات معلقة لتغذية المخزون، وتسجيل قيمتها كمعاملة مصروفات في الخزينة.')) return;
+            try {
+                const res = await fetch(`${API_BASE}/financial/export_to_purchases`, {
+                    method: 'POST'
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast(`✅ تم تصدير ${j.items_count} من النواقص لقطاع المشتريات بنجاح! فاتورة رقم: #${j.invoice_id}، القيمة الإجمالية: ${formatCurrency(j.total_cost)}`);
+                    refreshAllData();
+                } else {
+                    alert('خطأ في التصدير: ' + (j.message || j.error));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('فشل الاتصال بالخادم لتصدير المشتريات.');
+            }
+        }
+
+        // Fetch & render shortages
+        async function loadShortages() {
+            try {
+                const res = await fetch(`${API_BASE}/financial/shortages`);
+                const shs = await res.json();
+                const container = document.getElementById('shortages_list');
+                container.innerHTML = '';
+
+                if (shs.length === 0) {
+                    container.innerHTML = '<div style="text-align:center; color:var(--text-secondary); padding:20px;">لا توجد نواقص مطلوبة (كله تمام)</div>';
+                    return;
+                }
+
+                shs.forEach(s => {
+                    const total_est = s.estimated_cost * s.qty;
+                    const div = document.createElement('div');
+                    div.style.background = 'rgba(239, 68, 68, 0.03)';
+                    div.style.borderRight = '3px solid var(--danger-color)';
+                    div.className = 'item-card';
+                    div.innerHTML = `
+                        <div style="flex:1;">
+                            <div style="font-weight:900; font-size:1.05em; color:var(--text-primary);">${s.name}</div>
+                            <div style="font-size:0.85em; color:var(--text-secondary); margin-top:3px;">
+                                الكمية المطلوبة: ${s.qty} × ${formatCurrency(s.estimated_cost, false)} (التكلفة: ${formatCurrency(total_est)})
+                            </div>
+                        </div>
+                        <div style="margin-right:15px;">
+                            <button class="btn btn-outline" style="border-color:var(--danger-color); color:var(--danger-color); padding:6px 12px; font-size:0.85em;" onclick="executeShortagePurchase(${s.id})">🛒 تنفيذ شراء</button>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (e) {
+                console.error("Error loading shortages:", e);
+            }
+        }
+
+        async function saveShortage() {
+            const name = document.getElementById('sh_name').value;
+            const cost = document.getElementById('sh_cost').value;
+            const qty = document.getElementById('sh_qty').value;
+
+            if (!name || !cost) return alert('يرجى ملء البيانات المطلوبة!');
+
+            try {
+                const res = await fetch(`${API_BASE}/financial/shortages`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        name: name,
+                        estimated_cost: parseFloat(cost),
+                        qty: parseInt(qty)
+                    })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast('تمت إضافة النواقص بنجاح!');
+                    closeModal('shortageModal');
+                    // Reset inputs
+                    document.getElementById('sh_name').value = '';
+                    document.getElementById('sh_cost').value = '';
+                    document.getElementById('sh_qty').value = '1';
+                    loadShortages();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function executeShortagePurchase(id) {
+            try {
+                const res = await fetch(`${API_BASE}/financial/shortages/${id}/purchase`, {
+                    method: 'POST'
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast(`تم شراء المادة الناقصة وسحب ${formatCurrency(j.total_cost)} ج.م من الدرج!`);
+                    refreshStatsOnly();
+                    loadShortages();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // Fetch & render predictive analytics
+        async function loadAnalytics() {
+            try {
+                const res = await fetch(`${API_BASE}/financial/analytics`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    document.getElementById('pred_monthly_profit').textContent = formatCurrency(data.expected_monthly_profit);
+                    
+                    // Set Evolved Weekly KPIs
+                    if (document.getElementById('kpi_weekly_revenue')) {
+                        document.getElementById('kpi_weekly_revenue').textContent = formatCurrency(data.weekly_revenue || 0);
+                    }
+                    if (document.getElementById('kpi_weekly_cogs')) {
+                        document.getElementById('kpi_weekly_cogs').textContent = formatCurrency(data.weekly_cogs || 0);
+                    }
+                    if (document.getElementById('kpi_weekly_expenses_obligations')) {
+                        const weeklyExpAndOblig = (data.weekly_business_expenses || 0) + (data.weekly_obligations_paid || 0);
+                        document.getElementById('kpi_weekly_expenses_obligations').textContent = formatCurrency(weeklyExpAndOblig);
+                    }
+                    if (document.getElementById('kpi_weekly_net_profit')) {
+                        document.getElementById('kpi_weekly_net_profit').textContent = formatCurrency(data.weekly_net_profit || 0);
+                    }
+                    if (document.getElementById('kpi_weekly_personal_draws')) {
+                        document.getElementById('kpi_weekly_personal_draws').textContent = formatCurrency(data.weekly_personal_draws || 0);
+                    }
+                    
+                    // Comparison percentage
+                    const pct = data.comparison.percentage;
+                    const compEl = document.getElementById('pred_today_vs_yesterday');
+                    const labelEl = document.getElementById('comparison_label');
+                    
+                    compEl.textContent = `${pct >= 0 ? '+' : ''}${pct}%`;
+                    if (pct >= 0) {
+                        compEl.style.color = 'var(--success-color)';
+                        labelEl.textContent = `نمو بمقدار ${formatCurrency(data.comparison.today_income - data.comparison.yesterday_income, false)} ج.م مقارنة بالأمس`;
+                    } else {
+                        compEl.style.color = 'var(--danger-color)';
+                        labelEl.textContent = `انخفاض التدفق مقارنة بالأمس`;
+                    }
+                    
+                    // Recommendation prompt
+                    document.getElementById('insights_recommendation_text').textContent = data.recommendation;
+                }
+            } catch (e) {
+                console.error("Error loading analytics:", e);
+            }
+        }
+
+        // Fetch & render daily archive list
+        async function loadArchive() {
+            try {
+                const res = await fetch(`${API_BASE}/financial/archive`);
+                const arch = await res.json();
+                const tbody = document.getElementById('archive_body');
+                tbody.innerHTML = '';
+
+                if (arch.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-secondary); padding:20px;">لا توجد لقطات تاريخية مؤرشفة حتى الآن.</td></tr>';
+                    return;
+                }
+
+                arch.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold;">${r.date}</td>
+                        <td style="font-feature-settings: 'tnum'; text-align:left; font-weight:800;">${formatCurrency(r.total_cash, false)} EGP</td>
+                        <td style="font-feature-settings: 'tnum'; text-align:left; color:${r.total_profit >= 0 ? 'var(--success-color)' : 'var(--danger-color)'}; font-weight:800;">${formatCurrency(r.total_profit, false)} EGP</td>
+                        <td style="font-feature-settings: 'tnum'; text-align:left; color:var(--danger-color);">${formatCurrency(r.total_expenses, false)} EGP</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                console.error("Error loading archive:", e);
+            }
+        }
+
+        // Fetch & render ledger rows (Original Ledger updated with Glassmorphism)
+        async function loadLedger() {
+            const start = document.getElementById('filter_date_start').value;
+            const end = document.getElementById('filter_date_end').value;
+
+            try {
+                const res = await fetch(`${API_BASE}/financial/ledger?start=${start}&end=${end}`);
+                const rows = await res.json();
+                const tbody = document.getElementById('ledger_body');
+                tbody.innerHTML = '';
+
+                if (rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-secondary); padding:20px;">لا توجد معاملات مسجلة ضمن هذه التواريخ.</td></tr>';
+                    return;
+                }
+
+                rows.forEach(r => {
+                    const tr = document.createElement('tr');
+                    
+                    // Style row by type
+                    if (r.type === 'Income') tr.style.background = 'rgba(16, 185, 129, 0.02)';
+                    if (r.type === 'Expense') tr.style.background = 'rgba(239, 68, 68, 0.02)';
+
+                    const dateStr = new Date(r.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+                    const verified = r.is_verified ? 'checked' : '';
+
+                    tr.innerHTML = `
+                        <td>${r.id}</td>
+                        <td><input type="checkbox" class="verify-check" ${verified} onclick="toggleVerify(${r.id}, this.checked)"></td>
+                        <td style="font-size:0.9em; color:var(--text-secondary);">${dateStr}</td>
+                        <td><span class="${r.type === 'Income' ? 'text-income' : 'text-expense'}">${r.type === 'Income' ? '📥 قبض' : '📤 صرف'}</span></td>
+                        <td><span class="cat-badge" style="background:rgba(148, 163, 184, 0.1); color:var(--text-primary); font-weight:bold; padding:4px 8px; border-radius:6px; font-size:0.85em;">${r.category || '-'}</span></td>
+                        <td style="font-weight:900; font-feature-settings: 'tnum'; text-align:left; color:${r.type === 'Income' ? 'var(--success-color)' : 'var(--danger-color)'}">${formatCurrency(r.amount, false)}</td>
+                        <td style="font-size:0.95em;">${r.notes || ''}</td>
+                        <td>${r.user || ''}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        async function toggleVerify(id, status) {
+            await fetch(`${API_BASE}/financial/verify_transaction`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: id, verified: status })
+            });
+            showToast('تم تعديل حالة تدقيق المعاملة.');
+        }
+
+        // Save new transaction via Modal
+        async function saveTransaction() {
+            const category = document.getElementById('t_cat').value;
+            const amount = document.getElementById('t_amount').value;
+            const description = document.getElementById('t_desc').value;
+            const expenseType = document.getElementById('t_expense_type').value;
+            
+            if (!category || !amount) return alert('أدخل البيانات المطلوبة!');
+
+            try {
+                const res = await fetch(`${API_BASE}/financial/transaction`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        type: currentType,
+                        category: category,
+                        amount: parseFloat(amount),
+                        description: description,
+                        expense_type: expenseType
+                    })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast('تم حفظ المعاملة بالخزينة!');
+                    closeModal('transModal');
+                    // Reset inputs
+                    document.getElementById('t_cat').value = '';
+                    document.getElementById('t_amount').value = '';
+                    document.getElementById('t_desc').value = '';
+                    refreshAllData();
+                    loadCategories();
+                } else alert(j.message);
+            } catch (e) { console.error(e); }
+        }
+
+        function setTransType(type) {
+            currentType = type;
+            document.getElementById('opt_income').classList.remove('selected');
+            document.getElementById('opt_expense').classList.remove('selected');
+            const expGroup = document.getElementById('expense_type_group');
+            if (type === 'Income') {
+                document.getElementById('opt_income').classList.add('selected');
+                if (expGroup) expGroup.style.setProperty('display', 'none', 'important');
+            } else {
+                document.getElementById('opt_expense').classList.add('selected');
+                if (expGroup) expGroup.style.setProperty('display', 'block', 'important');
+            }
+        }
+
+        async function loadCategories() {
+            try {
+                const res = await fetch(`${API_BASE}/financial/categories`);
+                const cats = await res.json();
+                const datalist = document.getElementById('cat_list');
+                datalist.innerHTML = '';
+                cats.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    datalist.appendChild(opt);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        function openExpenseModal() {
+            document.getElementById('expenseModal').classList.add('active');
+        }
+
+        async function saveExpenseOnly() {
+            const category = document.getElementById('exp_cat').value;
+            const amount = document.getElementById('exp_amount').value;
+            const description = document.getElementById('exp_desc').value;
+            const expenseType = document.getElementById('exp_expense_type').value;
+            
+            if (!category || !amount) return alert('أدخل البيانات المطلوبة!');
+
+            try {
+                const res = await fetch(`${API_BASE}/financial/transaction`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        type: 'Expense',
+                        category: category,
+                        amount: parseFloat(amount),
+                        description: description,
+                        expense_type: expenseType
+                    })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast('تم تسجيل المصروف بنجاح!');
+                    closeModal('expenseModal');
+                    // Reset inputs
+                    document.getElementById('exp_cat').value = '';
+                    document.getElementById('exp_amount').value = '';
+                    document.getElementById('exp_desc').value = '';
+                    refreshAllData();
+                    loadCategories();
+                } else alert(j.message);
+            } catch (e) { console.error(e); }
+        }
+
+        function formatCurrency(val, withSuffix = true) {
+            return parseFloat(val).toLocaleString('en-US', { minimumFractionDigits: 2 }) + (withSuffix ? ' EGP' : '');
+        }
+
+    </script>
+</body>
+</html>

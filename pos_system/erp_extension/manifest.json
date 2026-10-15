@@ -1,0 +1,43 @@
+{
+    "manifest_version": 3,
+    "name": "Elnagar ERP Sync",
+    "version": "2.1",
+    "description": "Bridge between WhatsApp Web and Elnagar ERP",
+    "permissions": [
+        "sidePanel",
+        "activeTab",
+        "scripting"
+    ],
+    "host_permissions": [
+        "*://web.whatsapp.com/*",
+        "http://127.0.0.1:7777/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },
+    "action": {
+        "default_title": "Open Side Panel"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://web.whatsapp.com/*"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ],
+    "commands": {
+        "toggle_side_panel": {
+            "suggested_key": {
+                "default": "Alt+Q",
+                "mac": "Alt+Q"
+            },
+            "description": "Open/Close Elnagar POS"
+        }
+    }
+}

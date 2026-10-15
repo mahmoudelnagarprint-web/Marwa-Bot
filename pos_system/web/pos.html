@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS - Ramadan ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 900: '#1a1a1a', 800: '#2d2d2d', 700: '#3d3d3d' },
+                        primary: '#3b82f6',
+                        accent: '#10b981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #1a1a1a; color: #e5e5e5; font-family: 'Segoe UI', sans-serif; }
+         /* Hide Scrollbar for cleaner POS look */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    
+    <!-- Header -->
+    <header class="h-16 bg-dark-800 border-b border-dark-700 flex items-center justify-between px-6 shrink-0">
+        <div class="flex items-center">
+             <a href="index.html" class="mr-4 p-2 bg-dark-700 rounded hover:bg-dark-600 transition-colors">◀ Back</a>
+             <h1 class="text-xl font-bold">🛒 Point of Sale</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+             <div class="text-right">
+                 <p class="text-xs text-gray-400">Cashier</p>
+                 <p class="font-bold">Mahmoud</p>
+             </div>
+             <div class="h-10 w-10 bg-primary rounded-full flex items-center justify-center font-bold">M</div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- LEFT: Product Selection & Search (60%) -->
+        <div class="w-3/5 bg-dark-900 flex flex-col border-r border-dark-700">
+            
+            <!-- Search Bar -->
+            <div class="p-4 border-b border-dark-700 flex gap-2">
+                <input type="text" placeholder="🔍 Scan Barcode or Search Product..." class="flex-1 bg-dark-800 border border-dark-700 rounded-lg px-4 py-3 focus:outline-none focus:border-primary text-lg">
+                <select class="bg-dark-800 border border-dark-700 rounded-lg px-4 py-3 focus:outline-none">
+                    <option>All Categories</option>
+                    <option>Tablets</option>
+                    <option>Decor</option>
+                </select>
+            </div>
+
+            <!-- Products Grid -->
+            <div class="flex-1 p-4 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 content-start">
+                <!-- Mock Product Cards -->
+                <div class="bg-dark-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all group relative">
+                    <div class="h-32 bg-gray-700 flex items-center justify-center text-gray-500">
+                        Image
+                    </div>
+                    <div class="p-3">
+                        <h4 class="font-bold truncate">Islamic Frame XL</h4>
+                        <div class="flex justify-between items-center mt-1">
+                            <span class="text-accent font-bold">150.00</span>
+                            <span class="text-xs text-gray-400">Stock: 45</span>
+                        </div>
+                    </div>
+                </div>
+                 <!-- Repeat for demo -->
+                 <div class="bg-dark-800 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all group relative">
+                    <div class="h-32 bg-gray-700 flex items-center justify-center text-gray-500">Image</div>
+                    <div class="p-3">
+                        <h4 class="font-bold truncate">Ramadan lantern</h4>
+                        <div class="flex justify-between items-center mt-1">
+                            <span class="text-accent font-bold">75.00</span>
+                            <span class="text-xs text-gray-400">Stock: 12</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inline Add Product (Quick) -->
+            <div class="p-3 bg-dark-800 border-t border-dark-700 text-center">
+                <button class="text-primary hover:text-white text-sm font-medium">+ Add New Custom Item</button>
+            </div>
+        </div>
+
+        <!-- RIGHT: Current Order / Cart (40%) -->
+        <div class="w-2/5 bg-dark-800 flex flex-col shadow-2xl z-10">
+            
+            <!-- Client Selector -->
+            <div class="p-4 bg-dark-800 border-b border-dark-700">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-400 uppercase font-bold">Client</span>
+                    <button class="text-xs text-primary">+ New Client</button>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" placeholder="Select Client..." class="w-full bg-dark-900 border border-dark-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary">
+                    <button class="px-3 bg-dark-700 rounded hover:bg-dark-600">👤</button>
+                </div>
+                <div class="mt-2 flex gap-4 text-xs">
+                     <span class="text-gray-400">Balance: <span class="text-red-400">500.00 EGP</span></span>
+                     <span class="text-gray-400">Limit: <span class="text-white">1000.00</span></span>
+                </div>
+            </div>
+
+            <!-- Cart Items (Scrollable) -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2">
+                <!-- Cart Item Row -->
+                <div class="flex items-center justify-between bg-dark-700 p-3 rounded-lg group">
+                    <div class="flex-1">
+                        <h5 class="font-bold text-sm">Islamic Frame XL</h5>
+                        <div class="text-xs text-gray-400">Box</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <input type="number" value="1" class="w-12 bg-dark-900 border border-dark-600 rounded px-1 text-center text-sm">
+                        <div class="text-right w-16">
+                            <div class="font-bold text-sm">150.00</div>
+                        </div>
+                        <button class="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">×</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer / Totals -->
+            <div class="bg-dark-900 p-6 border-t border-dark-700">
+                <div class="space-y-2 mb-4">
+                    <div class="flex justify-between text-sm text-gray-400">
+                        <span>Subtotal</span>
+                        <span>150.00</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-400">
+                        <span>Tax</span>
+                        <span>0.00</span>
+                    </div>
+                    <div class="flex justify-between text-xl font-bold text-white pt-2 border-t border-dark-700 mt-2">
+                        <span>Total</span>
+                        <span class="text-accent">150.00 EGP</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button class="py-3 bg-dark-700 rounded-lg hover:bg-dark-600 font-bold">Save Draft</button>
+                    <button class="py-3 bg-accent hover:bg-emerald-600 text-white rounded-lg font-bold shadow-lg shadow-emerald-900/50">Pay Now 💸</button>
+                    <button class="py-3 col-span-2 border border-dark-600 rounded-lg text-gray-400 hover:text-white hover:border-gray-400 text-sm">Export as PNG 📸</button>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Eel JS -->
+    <script type="text/javascript" src="/eel.js"></script>
+</body>
+</html>

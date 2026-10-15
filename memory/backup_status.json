@@ -1,0 +1,12 @@
+{
+  "time": "2026-10-11T06:00:02",
+  "ok": true,
+  "db_file": "pos_data_2026-10-11_0600.db",
+  "db_bytes": 217088,
+  "zip_file": "agent_workspace_2026-10-11_0600.zip",
+  "row_counts": {
+    "clients": 52,
+    "orders": 50,
+    "transactions": 92
+  }
+}

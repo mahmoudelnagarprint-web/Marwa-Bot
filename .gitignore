@@ -1,0 +1,68 @@
+# ==============================================================================
+# Marwa-Bot .gitignore — الحماية من تسريب الأسرار والبيانات
+# Owner order 2026-10-14: this file MUST protect .env, LAPTOP_SECRET_KIT.md,
+# database files and backups. Never loosen it without an explicit owner decision.
+# ==============================================================================
+
+# ---------- SECRETS: ممنوع دخولها المستودع نهائياً ----------
+.env
+.env.*
+!.env.example
+LAPTOP_SECRET_KIT.md
+*.key
+*.pem
+*.p12
+*.pickle
+token.json
+token.pickle
+credentials*.json
+client_secret*.json
+client_secret_*.json
+*serviceAccount*.json
+firebase_service_account.json
+*.private.json
+
+# ---------- DATABASES + BACKUPS: البيانات تُبنى من السحابة ولا تُرفع ----------
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+*.db.bak-*
+*.bak
+*.bak-*
+*.sqlite
+*.sqlite3
+backup/
+Backups/
+backups/
+*.dump
+
+# ---------- LOGS + RUNTIME STATE ----------
+*.log
+logs/
+runtime_logs/
+_last_backup.txt
+telegram_import_now.flag
+
+# ---------- PYTHON ----------
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# ---------- HEAVY LOCAL-ONLY TREES (نسخ اختبار وصور وأرشيفات) ----------
+_sandbox_pos_writer/
+pos_images/
+orders/
+debug_images/
+.firebase/
+
+# ---------- DUPLICATE SKILL TREES (النسخة المعتمدة: .agents/skills) ----------
+.claude/
+agent/
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini

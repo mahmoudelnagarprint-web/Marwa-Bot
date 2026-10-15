@@ -1,0 +1,88 @@
+# -*- coding: utf-8 -*-
+"""
+Elnagar POS — Local Orchestrator core (Phase 1).
+Composes the registry, routes a message, runs the chosen sub-agent, and returns a
+CLEAN ARABIC reply. Callable from supabase_sync.pull_queue (action='orchestrate').
+"""
+
+from __future__ import annotations
+
+import sys
+from typing import Any, Dict, Optional
+
+from .base import AgentRegistry
+from .agents import build_registry
+
+
+class Orquesta:
+    """المنسق العام — بيستقبل كلام المستخدم → يوجه للوكيل الصح → رد عربي نظيف."""
+
+    def __init__(self, registry: Optional[AgentRegistry] = None):
+        self.registry = registry or build_registry()
+
+    def route(self, text: str) -> Dict[str, Any]:
+        return self.registry.route_report(text)
+
+    def handle(self, text: str) -> Dict[str, Any]:
+        agent = self.registry.route(text)
+        if agent is None:
+            self._record(None, text, [], {"reply": "", "action": None}, "unrouted")
+            return {
+                "reply": (
+                    "مقدرش أحدد نيتك لحالها — احكيلنا اللي محتاجه وأنا أبعته القسم الصح. 🧠"
+                ),
+                "agent_id": None,
+            }
+        t = (text or "").lower()
+        matched = [k for k in agent.keywords if k and k.lower() in t]
+        try:
+            result = agent.handle(text)
+            error = None
+        except Exception as exc:  # honest failure: report + record, never invent
+            result = {
+                "reply": (
+                    f"حصل خطأ داخل وحدة «{agent.name}» — ما افترضتش أي نتيجة. "
+                    "التفاصيل اتحطت في سجل الخبرة، وابعتها للمالك فورًا."
+                ),
+                "action": None,
+                "payload": {},
+            }
+            error = f"{type(exc).__name__}: {exc}"
+        self._record(agent.agent_id, text, matched, result, error)
+        reply = (result or {}).get("reply") or "تمام، تمام."
+        return {"reply": reply, "agent_id": agent.agent_id}
+
+    @staticmethod
+    def _record(agent_id, text, matched, result, error) -> None:
+        """Best-effort ledger write — never breaks the reply flow."""
+        try:
+            from .agents.meta_agent import MetaAgent
+
+            MetaAgent.record_invocation(agent_id, text, matched, result, error)
+        except Exception:
+            pass
+
+
+# --------------------------------------------------------------------- CLI
+def main(argv=None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Elnagar POS Local Orchestrator (Phase 1)")
+    ap.add_argument("--route", type=str, help="اختبار التوجيه: --route 'كلمة'")
+    ap.add_argument("--message", type=str, help="تشغيل المعالجة الكاملة: --message 'رساله'")
+    args = ap.parse_args(argv)
+    o = Orquesta()
+    if args.route is not None:
+        report = o.route(args.route)
+        print(report)
+        return 0
+    if args.message is not None:
+        out = o.handle(args.message)
+        print(out.get("reply"))
+        return 0
+    ap.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
