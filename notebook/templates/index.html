@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>النوتبوك الذكية — النجار برنت</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% macro note_card(n, kind_labels, priority_labels, show_when=False) %}
+<div class="note {{ 'done' if n.status == 'done' else '' }}">
+  <div class="top">
+    <div class="title">#{{ n.id }} — {{ n.title or '(بدون عنوان)' }}</div>
+    <div class="meta">
+      <span class="chip" style="background: {{ n.category_color or '#94a3b8' }}">{{ n.category_emoji or '📁' }} {{ n.category or 'غير مصنف' }}</span>
+      <span class="badge {{ n.priority }}">{{ priority_labels.get(n.priority, n.priority) }}</span>
+      <span class="badge">{{ kind_labels.get(n.kind, n.kind) }}</span>
+      {% if n.due_at %}<span class="badge">📅 {{ n.due_at }}</span>{% endif %}
+      {% if n.remind_at %}<span class="badge">⏰ {{ n.remind_at }}</span>{% endif %}
+      {% if n.remind_every and n.remind_every != 'none' %}<span class="badge">🔁 {{ n.remind_every }}</span>{% endif %}
+    </div>
+  </div>
+  {% if n.body and n.body != n.title %}<div class="body">{{ n.body }}</div>{% endif %}
+  {% if n.question %}<div class="body">❓ {{ n.question }}</div>{% endif %}
+  <div class="actions">
+    {% if n.status == 'open' %}
+      <a class="btn sm ok" href="{{ url_for('done', note_id=n.id) }}">تم</a>
+      <a class="btn sm warn" href="{{ url_for('snooze', note_id=n.id) }}?minutes=60">تأجيل ساعة</a>
+      <form class="inline" method="post" action="{{ url_for('setwhen', note_id=n.id) }}">
+        <input type="text" name="when" placeholder="ميعاد جديد (بكرة 5)">
+        <button class="btn sm ghost">حدّد</button>
+      </form>
+      <form class="inline" method="post" action="{{ url_for('categorize', note_id=n.id) }}">
+        <input type="text" name="category" placeholder="تصنيف" list="catlist">
+        <button class="btn sm ghost">نقل</button>
+      </form>
+    {% else %}
+      <a class="btn sm ghost" href="{{ url_for('reopen', note_id=n.id) }}">رجّعها</a>
+    {% endif %}
+    <form class="inline" method="post" action="{{ url_for('delete', note_id=n.id) }}" onsubmit="return confirm('تأكيد الحذف؟');">
+      <button class="btn sm danger">حذف</button>
+    </form>
+  </div>
+</div>
+{% endmacro %}
+<header class="hero">
+  <div class="hero-inner">
+    <div>
+      <h1>💡 النوتبوك الذكية</h1>
+      <div class="sub">اكتب أي حاجة بالعربي — وأنا أفهمها، أصنّفها، وأفكّرك بيها</div>
+    </div>
+    <div class="clock">🕒 {{ now }}</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="stats">
+    <div class="stat"><b>{{ stats.open }}</b><span>مفتوح</span></div>
+    <div class="stat ok"><b>{{ stats.done }}</b><span>تم</span></div>
+    <div class="stat"><b>{{ stats.tasks }}</b><span>مهام</span></div>
+    <div class="stat"><b>{{ stats.ideas }}</b><span>أفكار</span></div>
+    <div class="stat danger"><b>{{ stats.overdue }}</b><span>متأخر</span></div>
+    <div class="stat warn"><b>{{ stats.due_today }}</b><span>ميعاده النهاردة</span></div>
+    <div class="stat warn"><b>{{ stats.need_help }}</b><span>محتاج توضيح</span></div>
+    <div class="stat"><b>{{ stats.categories }}</b><span>تصنيفات</span></div>
+  </div>
+
+  <div class="card brand capture">
+    <h2>✍️ اكتب نوت أو مهمة أو فكرة</h2>
+    <textarea id="capture-text" placeholder="مثال: فكرني بكرة الساعة 5 أسلّم طلب جهاااد&#10;مثال: فكرة برنامج لتسجيل طلبات الليزر بالخامات&#10;مثال: لازم أشتري خشب MDF مهم"></textarea>
+    <div class="row">
+      <button class="btn" onclick="capture()">سجّل الآن</button>
+      <span class="hint">الشكل الحر مقبول: «بكرة»، «الساعة 5»، «كل يوم»، «مهم»، «#تصنيف»</span>
+    </div>
+    <div id="result"></div>
+  </div>
+
+  {% if due %}
+  <div class="card warn">
+    <h2>⏰ مستحق الآن ({{ due|length }})</h2>
+    {% for n in due %}
+      {{ note_card(n, kind_labels, priority_labels, show_when=True) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if late %}
+  <div class="card danger">
+    <h2>🔴 متأخر ({{ late|length }})</h2>
+    {% for n in late %}
+      {{ note_card(n, kind_labels, priority_labels, show_when=True) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if need_help %}
+  <div class="card warn">
+    <h2>❓ محتاج توضيح منك ({{ need_help|length }})</h2>
+    {% for n in need_help %}
+      <div class="note">
+        <div class="title">#{{ n.id }} — {{ n.title }}</div>
+        {% if n.question %}<div class="body">❓ {{ n.question }}</div>{% endif %}
+        <div class="actions">
+          <form class="inline" method="post" action="{{ url_for('categorize', note_id=n.id) }}">
+            <input type="text" name="category" placeholder="التصنيف" list="catlist">
+            <button class="btn sm ghost">حدّد التصنيف</button>
+          </form>
+          <form class="inline" method="post" action="{{ url_for('setwhen', note_id=n.id) }}">
+            <input type="text" name="when" placeholder="الميعاد: بكرة الساعة 5">
+            <button class="btn sm ghost">حدّد الميعاد</button>
+          </form>
+          <a class="btn sm" href="{{ url_for('done', note_id=n.id) }}">تم</a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <h2>📋 القائمة</h2>
+        <div class="tabs">
+          <a class="tab {{ 'active' if not filters.kind and filters.status == 'open' }}" href="{{ url_for('index') }}">الكل مفتوح</a>
+          <a class="tab {{ 'active' if filters.kind == 'task' }}" href="{{ url_for('index', kind='task') }}">✅ مهام</a>
+          <a class="tab {{ 'active' if filters.kind == 'program_idea' }}" href="{{ url_for('index', kind='program_idea') }}">🚀 أفكار برامج</a>
+          <a class="tab {{ 'active' if filters.kind == 'note' }}" href="{{ url_for('index', kind='note') }}">📝 نوتس</a>
+          <a class="tab {{ 'active' if filters.kind == 'reminder' }}" href="{{ url_for('index', kind='reminder') }}">⏰ تذكيرات</a>
+          <a class="tab {{ 'active' if filters.status == 'done' }}" href="{{ url_for('index', status='done') }}">🏁 تم</a>
+          <a class="tab {{ 'active' if filters.status == 'all' }}" href="{{ url_for('index', status='all') }}">📚 الكل</a>
+        </div>
+        <form class="row" method="get" action="{{ url_for('index') }}">
+          <input type="text" name="q" value="{{ filters.q }}" placeholder="ابحث في النوتس...">
+          <button class="btn sm ghost">بحث</button>
+        </form>
+        {% if notes %}
+          {% for n in notes %}
+            {{ note_card(n, kind_labels, priority_labels, show_when=True) }}
+          {% endfor %}
+        {% else %}
+          <div class="empty">مفيش حاجة هنا لسه — اكتب أول نوت فوق ☝️</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h3>🗂️ التصنيفات</h3>
+        <div class="cats">
+          {% for c in categories %}
+            <a class="cat" style="background: {{ c.color }}" href="{{ url_for('index', category=c.name) }}">{{ c.emoji }} {{ c.name }} <span>({{ c.count }})</span></a>
+          {% endfor %}
+        </div>
+        <form class="row" method="post" action="{{ url_for('api_categories') }}">
+          <input type="text" name="name" placeholder="تصنيف جديد">
+          <button class="btn sm ghost">أضف</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>🕘 آخر الحركات</h3>
+        <ul class="events">
+          {% for e in events %}
+            <li>{{ e.at[5:16] }} — {{ e.type }}{% if e.note_id %} (#{{ e.note_id }}){% endif %} {{ e.detail }}</li>
+          {% else %}
+            <li class="empty">لسه مفيش حركات</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>🔌 التقاط من برّه</h3>
+        <div class="hint">
+          واجهة برمجية جاهزة:<br>
+          <code>POST /api/capture {"text": "..."}</code><br>
+          <code>GET /api/due</code> — المستحق الآن
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="catlist">
+    {% for c in categories %}<option value="{{ c.name }}">{% endfor %}
+  </datalist>
+
+  <footer>النوتبوك الذكية — تحت إدارة مروة 💙 | قاعدة البيانات محلية ومستبعدة من GitHub</footer>
+</div>
+
+<script>
+async function capture() {
+  const box = document.getElementById('capture-text');
+  const out = document.getElementById('result');
+  const text = (box.value || '').trim();
+  if (!text) { out.innerHTML = '<div class="err-box">اكتب حاجة الأول 🙂</div>'; return; }
+  out.innerHTML = '<div class="hint">بفهم وأصنّف...</div>';
+  try {
+    const r = await fetch('/api/capture', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text, source: 'ui'})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      out.innerHTML = '<div class="ok-box">' + data.message + '</div>';
+      box.value = '';
+      setTimeout(() => location.reload(), 1400);
+    } else {
+      out.innerHTML = '<div class="err-box">' + (data.error || 'مشكلة') + '</div>';
+    }
+  } catch (e) {
+    out.innerHTML = '<div class="err-box">فشل الاتصال بالواجهة: ' + e + '</div>';
+  }
+}
+document.getElementById('capture-text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) capture();
+});
+</script>
+</body>
+</html>
