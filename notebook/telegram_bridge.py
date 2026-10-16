@@ -122,12 +122,13 @@ class Telegram:
             log(f"send failed: {res.get('error')}")
         return bool(res.get("ok"))
 
-    def get_updates(self, offset: int, timeout: int = 25) -> List[Dict[str, Any]]:
+    def get_updates(self, offset: int, timeout: int = 25) -> Optional[List[Dict[str, Any]]]:
+        """يُرجع قائمة التحديثات، أو None عند فشل الشبكة (يفرّق عن الفراغ الصحي)."""
         res = self.call("getUpdates", {"offset": offset, "timeout": timeout, "allowed_updates": '["message"]'},
                         timeout=timeout + 15)
         if not res.get("ok"):
             log(f"getUpdates failed: {res.get('error')}")
-            return []
+            return None
         return res.get("result") or []
 
     def webhook_url(self) -> str:
@@ -363,6 +364,12 @@ def poll_loop(tg: Telegram, allowed: set, state: Dict[str, Any], stop: threading
               once: bool = False) -> None:
     while not stop.is_set():
         updates = tg.get_updates(int(state.get("offset") or 0))
+        if updates is None:
+            # شبكة واقعة — مهلة قبل المحاولة الجاية (بلا لوب محموم)
+            if once:
+                return
+            stop.wait(20)
+            continue
         for update in updates:
             state["offset"] = int(update.get("update_id", 0)) + 1
             handle_update(tg, update, allowed, state)
