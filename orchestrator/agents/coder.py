@@ -60,8 +60,10 @@ class CoderAgent(SubAgent):
     def __init__(self):
         super().__init__(
             agent_id="coder",
-            name="الكودر (Coder Agent)",
+            name="فيجن — وكيل الكودر (Coder Agent)",
             keywords=[
+                # ── اسم النداء (قرار المالك 2026-10-16): «فيجن» = وكيل الكودر.
+                "فيجن", "فجن", "vision",
                 "راجع الكود", "كودر", "فحص بايثون", "شف البرمجيات",
                 "git", "github", "مستودع", "repo", "كوميت", "commit",
                 "فرع", "branch", "مرج", "merge", "سحب", "pull", "دفع", "push",
