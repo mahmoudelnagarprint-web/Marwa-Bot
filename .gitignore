@@ -44,6 +44,9 @@ runtime_logs/
 _last_backup.txt
 telegram_import_now.flag
 
+# ---------- NOTEBOOK RUNTIME (بيانات النوتبوك محلية ولا تُرفع) ----------
+notebook/data/
+
 # ---------- PYTHON ----------
 __pycache__/
 *.pyc
