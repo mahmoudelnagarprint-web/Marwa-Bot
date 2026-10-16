@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Optional
 
 from ..base import SubAgent
 
-ROOT = Path(__file__).resolve().parent.parent.parent          # G:\ai\Elnagar POS
+ROOT = Path(__file__).resolve().parent.parent.parent          # جذر المشروع (Marwa-Bot)
 COMPILE_DIR = ROOT                                            # نطاق البحث الأوسع
-LEDGER = Path(r"G:\ai\Naggar Print POS Agent\memory\experience_ledger.json")
+LEDGER = ROOT / "memory" / "experience_ledger.json"           # نسبي للجذر — يتحرك مع المشروع
 CAP = 10
 EXCLUDE_DIRS = {
     ".venv", "venv", "env", "node_modules", "__pycache__", "Backups",
@@ -96,7 +96,7 @@ class CoderAgent(SubAgent):
         return None
 
     def _compile_check(self) -> Dict[str, Any]:
-        files = _safe_py_files(ROOT, 60)
+        files = _safe_py_files(ROOT)          # كل الملفات الآمنة — بلا سقف صامت
         errs: List[Dict[str, Any]] = []
         checked = 0
         for p in files:
@@ -181,7 +181,7 @@ class CoderAgent(SubAgent):
         if not is_repo:
             return self._reply(
                 "Git/GitHub",
-                "المشروع (G:\\ai\\Elnagar POS) مش مستودع Git لسه — .gitignore موجود أصلًا. "
+                "المشروع مش مستودع Git لسه — .gitignore موجود أصلًا. "
                 "لو عايزه مستودع قولي «هيئ Git» وبيكون بأمرك (git init + أول commit بموافقتك).")
         try:
             branch = subprocess.run(["git", "-C", str(ROOT), "branch", "--show-current"],
@@ -204,7 +204,7 @@ class CoderAgent(SubAgent):
             return self._reply("Git/GitHub", f"❌ فشل قراءة git ({type(exc).__name__}: {exc}).")
 
     def _project_health(self) -> Dict[str, Any]:
-        files = _safe_py_files(ROOT, 60)
+        files = _safe_py_files(ROOT)          # كل الملفات الآمنة — العد الحقيقي
         total_lines = 0
         sizes: List[Dict[str, Any]] = []
         for p in files:
@@ -269,7 +269,7 @@ class CoderAgent(SubAgent):
             wrap = (
                 f"# أداة خارجية: {repo_name}\n"
                 f"- المصدر: https://github.com/{owner_repo}\n"
-                f"- الاستنساخ: {dest} (بأمر المالك {datetime.now().isoformat()})\n"
+                f"- الاستنساخ: {dest} (بأمر المالك {_dt.now().isoformat()})\n"
                 f"- الاستخدام: استدعاء عبر system_worker/coder — شغّلها كأمر منفصل بلا كتابة على الإنتاج.\n"
                 f"- المسار معزول (tools\\github\\) ولا يُفحص ضمن البحث الآمن افتراضيًا.\n"
             )
