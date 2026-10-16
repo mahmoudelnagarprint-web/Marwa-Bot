@@ -138,14 +138,16 @@ class Telegram:
 # ------------------------------------------------------------------ الأوامر
 HELP = (
     "💡 النوتبوك الذكية — اكتب أي حاجة وأنا أسجّلها وأصنّفها.\n"
-    "أوامر سريعة:\n"
+    "أوامر سريعة (الرسالة كلها لازم تكون الأمر بس):\n"
     "• «المستحق» — اللي ميعاده جه أو فات\n"
     "• «قائمتي» — المفتوح كله\n"
     "• «الملخص» — ملخص شامل مع اقتراح\n"
     "• «تم 5» — اقفل النوت رقم 5\n"
-    "• «أجّل 5 ساعة» — تأجيل ساعة\n"
+    "• «أجّل 5» أو «أجّل 5 يوم» — تأجيل\n"
     "• «صنّف 5 حسابات» — نقل لتصنيف\n"
-    "• «فكرني بكرة الساعة 5 ...» — مهمة بميعاد"
+    "• «احذف 5» — حذف نهائي للنوت\n"
+    "• «مساعدة» — القائمة دي\n"
+    "\nوأي رسالة تانية = نوت جديد يتحلّل ويتصنّف لوحده."
 )
 
 
@@ -157,6 +159,11 @@ def _fmt_note(n: Dict[str, Any], with_body: bool = False) -> str:
     if with_body and n.get("body") and n["body"] != n.get("title"):
         line += f"\n   {n['body'][:160]}"
     return line
+
+
+def _is_exact(low: str, *words: str) -> bool:
+    """مطابقة أمر قصير بالكامل (بعد التطبيع) — تمنع نفاذ الأوامر جوه نوت طويل."""
+    return any(low == brain.normalize(w) for w in words)
 
 
 def digest_text() -> str:
@@ -188,16 +195,20 @@ def digest_text() -> str:
 
 
 def route_message(text: str) -> str:
-    """يحوّل رسالة المالك إلى رد — أمر أو نوت جديد."""
+    """يحوّل رسالة المالك إلى رد — أمر أو نوت جديد.
+
+    الأوامر لازم تكون الرسالة كلها (مطابقة كاملة أو رقم بعنوان واضح) —
+    عشان نوت عادي فيه كلمة «تم» أو «قائمة» ما يتفسرش كأمر بالغلط.
+    """
     t = (text or "").strip()
     if not t:
         return "ابعتلي نص النوت 🙂"
     low = brain.normalize(t)
 
-    if low in ("/start", "بدايه", "بداية", "مساعده", "مساعدة", "/help", "help"):
+    if _is_exact(low, "/start", "/help", "help", "بداية", "مساعدة", "ابدأ"):
         return HELP
 
-    if any(k in low for k in ("المستحق", "/due", "الميعاد اللي جه", "اللي فات")):
+    if _is_exact(low, "/due", "المستحق", "اللي فات", "المواعيد"):
         due, late = store.due_now(), store.overdue()
         if not due and not late:
             return "✅ مفيش حاجة مستحقة دلوقتي."
@@ -210,16 +221,16 @@ def route_message(text: str) -> str:
             out += [f"   • {_fmt_note(n)}" for n in due[:8]]
         return "\n".join(out)
 
-    if any(k in low for k in ("قائمتي", "/list", "المفتوح", "كل المهام")):
+    if _is_exact(low, "/list", "قائمتي", "قائمة", "المفتوح", "كل المهام", "المهام"):
         notes = store.list_notes(status="open")
         if not notes:
             return "القايمة فاضية — اكتب أول نوت 💡"
         return f"📋 المفتوح ({len(notes)}):\n" + "\n".join(_fmt_note(n) for n in notes[:12])
 
-    if any(k in low for k in ("الملخص", "/digest", "ملخص")):
+    if _is_exact(low, "/digest", "الملخص", "ملخص", "الملخص الكامل"):
         return digest_text()
 
-    m = re.search(r"(?:تم|خلصت|انتهيت|قفل|اقفل)\s*#?(\d+)", low)
+    m = re.search(r"^\s*(?:تم|خلصت|انتهيت|اقفل|قفل)\s*#?(\d+)\s*$", low)
     if m:
         nid = int(m.group(1))
         note = store.get_note(nid)
@@ -228,13 +239,14 @@ def route_message(text: str) -> str:
         store.set_status(nid, "done")
         return f"✅ تمام — قفلت #{nid}: {note.get('title')}"
 
-    m = re.search(r"(?:اجل|أجّل|أجل)\s*#?(\d+)\s*(?:ساعه|ساعة|ساعات|دقايق|دقيقه|يوم)?", low)
+    m = re.search(r"^\s*اجل\s*#?(\d+)\s*(ساعه?|ساعات|دقيقه?|دقايق|يوم|ايام)?\s*$", low)
     if m:
         nid = int(m.group(1))
         note = store.get_note(nid)
         if not note:
             return f"مفيش نوت رقم #{nid} 🤔"
-        minutes = 1440 if "يوم" in low else 60
+        unit = m.group(2) or ""
+        minutes = 1440 if ("يوم" in unit or "ايام" in unit) else (15 if ("دقيق" in unit) else 60)
         base = note.get("remind_at") or datetime.now().strftime("%Y-%m-%d %H:%M")
         try:
             when = datetime.strptime(base, "%Y-%m-%d %H:%M") + timedelta(minutes=minutes)
@@ -244,14 +256,24 @@ def route_message(text: str) -> str:
         store.log_event(nid, "snooze", f"+{minutes}m via telegram")
         return f"⏰ أجّلت #{nid} لحد {when:%Y-%m-%d %H:%M}"
 
-    m = re.search(r"(?:صنف|صنّف|تصنيف|حطها في|انقل)\s*#?(\d+)\s+(.+)$", low)
+    m = re.search(r"^\s*(?:صنف|تصنيف|انقل)\s*#?(\d+)\s+(.+?)\s*$", low)
     if m:
         nid = int(m.group(1))
         cat = m.group(2).strip()
         if not store.get_note(nid):
             return f"مفيش نوت رقم #{nid} 🤔"
         store.set_category(nid, cat)
-        return f"🗂️ نقلت #{nid} لتصنيف «{cat}»"
+        note = store.get_note(nid)
+        return f"🗂️ نقلت #{nid} لتصنيف «{note.get('category')}»"
+
+    m = re.search(r"^\s*احذف\s*#?(\d+)\s*$", low)
+    if m:
+        nid = int(m.group(1))
+        note = store.get_note(nid)
+        if not note:
+            return f"مفيش نوت رقم #{nid} 🤔"
+        store.delete_note(nid)
+        return f"🗑️ اتمسح #{nid}: {note.get('title')}"
 
     # غير كده: نوت/مهمة جديدة
     analysis = brain.analyze(t, source="telegram")
