@@ -21,10 +21,69 @@ class Orquesta:
         self.registry = registry or build_registry()
 
     def route(self, text: str) -> Dict[str, Any]:
-        return self.registry.route_report(text)
+        picked, hit = self._pick_agent(text)
+        if picked == "marwa":
+            return {
+                "text": (text or "")[:60],
+                "agent_id": "marwa",
+                "agent_name": "مروة — المنسق العام (الوكيل الأصلي)",
+                "matched_keywords": [hit["name"]] if hit else [],
+            }
+        agent = picked
+        if hit is not None and agent is not None:
+            matched = [hit["name"]]
+        else:
+            matched = [
+                k for k in (agent.keywords if agent else [])
+                if k and k.lower() in (text or "").lower()
+            ]
+        return {
+            "text": (text or "")[:60],
+            "agent_id": agent.agent_id if agent else None,
+            "agent_name": agent.name if agent else None,
+            "matched_keywords": matched,
+        }
+
+    def _pick_agent(self, text: str):
+        """النداء بالاسم أولًا (router.py — قاعدة «يا <اسم>») ثم التوجيه الوظيفي
+        المعتاد. أي عطل في الـrouter = سقوط آمن لسلوك اليوم بالضبط."""
+        try:
+            from . import router
+            hit = router.detect(text or "")
+        except Exception:
+            hit = None
+        if hit:
+            if hit.get("agent_id") == "marwa":
+                return "marwa", hit
+            agent = self.registry.get(hit.get("agent_id") or "")
+            if agent is not None:
+                return agent, hit
+        return self.registry.route(text), None
+
+    def _signature(self, agent) -> str:
+        """سطر التوقيع باسم الشخصية — عشان المالك يعرف مين اللي رد عليه."""
+        try:
+            from . import router
+            return router.signature(agent.agent_id)
+        except Exception:
+            return ""
 
     def handle(self, text: str) -> Dict[str, Any]:
-        agent = self.registry.route(text)
+        picked, hit = self._pick_agent(text)
+        # 0) نداء «مروة» = الوكيل الأصلي — بطاقة تعريفها، ولا يمرَّر لأي وكيل فرعي
+        if picked == "marwa":
+            reply = None
+            try:
+                from . import router
+                reply = router.persona_card("marwa")
+            except Exception:
+                reply = None
+            reply = reply or (
+                "أنا مروة — المنسق العام لفريق النجار برنت، والوكيل الأصلي بتاعك. 🧠"
+            )
+            self._record("marwa", text, [hit["name"]] if hit else [], {"reply": reply}, None)
+            return {"reply": reply, "agent_id": "marwa"}
+        agent = picked
         if agent is None:
             self._record(None, text, [], {"reply": "", "action": None}, "unrouted")
             return {
@@ -35,6 +94,19 @@ class Orquesta:
             }
         t = (text or "").lower()
         matched = [k for k in agent.keywords if k and k.lower() in t]
+        # 1) نداء مجرد بلا طلب («يا كوكو» وحدها) → بطاقة هوية الشخصية (إن وُجدت)
+        if hit is not None:
+            try:
+                from . import router
+                if router.is_bare_call(text or "", hit):
+                    card = router.persona_card(agent.agent_id)
+                    if card:
+                        self._record(
+                            agent.agent_id, text, [hit["name"]], {"reply": card}, None
+                        )
+                        return {"reply": card, "agent_id": agent.agent_id}
+            except Exception:
+                pass
         try:
             result = agent.handle(text)
             error = None

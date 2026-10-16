@@ -22,8 +22,10 @@ def _fmt(n) -> str:
 
 
 class MetaAgent(SubAgent):
+    # مسار نسبي (نفس إصلاح الكودر 2026-10-16) — المسار المطلق كان بيفقد السجل
+    # بصمت على عقدة اللابتوب (المستودع المستنسخ في G:\Marwa-Bot).
     LEDGER_PATH = (
-        Path(r"G:\ai\Naggar Print POS Agent\memory\experience_ledger.json")
+        Path(__file__).resolve().parent.parent.parent / "memory" / "experience_ledger.json"
     )
     _lock = threading.Lock()
 
