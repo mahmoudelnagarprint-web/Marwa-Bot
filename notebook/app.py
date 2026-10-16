@@ -213,12 +213,22 @@ def health():
                     "stats": store.stats()})
 
 
+def _port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1.5)
+        return s.connect_ex((host, port)) == 0
+
+
 def main(argv: List[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="النوتبوك الذكية — واجهة الويب")
     ap.add_argument("--host", default=os.environ.get("NOTEBOOK_HOST") or "0.0.0.0")
     ap.add_argument("--port", type=int, default=int(os.environ.get("NOTEBOOK_PORT") or 8100))
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args(argv)
+
+    if _port_in_use(args.port):
+        print(f"💡 النوتبوك شغّالة بالفعل على المنفذ {args.port} — النسخة دي بتقفل (single instance).")
+        return 0
 
     store.init_db()
     print(f"💡 النوتبوك الذكية شغّالة: http://127.0.0.1:{args.port}  |  من الموبايل: http://{_local_ip()}:{args.port}")

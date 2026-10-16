@@ -151,16 +151,31 @@ def add_category(name: str, emoji: str = "📁", color: str = "#64748b",
             conn.close()
 
 
+def _norm_name(s: str) -> str:
+    """تطبيع خفيف لأسماء التصنيفات (بلا استيراد من brain) — يمنع تكرار «شخصية/شخصيه»."""
+    s = (s or "").strip()
+    for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه"),
+                 ("ؤ", "و"), ("ئ", "ي")):
+        s = s.replace(a, b)
+    return s.strip().lower()
+
+
 def ensure_category(name: str, conn: Optional[sqlite3.Connection] = None,
                     palette: Optional[List[str]] = None) -> Dict[str, Any]:
-    """يُرجع التصنيف، ويُنشئه تلقائيًا لو مش موجود (فتح تصنيفات تلقائيًا)."""
-    existing = get_category_by_name(name, conn)
-    if existing:
-        return existing
-    palette = palette or ["#4f46e5", "#0891b2", "#db2777", "#16a34a", "#ea580c", "#7c3aed", "#0d9488"]
+    """يُرجع التصنيف، ويُنشئه تلقائيًا لو مش موجود (فتح تصنيفات تلقائيًا).
+
+    مطابقة متسامحة: «شخصية» و«شخصيه» و«شخصيه» = نفس التصنيف — لا تكرار أبدًا.
+    """
+    name = (name or "").strip()
     own = conn is None
     conn = conn or connect()
     try:
+        init_db(conn)
+        target = _norm_name(name)
+        for row in conn.execute("SELECT * FROM categories").fetchall():
+            if _norm_name(row["name"]) == target:
+                return dict(row)
+        palette = palette or ["#4f46e5", "#0891b2", "#db2777", "#16a34a", "#ea580c", "#7c3aed", "#0d9488"]
         count = conn.execute("SELECT COUNT(*) AS c FROM categories").fetchone()["c"]
         return add_category(name, "🗂️", palette[count % len(palette)], auto=True, conn=conn)
     finally:
