@@ -271,7 +271,9 @@ def classify_category(text: str) -> Tuple[str, bool]:
     """يُرجع (اسم التصنيف، هل اتحدد بثقة). الالتقاط الصريح من النص الخام يحفظ الـة."""
     raw = text or ""
     n = normalize(raw)
-    explicit = re.search(r"(?:تصنيف|قسم|فايلدر|folder)\s*[:：]?\s*([\w\u0600-\u06FF ]{2,25})", raw)
+    explicit = re.search(r"(?:تصنيف|قسم|فولدر|folder)\s*[:：]\s*([\w\u0600-\u06FF ]{2,25})", raw)
+    if not explicit:
+        explicit = re.search(r"(?:في|من)\s+(?:تصنيف|قسم|فولدر|folder)\s+([\w\u0600-\u06FF ]{2,25})", raw)
     if explicit:
         return explicit.group(1).strip(), True
     best, best_hits = "", 0
