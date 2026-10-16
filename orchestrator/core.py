@@ -122,6 +122,9 @@ class Orquesta:
             error = f"{type(exc).__name__}: {exc}"
         self._record(agent.agent_id, text, matched, result, error)
         reply = (result or {}).get("reply") or "تمام، تمام."
+        sig = self._signature(agent)
+        if sig:
+            reply = f"{sig}\n{reply}"
         return {"reply": reply, "agent_id": agent.agent_id}
 
     @staticmethod

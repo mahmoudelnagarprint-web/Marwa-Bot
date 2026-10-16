@@ -1052,6 +1052,88 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-16T22:53:53.670243+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو احسب ليزر 30 40",
+      "matched_keywords": [],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-16T22:53:53.683243+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو",
+      "matched_keywords": [
+        "كوكو"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-16T22:53:53.696243+00:00",
+      "agent_id": "marwa",
+      "input_text": "يا مروة",
+      "matched_keywords": [
+        "مروة"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-16T22:53:53.708238+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى",
+      "matched_keywords": [
+        "مصطفى"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-16T22:53:53.722246+00:00",
+      "agent_id": null,
+      "input_text": "مروه العمده عندها طلب؟",
+      "matched_keywords": [],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action"
+      ],
+      "error": "unrouted"
+    },
+    {
+      "timestamp": "2026-10-16T22:53:53.779241+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [
