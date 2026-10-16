@@ -19,6 +19,12 @@ from datetime import datetime
 from pathlib import Path
 
 def main():
+    # Fix Unicode encoding on Windows console (cp1252) to avoid errors on emoji/Arabic
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     if len(sys.argv) < 2:
         print("الاستخدام: python scripts\\new_project.py اسم-المشروع")
         print("مثال: python scripts\\new_project.py my-app")
