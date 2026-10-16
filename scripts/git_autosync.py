@@ -41,7 +41,21 @@ FORBIDDEN_SUFFIXES = (
     ".key", ".pem", ".p12", ".pickle", ".bak",
 )
 
-NODE_ID = os.environ.get("NODE_ID") or os.environ.get("COMPUTERNAME") or "WORKSHOP"
+def _read_node_id_from_env() -> str:
+    """NODE_ID من ملف .env (LAPTOP/WORKSHOP) — اتفاقية المشروع، بلا طباعة أي سر."""
+    try:
+        for raw in (ROOT / ".env").read_text(encoding="utf-8-sig", errors="replace").splitlines():
+            line = raw.strip()
+            if line.startswith("NODE_ID"):
+                value = line.partition("=")[2].strip().strip('"').strip("'")
+                if value:
+                    return value
+    except OSError:
+        pass
+    return ""
+
+
+NODE_ID = os.environ.get("NODE_ID") or _read_node_id_from_env() or os.environ.get("COMPUTERNAME") or "WORKSHOP"
 
 
 def _stamp() -> str:
