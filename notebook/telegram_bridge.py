@@ -411,6 +411,49 @@ def _lock_ok() -> bool:
         return False
 
 
+def start_background() -> Optional[threading.Event]:
+    """تشغيل الجسر كخيوط خلفية داخل عملية الويب (تكامل 2026-10-16 — عقدة الورشة).
+
+    يرجع threading.Event للإيقاف، أو None صادقًا لو البدء تعذّر:
+    بلا توكن / بلا محادثات مسموحة / webhook مسجّل على البوت / نسخة تانية شغّالة.
+    نفس حمايات الوضع المستقل: قفل single-instance + رفض التعارض مع الويب هوك.
+    """
+    env = load_env()
+    token = env.get("TELEGRAM_BOT_TOKEN", "")
+    allowed = _allowed_chats(env)
+    if not token or not allowed:
+        log("الجسر المدمج: بلا توكن/محادثات مسموحة في .env — تخطّي صادق")
+        return None
+    tg = Telegram(token)
+    me = tg.call("getMe")
+    if not me.get("ok"):
+        log(f"الجسر المدمج: getMe فشل ({me.get('error')}) — تخطّي صادق")
+        return None
+    if tg.webhook_url():
+        log("الجسر المدمج: webhook مسجّل على البوت — polling هيعمل تعارض 409؛ تخطّي (الاستقبال عبر الويب هوك السحابي)")
+        return None
+    if not _lock_ok():
+        log("الجسر المدمج: نسخة تانية شغّالة — تخطّي (single instance)")
+        return None
+    import atexit
+    atexit.register(lambda: LOCK_FILE.unlink(missing_ok=True))
+    state = _load_state()
+    stop = threading.Event()
+    threading.Thread(target=poll_loop, args=(tg, allowed, state, stop), name="nb-poll", daemon=True).start()
+    threading.Thread(target=reminder_loop, args=(tg, allowed, stop), name="nb-remind", daemon=True).start()
+
+    def _digest() -> None:
+        while not stop.is_set():
+            try:
+                digest_cycle(tg, allowed, state)
+            except Exception as exc:
+                log(f"digest cycle error: {type(exc).__name__}: {exc}")
+            stop.wait(20)
+    threading.Thread(target=_digest, name="nb-digest", daemon=True).start()
+    log("الجسر المدمج اشتغل مع الواجهة (poll + reminders + digest)")
+    return stop
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="النوتبوك الذكية — جسر تليجرام")
     ap.add_argument("--watch", action="store_true", help="الخدمة الدائمة")

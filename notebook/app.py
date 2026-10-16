@@ -224,13 +224,35 @@ def main(argv: List[str] | None = None) -> int:
     ap.add_argument("--host", default=os.environ.get("NOTEBOOK_HOST") or "0.0.0.0")
     ap.add_argument("--port", type=int, default=int(os.environ.get("NOTEBOOK_PORT") or 8100))
     ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--telegram", action="store_true",
+                    help="شغّل جسر تليجرام مع الواجهة في نفس العملية (استقبال + تذكيرات) — عقدة واحدة بس")
     args = ap.parse_args(argv)
+
+    # إصلاح جذري 2026-10-16 (عقدة الورشة): كونسول Windows cp1252 كان بيكسر التشغيل
+    # عند طباعة العربي/الإيموجي (UnicodeEncodeError قبل فتح السيرفر أصلًا).
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
 
     if _port_in_use(args.port):
         print(f"💡 النوتبوك شغّالة بالفعل على المنفذ {args.port} — النسخة دي بتقفل (single instance).")
         return 0
 
     store.init_db()
+    if args.telegram:
+        try:
+            if __package__ in (None, ""):
+                from notebook import telegram_bridge as _tb  # type: ignore
+            else:
+                from . import telegram_bridge as _tb
+            if _tb.start_background():
+                print("   جسر تليجرام: مفعّل (polling + تذكيرات) — نفس العملية")
+            else:
+                print("   جسر تليجرام: غير مفعّل — السبب الصادق في logs/notebook_bot.log")
+        except Exception as exc:
+            print(f"   ⚠️ تشغيل الجسر المدمج فشل: {type(exc).__name__}: {exc}")
     print(f"💡 النوتبوك الذكية شغّالة: http://127.0.0.1:{args.port}  |  من الموبايل: http://{_local_ip()}:{args.port}")
     print(f"   قاعدة البيانات: {store.DB_PATH}")
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
