@@ -1,15 +1,15 @@
 {
   "node": "WORKSHOP",
-  "pushed_at": "2026-10-14 13:30:27",
+  "pushed_at": "2026-10-15 07:42:31",
   "files": {
     "agent_charter_md": 3887,
-    "decisions_log_md": 59587,
+    "decisions_log_md": 62659,
     "env_backup": 1590,
     "learned_rules": 1982,
     "lessons_md": 6346,
     "owner_preferences_md": 1093,
-    "roadmap_md": 8194,
-    "status_md": 23715
+    "roadmap_md": 8586,
+    "status_md": 25616
   },
   "machine": "ELNAGAR"
 }
