@@ -1,9 +1,16 @@
 {
-  "time": "2026-10-11T06:00:02",
+  "time": "2026-10-16T22:39:04",
   "ok": true,
-  "db_file": "pos_data_2026-10-11_0600.db",
-  "db_bytes": 217088,
-  "zip_file": "agent_workspace_2026-10-11_0600.zip",
+  "root": "G:\\Marwa-Bot",
+  "notebook_file": "notebook_2026-10-16_2239.db",
+  "notebook_bytes": 40960,
+  "notebook_rows": {
+    "notes": 0,
+    "categories": 13
+  },
+  "db_file": "pos_data_2026-10-16_2239.db",
+  "db_bytes": 86016,
+  "zip_file": "agent_workspace_2026-10-16_2239.zip",
   "row_counts": {
     "clients": 52,
     "orders": 50,

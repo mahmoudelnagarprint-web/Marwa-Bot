@@ -1,13 +1,32 @@
-import sqlite3, zipfile, json, sys
+# -*- coding: utf-8 -*-
+"""النسخ الاحتياطي الأسبوعي — النجار برنت (مُصلح بعد النقل 2026-10-16 بإذن المالك).
+
+إصلاح حرج: المسارات القديمة (G:\\ai\\...) مُشلت من القرص فكان السكربت بيفشل
+منذ نقل المشروع إلى G:\\Marwa-Bot — آخر نسخة ناجحة كانت 2026-10-11.
+القاعدة الجديدة: **كل المسارات نسبية لجذر المشروع** (تتحرك مع المستودع).
+
+- pos_data.db  : نسخة موثقة عبر SQLite backup API + integrity_check (زي الأصل).
+- notebook.db  : ضُمّت بأمر المالك 2026-10-16 — نفس الطريقة الموثقة + عدّ النوتس.
+- الـzip       : لقطة الـWorkspace ما عدا القواعد الحية (لها نسخها الموثقة جنبها)
+                 و.venv و__pycache__ واللوجات ومجلد backup نفسه.
+
+المهمة المجدولة: الأحد 06:00 — scripts\\install_backup_task.ps1 (يعمل على أي عقدة).
+"""
+import sqlite3
+import zipfile
+import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
-SRC_DB = Path(r"G:\ai\Elnagar POS\pos_data.db")
-WORKSPACE = Path(r"G:\ai\Naggar Print POS Agent")
-BACKUP_DIR = Path(r"G:\ai\Naggar Print POS Agent\backup")
+ROOT = Path(__file__).resolve().parent.parent          # جذر المشروع — يتحرك مع المستودع
+SRC_DB = ROOT / "pos_data.db"
+NOTEBOOK_DB = ROOT / "notebook" / "data" / "notebook.db"
+WORKSPACE = ROOT
+BACKUP_DIR = ROOT / "backup"
 KEEP = 8
-STATUS = WORKSPACE / "memory" / "backup_status.json"
-LOG = WORKSPACE / "scripts" / "backup.log"
+STATUS = ROOT / "memory" / "backup_status.json"
+LOG = ROOT / "scripts" / "backup.log"
 
 
 def log(msg):
@@ -18,12 +37,29 @@ def log(msg):
         f.write(line + "\n")
 
 
-def open_src():
-    try:
-        return sqlite3.connect(f"file:{SRC_DB.as_posix()}?mode=ro", uri=True, timeout=30)
-    except sqlite3.Error as e:
-        log(f"ro open failed ({e}); retrying normal open (backup only reads)")
-        return sqlite3.connect(str(SRC_DB), timeout=30)
+def backup_db(src_path: Path, stamp: str, prefix: str, tables) -> tuple:
+    """نسخة موثقة: SQLite backup API + integrity_check + عدّ صفوف الجداول."""
+    if not src_path.exists():
+        raise FileNotFoundError(str(src_path))
+    tmp = BACKUP_DIR / f"{prefix}_{stamp}.db.tmp"
+    final = BACKUP_DIR / f"{prefix}_{stamp}.db"
+    src = sqlite3.connect(f"file:{src_path.as_posix()}?mode=ro", uri=True, timeout=30)
+    dst = sqlite3.connect(str(tmp))
+    src.backup(dst)
+    check = dst.execute("PRAGMA integrity_check").fetchone()[0]
+    counts = {}
+    for t in tables:
+        try:
+            counts[t] = dst.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        except sqlite3.Error:
+            counts[t] = None
+    src.close()
+    dst.close()
+    if check != "ok":
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"integrity_check failed for {prefix}: {check}")
+    tmp.replace(final)
+    return final, counts
 
 
 def prune(prefix, suffix):
@@ -35,27 +71,29 @@ def prune(prefix, suffix):
 
 def main():
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-    status = {"time": datetime.now().isoformat(timespec="seconds"), "ok": False}
+    status = {"time": datetime.now().isoformat(timespec="seconds"), "ok": False,
+              "root": str(ROOT)}
     try:
-        if not SRC_DB.exists():
-            raise FileNotFoundError(str(SRC_DB))
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
-        tmp = BACKUP_DIR / f"pos_data_{stamp}.db.tmp"
-        final = BACKUP_DIR / f"pos_data_{stamp}.db"
-        src = open_src()
-        dst = sqlite3.connect(str(tmp))
-        src.backup(dst)
-        check = dst.execute("PRAGMA integrity_check").fetchone()[0]
-        counts = {t: dst.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                  for t in ("clients", "orders", "transactions")}
-        src.close()
-        dst.close()
-        if check != "ok":
-            tmp.unlink(missing_ok=True)
-            raise RuntimeError(f"integrity_check failed: {check}")
-        tmp.replace(final)
+        # 1) قاعدة البرنامج (المرجع)
+        pos_final, pos_counts = backup_db(
+            SRC_DB, stamp, "pos_data", ("clients", "orders", "transactions"))
+        log(f"OK {pos_final.name} rows={pos_counts}")
 
+        # 2) قاعدة النوتبوك (ضُمّت بأمر المالك 2026-10-16) — اختيارية لو مش موجودة بعد
+        if NOTEBOOK_DB.exists():
+            nb_final, nb_counts = backup_db(
+                NOTEBOOK_DB, stamp, "notebook", ("notes", "categories"))
+            log(f"OK {nb_final.name} rows={nb_counts}")
+            status["notebook_file"] = nb_final.name
+            status["notebook_bytes"] = nb_final.stat().st_size
+            status["notebook_rows"] = nb_counts
+        else:
+            status["notebook_file"] = None
+            log("notebook db not found — skipped (honest)")
+
+        # 3) لقطة الـWorkspace (بلا قواعد حية — لها نسخها الموثقة)
         zpath = BACKUP_DIR / f"agent_workspace_{stamp}.zip"
         with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
             backup_root = BACKUP_DIR.resolve()
@@ -64,21 +102,27 @@ def main():
                     continue
                 rel = p.relative_to(WORKSPACE)
                 parts = set(rel.parts)
+                is_notebook_data = (len(rel.parts) >= 2
+                                    and rel.parts[0] == "notebook" and rel.parts[1] == "data")
                 if (p.name == "backup.log"
                         or ".venv" in parts or "__pycache__" in parts
+                        or p.name.endswith((".db", ".db-wal", ".db-shm", ".log", ".tmp"))
+                        or is_notebook_data
                         or p.resolve().is_relative_to(backup_root)):
                     continue
                 z.write(p, rel)
 
-        for p in (final, zpath):
+        # 4) تحقق وجود واتساق
+        for p in (pos_final, zpath):
             if not p.exists() or p.stat().st_size == 0:
                 raise RuntimeError(f"missing or empty: {p}")
 
         prune("pos_data_", ".db")
+        prune("notebook_", ".db")
         prune("agent_workspace_", ".zip")
-        status.update(ok=True, db_file=final.name, db_bytes=final.stat().st_size,
-                      zip_file=zpath.name, row_counts=counts)
-        log(f"OK {final.name} ({final.stat().st_size} bytes) rows={counts}")
+        status.update(ok=True, db_file=pos_final.name, db_bytes=pos_final.stat().st_size,
+                      zip_file=zpath.name, row_counts=pos_counts)
+        log(f"OK {pos_final.name} ({pos_final.stat().st_size} bytes) rows={pos_counts} + zip {zpath.name}")
     except Exception as e:
         status["error"] = str(e)
         log(f"FAILED: {e}")
