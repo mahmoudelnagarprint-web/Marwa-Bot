@@ -1,0 +1,466 @@
+# تقرير Dry-run — استيراد الكتالوج (قراءة فقط، لا تغيير)
+
+- الملف: `C:\Users\mahmo\Downloads\كتالوج_النجار.xlsx`
+- صفوف الشيت ب id: 101
+- منتجات القاعدة: 106
+
+- **سيُعدَّل (حقول فعلية):** 101 منتج
+- **مفقود في القاعدة:** 0
+- **التطبيق عبر الدوال الرسمية:** الأسعار/الاسم/التصنيف/المخزون عبر الدوال الحالية؛ الحقول الذكية (خامة/تشغيل/نوع مخزون/تكاليف) عبر الدالة الرسمية الجديدة `update_product_catalog_fields` (تضمن وجود الأعمدة عند الحاجة).
+
+### التغييرات المكتشفة
+- id=26 «أسماء خشب (للقطعة)»:
+    - category: شيت='خشبيات' | قاعدة='خشب/أسماء'
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=7.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=2.0 | قاعدة=0.0
+- id=10031 «توزيعة خشب»:
+    - name: شيت='توزيعة خشب' | قاعدة='توزيعه خشب '
+    - category: شيت='أسماء خشب وكوسترات وتوزيعات' | قاعدة='توزيعات '
+    - selling_price: شيت=7 | قاعدة=5.0
+    - wholesale_price: شيت=5.5 | قاعدة=5.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=4.3 | قاعدة=0.0
+    - manufacturing_cost: شيت=1.3 | قاعدة=0.0
+- id=10029 «ستيك تخرج»:
+    - category: شيت='أسماء خشب وكوسترات وتوزيعات' | قاعدة='تخرج'
+    - wholesale_price: شيت=15 | قاعدة=20.0
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=10.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=3.0 | قاعدة=0.0
+- id=10006 «كوستر بالاسم»:
+    - category: شيت='أسماء خشب وكوسترات وتوزيعات' | قاعدة='خشب/أسماء'
+    - selling_price: شيت=10.0 | قاعدة=30.0
+    - wholesale_price: شيت=10.0 | قاعدة=30.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='خشب/خامة' | قاعدة='sublimation'
+    - operation_type: شيت='سبلميشن' | قاعدة='sublimation'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=4.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=1.0 | قاعدة=0.0
+- id=43 «ميدالية خشب وجه واحد»:
+    - name: شيت='ميدالية خشب وجه واحد' | قاعدة='مادليه وش واحد '
+    - category: شيت='أسماء خشب وكوسترات وتوزيعات' | قاعدة='جديد'
+    - selling_price: شيت=10.0 | قاعدة=50.0
+    - wholesale_price: شيت=10.0 | قاعدة=0.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=4.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=1.0 | قاعدة=0.0
+- id=46 «انسيال عيون»:
+    - category: شيت='إكسسوارات وحلي وميداليات' | قاعدة='اكسسوارات'
+    - selling_price: شيت=120.0 | قاعدة=80.0
+    - wholesale_price: شيت=100.0 | قاعدة=80.0
+    - stock: شيت=0.0 | قاعدة=4
+    - material_type: شيت='أخرى' | قاعدة='unknown'
+    - operation_type: شيت='جاهز' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=50.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=15.0 | قاعدة=0.0
+- id=28 «بروش»:
+    - category: شيت='إكسسوارات وحلي وميداليات' | قاعدة='اكسسوارات'
+    - material_type: شيت='حفر مباشر' | قاعدة='unknown'
+    - operation_type: شيت='حفر مباشر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=31.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=6.0 | قاعدة=0.0
+- id=24 «دلاية سبحة»:
+    - category: شيت='إكسسوارات وحلي وميداليات' | قاعدة='اكسسوارات'
+    - selling_price: شيت=5.0 | قاعدة=2.0
+    - wholesale_price: شيت=3.5 | قاعدة=2.0
+    - material_type: شيت='حفر مباشر' | قاعدة='unknown'
+    - operation_type: شيت='حفر مباشر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=3.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=1.0 | قاعدة=0.0
+- id=12 «سلسلة ذهبي»:
+    - category: شيت='إكسسوارات وحلي وميداليات' | قاعدة='اكسسوارات'
+    - selling_price: شيت=120.0 | قاعدة=100.0
+    - wholesale_price: شيت=100.0 | قاعدة=60.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='حفر مباشر' | قاعدة='unknown'
+    - operation_type: شيت='حفر مباشر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=42.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=8.0 | قاعدة=0.0
+- id=18 «علاقة مفاتيح دائرية»:
+    - category: شيت='إكسسوارات وحلي وميداليات' | قاعدة='اكسسوارات'
+    - selling_price: شيت=130.0 | قاعدة=85.0
+    - wholesale_price: شيت=90.0 | قاعدة=85.0
+    - stock: شيت=0.0 | قاعدة=-3
+    - material_type: شيت='معدن سبلميشن' | قاعدة='unknown'
+    - operation_type: شيت='سبلميشن' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=75.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=25.0 | قاعدة=0.0
+- id=27 «يد هواية فضي»:
+    - category: شيت='إكسسوارات وحلي وميداليات' | قاعدة='اكسسوارات'
+    - selling_price: شيت=80 | قاعدة=70.0
+    - wholesale_price: شيت=70.0 | قاعدة=60.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=42.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=13.0 | قاعدة=0.0
+- id=22 «بوكس أكريليك»:
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='بوكسات/أكريليك'
+    - selling_price: شيت=125 | قاعدة=60.0
+    - wholesale_price: شيت=100.0 | قاعدة=0.0
+    - stock: شيت=0.0 | قاعدة=-5
+    - material_type: شيت='أكريليك' | قاعدة='needs_review'
+    - operation_type: شيت='ليزر' | قاعدة='needs_review'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=90.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=30.0 | قاعدة=0.0
+- id=10013 «بوكس العيد بدرج»:
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='العيد'
+    - selling_price: شيت=161 | قاعدة=140.0
+    - wholesale_price: شيت=121 | قاعدة=100.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=91.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=21.0 | قاعدة=0.0
+- id=10015 «بوكس العيد فيونكه»:
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='العيد'
+    - selling_price: شيت=50.0 | قاعدة=30.0
+    - wholesale_price: شيت=35.0 | قاعدة=30.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=17.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=5.0 | قاعدة=0.0
+- id=3 «بوكس حرف»:
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='بوكسات/خشب'
+    - wholesale_price: شيت=150.0 | قاعدة=160.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=114.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=34.0 | قاعدة=0.0
+- id=21 «بوكس خشب»:
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='بوكسات/خشب'
+    - selling_price: شيت=180 | قاعدة=30.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=50.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=15.0 | قاعدة=0.0
+- id=51 «بوكس هدايا (مج ديجيتال + محفظة + نوتبوك)»:
+    - name: شيت='بوكس هدايا (مج ديجيتال + محفظة + نوتبوك)' | قاعدة='بوكس (( مج ديجيتال + محفظه +نوت ))'
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='اكسسوارات'
+    - selling_price: شيت=380 | قاعدة=330.0
+    - wholesale_price: شيت=330 | قاعدة=380.0
+    - stock: شيت=0.0 | قاعدة=-2
+    - material_type: شيت='أخرى' | قاعدة='needs_review'
+    - operation_type: شيت='جاهز' | قاعدة='needs_review'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=231.0 | قاعدة=0.0
+- id=10036 «بوكس ورد 30×40»:
+    - name: شيت='بوكس ورد 30×40' | قاعدة='بوكس ورد 30x40'
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='بوكسات/خشب'
+    - wholesale_price: شيت=200 | قاعدة=250.0
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=140.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=42.0 | قاعدة=0.0
+- id=10019 «عرض المحفظة بالبوكس»:
+    - category: شيت='بوكسات وصناديق هدايا' | قاعدة='عروض'
+    - selling_price: شيت=215 | قاعدة=170.0
+    - wholesale_price: شيت=180 | قاعدة=170.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='جلد' | قاعدة='needs_review'
+    - operation_type: شيت='حفر مباشر' | قاعدة='needs_review'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=140.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=40.0 | قاعدة=0.0
+- id=31 «برواز 20×30»:
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - selling_price: شيت=100.0 | قاعدة=90.0
+    - wholesale_price: شيت=90.0 | قاعدة=40.0
+    - stock: شيت=0.0 | قاعدة=-5
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=90.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=30.0 | قاعدة=0.0
+- id=32 «برواز 30×40»:
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - selling_price: شيت=150 | قاعدة=120.0
+    - wholesale_price: شيت=130 | قاعدة=100.0
+    - stock: شيت=0.0 | قاعدة=3
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=100.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=15.0 | قاعدة=0.0
+- id=34 «تابلوه 10×15»:
+    - name: شيت='تابلوه 10×15' | قاعدة='تابلو 10x15'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=21.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=7.0 | قاعدة=0.0
+- id=35 «تابلوه 15×21»:
+    - name: شيت='تابلوه 15×21' | قاعدة='تابلو 15x21'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - selling_price: شيت=70 | قاعدة=40.0
+    - wholesale_price: شيت=50.0 | قاعدة=20.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=14.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=5.0 | قاعدة=0.0
+- id=36 «تابلوه 20×30»:
+    - name: شيت='تابلوه 20×30' | قاعدة='تابلو 20x30'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - wholesale_price: شيت=50 | قاعدة=65.0
+    - stock: شيت=0.0 | قاعدة=-5
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=35.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=12.0 | قاعدة=0.0
+- id=10024 «تابلوه 30×40»:
+    - name: شيت='تابلوه 30×40' | قاعدة='تابلو 30x40'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='30 -'
+    - selling_price: شيت=140.0 | قاعدة=100.0
+    - stock: شيت=0.0 | قاعدة=-13
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=75.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=25.0 | قاعدة=0.0
+- id=38 «تابلوه 40×50»:
+    - name: شيت='تابلوه 40×50' | قاعدة='تابلو 40x50'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - selling_price: شيت=250.0 | قاعدة=190.0
+    - wholesale_price: شيت=180.0 | قاعدة=160.0
+    - stock: شيت=0.0 | قاعدة=-4
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=112.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=39.0 | قاعدة=0.0
+- id=39 «تابلوه 60×50»:
+    - name: شيت='تابلوه 60×50' | قاعدة='تابلو 60x50'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - selling_price: شيت=280.0 | قاعدة=270.0
+    - stock: شيت=0.0 | قاعدة=-3
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=161.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=56.0 | قاعدة=0.0
+- id=40 «تابلوه 60×70»:
+    - name: شيت='تابلوه 60×70' | قاعدة='تابلو 60x70'
+    - category: شيت='تابلوهات وبراويز' | قاعدة='تابلوهات'
+    - selling_price: شيت=400.0 | قاعدة=360.0
+    - wholesale_price: شيت=350.0 | قاعدة=300.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='composite'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='framing'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=210.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=74.0 | قاعدة=0.0
+- id=33 «أكريليك أبيض»:
+    - category: شيت='خامات ومستلزمات تشغيل' | قاعدة='خامات'
+    - material_type: شيت='أكريليك' | قاعدة='acrylic'
+    - operation_type: شيت='قطع ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=28.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=8.0 | قاعدة=0.0
+- id=10012 «دبل كلر دهبي»:
+    - category: شيت='خامات ومستلزمات تشغيل' | قاعدة='ليزر'
+    - wholesale_price: شيت=12.5 | قاعدة=15.0
+    - stock: شيت=0.0 | قاعدة=-9
+    - material_type: شيت='أكريليك' | قاعدة='unknown'
+    - operation_type: شيت='قطع ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=8.8 | قاعدة=0.0
+    - manufacturing_cost: شيت=2.6 | قاعدة=0.0
+- id=10040 «رول فوتو»:
+    - category: شيت='خامات ومستلزمات تشغيل' | قاعدة='مستلزمات'
+    - wholesale_price: شيت=420 | قاعدة=525.0
+    - material_type: شيت='أخرى' | قاعدة='unknown'
+    - operation_type: شيت='جاهز' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=294.0 | قاعدة=0.0
+- id=23 «قطعة أكريليك»:
+    - category: شيت='خامات ومستلزمات تشغيل' | قاعدة='خامات'
+    - wholesale_price: شيت=50 | قاعدة=0.0
+    - material_type: شيت='أكريليك' | قاعدة='acrylic'
+    - operation_type: شيت='قطع ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=34.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=10.0 | قاعدة=0.0
+- id=60 «موتور دوار»:
+    - name: شيت='موتور دوار' | قاعدة='ماتور '
+    - category: شيت='خامات ومستلزمات تشغيل' | قاعدة='اكسسوارات'
+    - material_type: شيت='أخرى' | قاعدة='unknown'
+    - operation_type: شيت='جاهز' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=24.0 | قاعدة=0.0
+- id=10042 «جريدة التخرج»:
+    - name: شيت='جريدة التخرج' | قاعدة='جريده التخرج'
+    - category: شيت='خدمات طباعة وحفر ليزر' | قاعدة='تخرج'
+    - selling_price: شيت=80 | قاعدة=75.0
+    - wholesale_price: شيت=60.0 | قاعدة=55.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='فينيل واستيكر وورق' | قاعدة='unknown'
+    - operation_type: شيت='طباعة ديجيتال وسلوفان' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=39.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=14.0 | قاعدة=0.0
+- id=10026 «حفر ليزر»:
+    - category: شيت='خدمات طباعة وحفر ليزر' | قاعدة='طباعه'
+    - selling_price: شيت=25 | قاعدة=20.0
+    - wholesale_price: شيت=20 | قاعدة=24.0
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=14.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=4.0 | قاعدة=0.0
+- id=25 «طباعة 30×40 (طباعة فقط)»:
+    - category: شيت='خدمات طباعة وحفر ليزر' | قاعدة='طباعة'
+    - selling_price: شيت=45 | قاعدة=40.0
+    - wholesale_price: شيت=35.0 | قاعدة=45.0
+    - stock: شيت=0.0 | قاعدة=-2
+    - material_type: شيت='فينيل واستيكر وورق' | قاعدة='unknown'
+    - operation_type: شيت='طباعة ديجيتال وسلوفان' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=28.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=10.0 | قاعدة=0.0
+- id=19 «طباعة استيكر»:
+    - category: شيت='خدمات طباعة وحفر ليزر' | قاعدة='طباعة'
+    - stock: شيت=0.0 | قاعدة=-3
+    - material_type: شيت='فينيل واستيكر وورق' | قاعدة='unknown'
+    - operation_type: شيت='طباعة ديجيتال وسلوفان' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=140.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=49.0 | قاعدة=0.0
+- id=10025 «فنيل»:
+    - category: شيت='خدمات طباعة وحفر ليزر' | قاعدة='طباعة'
+    - stock: شيت=0.0 | قاعدة=-2
+    - material_type: شيت='فينيل واستيكر وورق' | قاعدة='unknown'
+    - operation_type: شيت='طباعة ديجيتال وسلوفان' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=17.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=6.0 | قاعدة=0.0
+- id=10041 «استاند زجاج»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='زجاج'
+    - wholesale_price: شيت=80 | قاعدة=100.0
+    - material_type: شيت='زجاج' | قاعدة='acrylic'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=56.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=17.0 | قاعدة=0.0
+- id=67 «حصالة طباعة»:
+    - name: شيت='حصالة طباعة' | قاعدة='حصالة طباعه '
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='اكسسوارات'
+    - wholesale_price: شيت=60 | قاعدة=75.0
+    - stock: شيت=0.0 | قاعدة=-2
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=42.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=13.0 | قاعدة=0.0
+- id=62 «دومنه»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='العاب'
+    - selling_price: شيت=160.0 | قاعدة=130.0
+    - stock: شيت=0.0 | قاعدة=-2
+    - material_type: شيت='أكريليك' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=73.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=22.0 | قاعدة=0.0
+- id=10044 «ديكور سحابة»:
+    - name: شيت='ديكور سحابة' | قاعدة='سحابه '
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='غير مصنف'
+    - wholesale_price: شيت=160 | قاعدة=200.0
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=112.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=34.0 | قاعدة=0.0
+- id=17 «ديكور مطبخ»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='ديكور'
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=84.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=25.0 | قاعدة=0.0
+- id=48 «ساعة حائط 30×40»:
+    - name: شيت='ساعة حائط 30×40' | قاعدة='ساعه 30x40'
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='اكسسوارات'
+    - selling_price: شيت=250.0 | قاعدة=160.0
+    - wholesale_price: شيت=170.0 | قاعدة=160.0
+    - stock: شيت=0.0 | قاعدة=-2
+    - material_type: شيت='مركب/فوتو+سلوفان' | قاعدة='unknown'
+    - operation_type: شيت='مركب فوتو وسلوفان' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=94.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=33.0 | قاعدة=0.0
+- id=7 «ساعة ديكور حائط»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='ديكور'
+    - selling_price: شيت=300.0 | قاعدة=259.0
+    - stock: شيت=0.0 | قاعدة=-1
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=140.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=42.0 | قاعدة=0.0
+- id=10020 «ستاند خشب»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='ستاندات'
+    - material_type: شيت='خشب MDF' | قاعدة='needs_review'
+    - operation_type: شيت='ليزر' | قاعدة='needs_review'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=24.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=7.0 | قاعدة=0.0
+- id=29 «صينية سحابة»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='ديكور/صواني'
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=145.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=44.0 | قاعدة=0.0
+- id=6 «طارة خشب»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='خشب/ديكور'
+    - material_type: شيت='خشب MDF' | قاعدة='wood'
+    - operation_type: شيت='ليزر' | قاعدة='laser'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=70.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=21.0 | قاعدة=0.0
+- id=8 «مرايا سحرية»:
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='ديكور/مرايا'
+    - wholesale_price: شيت=130 | قاعدة=160.0
+    - material_type: شيت='أخرى' | قاعدة='unknown'
+    - operation_type: شيت='جاهز' | قاعدة='unknown'
+    - inventory_type: شيت='رصيد بالعدد' | قاعدة=''
+    - raw_material_cost: شيت=91.0 | قاعدة=0.0
+- id=10039 «منظم صلاة»:
+    - name: شيت='منظم صلاة' | قاعدة='منظم صلا'
+    - category: شيت='ديكور منزلي وساعات وستاندات' | قاعدة='غير مصنف'
+    - wholesale_price: شيت=360 | قاعدة=450.0
+    - material_type: شيت='خشب MDF' | قاعدة='unknown'
+    - operation_type: شيت='ليزر' | قاعدة='unknown'
+    - inventory_type: شيت='مستمر' | قاعدة=''
+    - raw_material_cost: شيت=252.0 | قاعدة=0.0
+    - manufacturing_cost: شيت=76.0 | قاعدة=0.0
+
+### ملاحظات تشغيلية
+- الأعمدة الذكية (material_type/operation_type/inventory_type/tكاليف) تُقرأ وتُطابَق أعلاه فقط؛
+  تطبيقها الفعلي سيتطلب توسعة الدوال الرسمية (تقرير منفصل على المالك).
+- النسخة الاحتياطية وفلتر المزامنة السحابية: تحدث عند `--apply` فقط.

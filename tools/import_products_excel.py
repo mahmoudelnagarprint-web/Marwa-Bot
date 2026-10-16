@@ -75,8 +75,8 @@ def _f(v) -> float:
 
 
 def read_sheet(path: Path) -> tuple:
-    """يرجع (rows, headers, warnings) من الشيت: كل صف dict فيه id إلزامي."""
-    wb = load_workbook(path, data_only=False)  # نقرأ المعادلات كصيغ لمعرفة المعادلات؛ والقيم نأخذها يدويًا
+    """يرجع (rows, headers, warnings) من الشيت: كل ملف dict فيه id إلزامي."""
+    wb = load_workbook(path, data_only=True)  # نقرأ القيم المحسوبة (بعد حفظ الإكسيل)
     ws = wb.active
     # الرؤوس من الصف 2
     headers = [ws.cell(row=2, column=j).value for j in range(1, ws.max_column + 1)]
@@ -92,10 +92,18 @@ def read_sheet(path: Path) -> tuple:
         row = {}
         for j, h in enumerate(headers, start=1):
             row[h] = ws.cell(row=r, column=j).value
+        # Treat empty id as missing; also skip non-numeric ids (summary rows)
+        try:
+            pid = float(row.get("id")) if row.get("id") is not None else None
+            row["id"] = int(pid) if pid is not None else None
+        except (TypeError, ValueError):
+            warn.append(f"صف {r}: id غير رقمي — صف ملخص، تم تخطيه")
+            continue
         if row.get("id") is None:
             warn.append(f"صف {r}: بدون id — تم تخطيه")
             continue
         rows.append(row)
+    return rows, warn
     return rows, warn
 
 
@@ -109,7 +117,9 @@ def read_db(db_path: Path) -> dict:
         for row in conn.execute(
                 "SELECT id, name, category, price_wholesale, price_retail, stock_qty,"
                 "       sort_order, last_cost_price, COALESCE(material_type,'') AS material_type,"
-                "       COALESCE(operation_type,'') AS operation_type FROM products"):
+                "       COALESCE(operation_type,'') AS operation_type,"
+                "       COALESCE(inventory_type,'') AS inventory_type,"
+                "       COALESCE(manufacturing_cost,0) AS manufacturing_cost FROM products"):
             d = dict(row)
             d['id'] = int(d['id'])
             out[d['id']] = d
@@ -152,6 +162,9 @@ def build_report(rows: list, db: dict) -> list:
         # selling_price → price_retail
         if cmp("selling", row.get("selling_price"), cur["price_retail"]):
             rec["fields"]["selling_price"] = {"sheet": row.get("selling_price"), "db": cur["price_retail"]}
+        # wholesale_price → price_wholesale
+        if cmp("wholesale", row.get("wholesale_price"), cur["price_wholesale"]):
+            rec["fields"]["wholesale_price"] = {"sheet": row.get("wholesale_price"), "db": cur["price_wholesale"]}
         # stock المطلوب إن كان رقمًا (وليس "مستمر" نصيًا)
         st = row.get("stock")
         if isinstance(st, (int, float)) or (isinstance(st, str) and str(st).strip() not in ("", "مستمر")):
@@ -160,25 +173,47 @@ def build_report(rows: list, db: dict) -> list:
         # الأعمدة الذكية — قراءة فقط (تقرير الفرق، التطبيق محجوز لدالة رسمية)
         for wf in WARN_FIELDS:
             sv = row.get(wf)
-            if wf == "raw_material_cost":  # نطابق last_cost_price
-                dv = cur["last_cost_price"]
-            elif wf == "material_type":
-                dv = cur["material_type"]
-            elif wf == "operation_type":
-                dv = cur["operation_type"]
-            else:
-                dv = None  # inventory_type / manufacturing_cost غير موجودين بالقاعدة
-            # مقارنة رقمية للأعمدة الرقمية (تجنب "0" مقابل "0.0")، نصية لغيرها
-            if wf in ("raw_material_cost", "manufacturing_cost"):
-                snum, dnum = _f(sv), _f(dv)
+            if wf == "raw_material_cost":
+                # إجمالي التكلفة من الورقة (خامة + تشغيل) مقابل last_cost_price في القاعدة
+                snum = _f(row.get("raw_material_cost", 0.0)) + _f(row.get("manufacturing_cost", 0.0))
+                dnum = _f(cur["last_cost_price"])
                 if snum is None and dnum is None:
                     continue
                 if snum is not None and dnum is not None and abs(snum - dnum) <= 0.005:
                     continue
-            s = "" if sv is None else str(sv).strip()
-            d = "" if dv is None else str(dv).strip()
-            if s != d:
-                rec["fields"][wf] = {"sheet": sv, "db": dv}
+                s = "" if snum is None else str(snum)
+                d = "" if dnum is None else str(dnum)
+                if s != d:
+                    rec["fields"][wf] = {"sheet": snum, "db": dnum}
+            elif wf == "manufacturing_cost":
+                snum = _f(row.get("manufacturing_cost", 0.0))
+                dnum = _f(cur["manufacturing_cost"])
+                if snum is None and dnum is None:
+                    continue
+                if snum is not None and dnum is not None and abs(snum - dnum) <= 0.005:
+                    continue
+                s = "" if snum is None else str(snum)
+                d = "" if dnum is None else str(dnum)
+                if s != d:
+                    rec["fields"][wf] = {"sheet": snum, "db": dnum}
+            elif wf == "material_type":
+                dv = cur["material_type"]
+                s = "" if sv is None else str(sv).strip()
+                d = "" if dv is None else str(dv).strip()
+                if s != d:
+                    rec["fields"][wf] = {"sheet": sv, "db": dv}
+            elif wf == "operation_type":
+                dv = cur["operation_type"]
+                s = "" if sv is None else str(sv).strip()
+                d = "" if dv is None else str(dv).strip()
+                if s != d:
+                    rec["fields"][wf] = {"sheet": sv, "db": dv}
+            elif wf == "inventory_type":
+                dv = cur["inventory_type"]
+                s = "" if sv is None else str(sv).strip()
+                d = "" if dv is None else str(dv).strip()
+                if s != d:
+                    rec["fields"][wf] = {"sheet": sv, "db": dv}
         report.append(rec)
     return report
 
@@ -196,7 +231,7 @@ def render_dryrun(report: list, rows: list, db: dict, file: str) -> str:
     missing = [r for r in report if r.get("status") == "مفقود في القاعدة"]
     lines.append(f"- **سيُعدَّل (حقول فعلية):** {len(changed)} منتج")
     lines.append(f"- **مفقود في القاعدة:** {len(missing)}")
-    lines.append(f"- **قابل للتطبيق عبر الدوال الرسمية:** يسري مجددًا على الفئات القانونية (اسم/تصنيف/سعر/مخزون).")
+    lines.append(f"- **التطبيق عبر الدوال الرسمية:** الأسعار/الاسم/التصنيف/المخزون عبر الدوال الحالية؛ الحقول الذكية (خامة/تشغيل/نوع مخزون/تكاليف) عبر الدالة الرسمية الجديدة `update_product_catalog_fields` (تضمن وجود الأعمدة عند الحاجة).")
     lines.append("")
     lines.append("### التغييرات المكتشفة")
     if not changed and not missing:
@@ -207,8 +242,8 @@ def render_dryrun(report: list, rows: list, db: dict, file: str) -> str:
             lines.append(f"    - {k}: شيت={v['sheet']!r} | قاعدة={v['db']!r}")
     lines.append("")
     lines.append("### ملاحظات تشغيلية")
-    lines.append("- الأعمدة الذكية (material_type/operation_type/inventory_type/tكاليف) تُقرأ وتُطابَق أعلاه فقط؛")
-    lines.append("  تطبيقها الفعلي سيتطلب توسعة الدوال الرسمية (تقرير منفصل على المالك).")
+    lines.append("- الأعمدة الذكية (material_type/operation_type/inventory_type/tكاليف) تُقرأ وتُطابَق أعلاه؛")
+    lines.append("  تطبيقها الفعلي متاح الآن عبر الدالة الرسمية `update_product_catalog_fields` (تضمن وجود الأعمدة عند الحاجة).")
     lines.append("- النسخة الاحتياطية وفلتر المزامنة السحابية: تحدث عند `--apply` فقط.")
     return "\n".join(lines)
 
@@ -247,10 +282,10 @@ def apply_row_official(row: dict, db: dict, module_dir: str) -> dict:
     new_name = str(row.get("name")).strip() if row.get("name") not in (None, "") else cur["name"]
     new_cat = str(row.get("category")).strip() if row.get("category") not in (None, "") else (cur["category"] or "")
     new_r = _num(row.get("selling_price"), cur["price_retail"])
-    new_w = cur["price_wholesale"]
+    new_w = _num(row.get("wholesale_price"), cur["price_wholesale"])
 
     if new_name != cur["name"] or new_cat != (cur["category"] or "") or \
-       abs(new_r - cur["price_retail"]) > 0.005:
+       abs(new_r - cur["price_retail"]) > 0.005 or abs(new_w - cur["price_wholesale"]) > 0.005:
         D.update_product_details(pid, new_name, new_cat, new_w, new_r, cur["sort_order"])
         changes["details"] = True
 
@@ -269,6 +304,32 @@ def apply_row_official(row: dict, db: dict, module_dir: str) -> dict:
                 changes["stock"] = True
         except ValueError:
             changes["stock_error"] = f"قيمة stock غير رقمية: {st!r}"
+
+    # الحقول الذكية من الكتالوج (نوع الخامة، مسار التشغيل، نوع المخزون، التكاليف)
+    smart_updates = {}
+    mat = row.get("material_type")
+    if mat is not None and str(mat).strip() != "":
+        smart_updates["material_type"] = str(mat).strip()
+    op = row.get("operation_type")
+    if op is not None and str(op).strip() != "":
+        smart_updates["operation_type"] = str(op).strip()
+    inv = row.get("inventory_type")
+    if inv is not None and str(inv).strip() != "":
+        smart_updates["inventory_type"] = str(inv).strip()
+    raw = _num(row.get("raw_material_cost"), 0.0)
+    mfg = _num(row.get("manufacturing_cost"), 0.0)
+    total_cost = raw + mfg
+    if total_cost > 0:
+        smart_updates["last_cost_price"] = total_cost
+    if mfg > 0:
+        smart_updates["manufacturing_cost"] = mfg
+
+    if smart_updates:
+        res = D.update_product_catalog_fields(pid, **smart_updates)
+        if res.get("success"):
+            changes["smart"] = True
+        else:
+            changes["smart_error"] = res.get("error", "Unknown error")
 
     return {"ok": True, "id": pid, "changes": changes}
 
