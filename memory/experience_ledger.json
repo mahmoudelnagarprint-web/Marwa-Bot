@@ -1212,6 +1212,71 @@
         "reply"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-17T03:45:32.514525+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس",
+      "matched_keywords": [
+        "فارس"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T03:45:32.729399+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى",
+      "matched_keywords": [
+        "سلمى"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T03:45:32.970882+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم",
+      "matched_keywords": [
+        "حكيم"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T03:45:33.273885+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد",
+      "matched_keywords": [
+        "راصد"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T03:45:33.580196+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو",
+      "matched_keywords": [
+        "بيبو"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
     }
   ],
   "lessons": [
