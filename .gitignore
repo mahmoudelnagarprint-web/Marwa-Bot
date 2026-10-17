@@ -30,6 +30,8 @@ firebase_service_account.json
 *.db.bak-*
 *.bak
 *.bak-*
+*.bak_*
+*.bak*
 *.sqlite
 *.sqlite3
 backup/
