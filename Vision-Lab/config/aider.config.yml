@@ -26,3 +26,5 @@ no-check-update: true
 no-show-model-warnings: true
 suggest-shell-commands: false
 analytics-disable: true
+pretty: false              # plain output - avoids rich/legacy-console Unicode crashes
+gitignore: false           # never touch .gitignore files - the lab has its own

@@ -47,6 +47,10 @@ if (-not $key) { throw "[run_aider.ps1] DAHL_API_KEY غير موجود في .env
 $env:OPENAI_API_KEY  = $key
 $env:OPENAI_API_BASE = 'https://inference.dahl.global/v1'
 
+# --- Standard Python encoding: prevents Aider from crashing when printing Unicode symbols on a Windows console (cp1252) ---
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+
 Write-Host ("[run_aider.ps1] تم تحميل مفتاح DAHL من .env (طول المفتاح {0} حرفاً — لن يُعرض هنا). إطلاق Aider..." -f $key.Length)
 
 Set-Location -LiteralPath $labRoot
