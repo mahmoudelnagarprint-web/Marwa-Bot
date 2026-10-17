@@ -21,7 +21,10 @@ if (-not (Test-Path $pythonw)) { throw "pythonw not found: $pythonw" }
 
 $tasks = @(
   @{ Name = 'MarwaBot_Notebook';       Script = Join-Path $repo 'notebook\app.py';              Extra = '--port 8100' },
-  @{ Name = 'MarwaBot_NotebookBridge'; Script = Join-Path $repo 'notebook\telegram_bridge.py';  Extra = '--watch' }
+  @{ Name = 'MarwaBot_NotebookBridge'; Script = Join-Path $repo 'notebook\telegram_bridge.py';  Extra = '--watch' },
+  @{ Name = 'MarwaBot_NotebookMorning'; Script = Join-Path $repo 'notebook\automation.py';     Extra = '--morning' },
+  @{ Name = 'MarwaBot_NotebookEvening'; Script = Join-Path $repo 'notebook\automation.py';     Extra = '--evening' },
+  @{ Name = 'MarwaBot_NotebookCycle';  Script = Join-Path $repo 'notebook\automation.py';     Extra = '--cycle' }
 )
 
 foreach ($t in $tasks) {
