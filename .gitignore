@@ -71,3 +71,5 @@ agent/
 .DS_Store
 Thumbs.db
 desktop.ini
+# Aider session artifacts (مؤقتة - لا تُرفع)
+.aider*
