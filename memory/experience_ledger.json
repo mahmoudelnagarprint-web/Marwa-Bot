@@ -1134,6 +1134,84 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-17T00:34:22.850804+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو",
+      "matched_keywords": [
+        "كوكو"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T00:34:23.215903+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو احسب ليزر 30 40",
+      "matched_keywords": [],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T00:34:23.488470+00:00",
+      "agent_id": "marketing",
+      "input_text": "كوكو",
+      "matched_keywords": [
+        "كوكو"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T00:34:23.958803+00:00",
+      "agent_id": "marwa",
+      "input_text": "يا مروة",
+      "matched_keywords": [
+        "مروة"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T00:36:35.219615+00:00",
+      "agent_id": "marwa",
+      "input_text": "يا مروة",
+      "matched_keywords": [
+        "مروة"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T00:36:35.588178+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد",
+      "matched_keywords": [
+        "راصد"
+      ],
+      "result_action": null,
+      "result_keys": [
+        "reply"
+      ],
+      "error": null
     }
   ],
   "lessons": [
