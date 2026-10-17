@@ -79,6 +79,7 @@ _PERSONAS: Dict[str, Dict[str, Any]] = {
         "role": "الكودر والتطوير",
         "names": [("فيجن", False), ("فجن", False), ("vision", False)],
         "code_file": "orchestrator/agents/coder.py",
+        "workspace": "Vision-Lab/",  # بيئة عمله الخارجية المستقلة — المرجع الوحيد (قرار المالك 2026-10-17)
         "card": None,  # بطاقة الهوية داخل الوكيل نفسه (_identity) — منفذة 2026-10-16
     },
     "marketing": {
@@ -280,6 +281,7 @@ def squad() -> Dict[str, Dict[str, Any]]:
             "role": p["role"],
             "names": [r for r, _g in p["names"]],
             "code_file": p["code_file"],
+            "workspace": p.get("workspace"),
         }
         for aid, p in _PERSONAS.items()
     }
