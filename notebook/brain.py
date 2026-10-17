@@ -244,6 +244,18 @@ def parse_when(text: str, base: Optional[datetime] = None) -> Dict[str, Optional
         remind = now + timedelta(minutes=5)
     result["remind_at"] = remind.strftime("%Y-%m-%d %H:%M")
     result["when_text"] = due.strftime("%Y-%m-%d %H:%M")
+
+    # ---- فحص وقت الصلاة: لا مهام قبل/بعد صلاة بـ 20 دقيقة ----
+    try:
+        from prayer import is_prayer_window, prayer_block_end
+        if is_prayer_window(due, block_min=20):
+            new_due = prayer_block_end(due, block_min=20)
+            result["due_at"] = new_due.strftime("%Y-%m-%d %H:%M")
+            result["remind_at"] = (new_due - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+            result["when_text"] = new_due.strftime("%Y-%m-%d %H:%M") + " (بعد الصلاة)"
+    except Exception:
+        pass  # لو prayer مش متاح
+
     return result
 
 
