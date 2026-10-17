@@ -430,3 +430,67 @@ def recent_events(limit: int = 30, conn: Optional[sqlite3.Connection] = None) ->
     finally:
         if own:
             conn.close()
+
+
+# ------------------------------------------------------------------ امتدادات المنظّم
+def list_program_ideas(status: Optional[str] = None,
+                       limit: int = 50, conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+    """أفكار البرامج المخزّنة (لاقتراح خطوات التنفيذ)."""
+    return list_notes(status=status, kind="program_idea", limit=limit, conn=conn)
+
+
+def done_since(dt: Optional[datetime] = None,
+               conn: Optional[sqlite3.Connection] = None) -> List[Dict[str, Any]]:
+    """المهام المنجزة منذ لحظة معيّنة (للنظرة المسائية)."""
+    since = (dt or datetime.now() - timedelta(days=1)).isoformat(sep=" ")
+    own = conn is None
+    conn = conn or connect()
+    try:
+        rows = conn.execute(
+            """SELECT n.*, c.name AS category, c.emoji AS category_emoji, c.color AS category_color
+               FROM notes n LEFT JOIN categories c ON c.id = n.category_id
+               WHERE n.status = 'done' AND n.done_at IS NOT NULL AND n.done_at >= ?
+               ORDER BY n.done_at DESC""",
+            (since,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        if own:
+            conn.close()
+
+
+def roll_overdue_to_tomorrow(conn: Optional[sqlite3.Connection] = None) -> int:
+    """ترحيل المهام غير العاجلة المتأخرة (priority != urgent) إلى بكرة.
+
+    يرجع عدد المهام المرحّلة. يسجّل الحدث لكل مهمة عند الترحيل.
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+    tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    own = conn is None
+    conn = conn or connect()
+    try:
+        rows = conn.execute(
+            """SELECT id, due_at FROM notes
+               WHERE status='open' AND priority != 'urgent'
+                 AND due_at IS NOT NULL AND substr(due_at,1,10) < ?""",
+            (today,),
+        ).fetchall()
+        moved = 0
+        for r in rows:
+            old = r["due_at"]
+            # نُبقي الساعة، نغيّر التاريخ فقط
+            try:
+                h, m = old[11:13], old[14:16]
+                new_due = f"{tomorrow} {h}:{m}"
+            except Exception:
+                new_due = f"{tomorrow} 09:00"
+            conn.execute("UPDATE notes SET due_at=?, remind_at=?, updated_at=? WHERE id=?",
+                         (new_due, new_due, now_iso(), r["id"]))
+            conn.execute("INSERT INTO events(note_id, at, type, detail) VALUES (?,?,?,?)",
+                         (r["id"], now_iso(), "auto_roll", f"{old} -> {new_due}"))
+            moved += 1
+        conn.commit()
+        return moved
+    finally:
+        if own:
+            conn.close()

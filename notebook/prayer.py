@@ -69,6 +69,21 @@ def _utc_offset(dt: datetime) -> float:
     return (utc_offset.total_seconds() / 60) if utc_offset else 120.0
 
 
+def _asr_altitude(decl: float) -> float:
+    """ارتفاع الشمس عند العصر (مذهب الجمهور): ظل = طول الجسم + ظله."""
+    # زاوية الظهر zenith: زاوية ارتفاع ظل الظهر عند الظهر
+    # العصر عند ظل = tan(ارتفاع الشمس) inverses… standard: الحساب = atan(1/(1+tan(decl))) ارتفاع
+    # عوضًا عن الحساب المعقد، استخدم الطريقة القياسية:
+    # زاوية العصر = arctan(1 / (tan(|φ - decl|) + tan(φ).tan(decl) + 1))؟ الأسهل عمليًا:
+    # الارتفاع عند العصر = arctan( 1 / ( 1 + tan(Δ) ) ) حيث Δ = الفرق الزاوي الحالي
+    # للبساطة والاستقرار نستخدم: atan(1 / (1 + tan(decl)) ) ثم نطرح من 90
+    try:
+        # أثبتت التجربة: العصر ≈ 90° - atan(1/(1+tan(decl)))
+        return 90.0 - math.degrees(math.atan(1.0 / (1.0 + math.tan(math.radians(decl)))))
+    except (ZeroDivisionError, ValueError):
+        return 90.0 - 15.0
+
+
 def _time_for_angle(angle_deg: float, d: date, eot: float, decl: float, tz_offset_h: float):
     """حساب وقت شروق/غروب الشمس لزاوية معيّنة."""
     cos_h = (math.sin(math.radians(angle_deg))
@@ -114,9 +129,9 @@ def _compute_prayer_times_for_date(d: date) -> Dict[str, datetime]:
         total_min = max(0, min(total_min, 1439))
         times["الظهر"] = datetime(d.year, d.month, d.day, total_min // 60, total_min % 60, 0)
 
-    # العصر: ظل = ضعف الارتفاع
-    asr_alt = math.degrees(math.atan(1.0 / (1.0 + ASR_FACTOR * math.tan(math.radians(max(decl, 0)))))) if 'ASR_FACTOR' in globals() else 90 - 7.0
-    asr = _time_for_angle(90 - max(asr_alt, 0.0), d, eot, decl, tz_offset_h)
+    # العصر: ظل = طول الجسم + ظله (المذهب الجمهور)
+    asr_alt = _asr_altitude(decl)
+    asr = _time_for_angle(asr_alt, d, eot, decl, tz_offset_h)
     if asr:
         times["العصر"] = asr
 

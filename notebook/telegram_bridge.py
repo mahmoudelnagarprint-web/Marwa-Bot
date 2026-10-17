@@ -352,12 +352,81 @@ def digest_cycle(tg: Telegram, allowed: set, state: Dict[str, Any], now: Optiona
     chat_id = next(iter(allowed)) if allowed else 0
     if not chat_id:
         return False
-    if tg.send(chat_id, digest_text()):
+    # ملخص الصباح الشامل: الصلاة + مهام اليوم (من جهة المنظّم)
+    text = brain.morning_digest_text()
+    ok = tg.send(chat_id, text)
+    if ok:
         state["digest_date"] = today
         _save_state(state)
         log("morning digest sent")
         return True
     return False
+
+
+def prayer_cycle(tg: Telegram, allowed: set, state: Dict[str, Any], now: Optional[datetime] = None) -> int:
+    """تذكير الصلاة قبلها بـ10 دقائق — مرة واحدة لكل صلاة في اليوم.
+
+    يعتمد على prayer.py ولا يزاحم دورات تانية (قناة موحّدة للبوت بدون تعارض).
+    """
+    sent = 0
+    try:
+        import prayer
+        upcoming = prayer.prayers_upcoming(now, minutes=10)
+        if not upcoming:
+            return 0
+        chat_id = next(iter(allowed)) if allowed else 0
+        if not chat_id:
+            return 0
+        for name, pt, mins in upcoming:
+            key = f"prayer_{name}_{now.strftime('%Y-%m-%d')}"
+            if state.get(key):
+                continue
+            if tg.send(chat_id, f"📿 صلاة {name} بعد {mins} دقيقة — جهّز نفسك 🕌\n⏰ الساعة {pt:%H:%M}"):
+                state[key] = True
+                sent += 1
+        if sent:
+            _save_state(state)
+        return sent
+    except Exception as exc:
+        log(f"prayer cycle error: {type(exc).__name__}: {exc}")
+        return 0
+
+
+def sleep_cycle(tg: Telegram, allowed: set, state: Dict[str, Any], now: Optional[datetime] = None) -> int:
+    """دورة المساء: تنبيه النوم + ترحيل المتأخر غير العاجل لبكرة."""
+    sent = 0
+    now = now or datetime.now()
+    try:
+        if now.hour < 22:
+            return 0
+        # ترحيل المتأخّر غير العاجل (وقت النوم)
+        rolled = 0
+        try:
+            today = now.strftime("%Y-%m-%d")
+            if state.get(f"sleep_roll_{today}"):
+                rolled = 0
+            else:
+                rolled = store.roll_overdue_to_tomorrow()
+                state[f"sleep_roll_{today}"] = True
+        except Exception as exc:
+            log(f"roll overdue error: {type(exc).__name__}")
+        chat_id = next(iter(allowed)) if allowed else 0
+        if not chat_id:
+            return 0
+        today = now.strftime("%Y-%m-%d")
+        if state.get(f"sleep_alert_{today}"):
+            return 0
+        text = brain.sleep_reminder_text()
+        if rolled:
+            text += f"\n📆 رحّلت {rolled} مهمة غير عاجلة لبكرة تلقائيًا."
+        if tg.send(chat_id, text):
+            state[f"sleep_alert_{today}"] = True
+            _save_state(state)
+            sent += 1
+        return sent
+    except Exception as exc:
+        log(f"sleep cycle error: {type(exc).__name__}: {exc}")
+        return 0
 
 
 def poll_loop(tg: Telegram, allowed: set, state: Dict[str, Any], stop: threading.Event,
@@ -388,6 +457,18 @@ def reminder_loop(tg: Telegram, allowed: set, stop: threading.Event, interval: i
                 log(f"reminders sent: {count}")
         except Exception as exc:
             log(f"reminder cycle error: {type(exc).__name__}: {exc}")
+        try:
+            _pray = prayer_cycle(tg, allowed, _load_state())
+            if _pray:
+                log(f"prayer reminders sent: {_pray}")
+        except Exception as exc:
+            log(f"prayer cycle in loop error: {type(exc).__name__}")
+        try:
+            _sl = sleep_cycle(tg, allowed, _load_state())
+            if _sl:
+                log(f"sleep alert sent: {_sl}")
+        except Exception as exc:
+            log(f"sleep cycle in loop error: {type(exc).__name__}")
         if once:
             return
         stop.wait(interval)

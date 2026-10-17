@@ -405,3 +405,95 @@ def confirm_message(note: Dict[str, Any], note_id: int) -> str:
     if note.get("question"):
         lines.append(f"❓ {note.get('question')}")
     return "\n".join(lines)
+
+
+# =============================================================================
+# شخصية المنظم الاستباقي — منظم حياة وأعمال
+# =============================================================================
+
+def sleep_time_default() -> float:
+    """وقت النوم المعتاد: 23:00 — لو فات يبقى بكرة."""
+    return 23.0
+
+
+def is_late_night(dt: Optional[datetime] = None) -> bool:
+    """هل الوقت بعد 22:30 (بداية تنبيه النوم)؟"""
+    now = dt or datetime.now()
+    warn_hour = 22.5
+    return now.hour * 1.0 + now.minute / 60 >= warn_hour
+
+
+def sleep_reminder_text() -> str:
+    """رسالة تذكير النوم مساءً — عند السهر."""
+    try:
+        from scheduler import bedtime_text  # noqa: F401
+        from scheduler import bedtime  # noqa: F401
+    except Exception:
+        pass
+    try:
+        import prayer
+        times = prayer.get_prayer_times()
+        fajr = times.get("الفجر")
+        fajr_txt = fajr.strftime("%H:%M") if fajr else "--:--"
+    except Exception:
+        fajr_txt = "--:--"
+    return (f"🌙 تنبيه النوم: بكرة الفجر {fajr_txt} 🌙\n"
+            "نصحتي: قفل بيها نصّك — النوم قبل الفجر يحفظ يومك.")
+
+
+def build_daily_plan_text() -> str:
+    """نص جدول اليوم الكامل للصباح: الصلاة + مهام المحل + الشخصية."""
+    try:
+        from scheduler import build_daily_plan as _bd
+        return _bd()
+    except Exception:
+        out = ["☀️ جدول اليوم فارغ أو غير متوفر حاليًا."]
+        recent = []
+        try:
+            import store as _s
+            recent = _s.list_notes(status="open")
+        except Exception:
+            pass
+        if recent:
+            out = [f"☀️ مهام اليوم ({len(recent)}):"]
+            for n in recent[:5]:
+                out.append(f"• #{n.get('id')} {n.get('title','')[:50]}")
+        return "\n".join(out)
+
+
+def propose_program_steps(note: dict) -> List[str]:
+    """اقتراح خطوات تنفيذية لفكرة برنامج — تقسم الفكرة لخطوات عملية."""
+    return [
+        "📐 حدد المشكلة الأساسية اللي الفكرة دي بتحلها.",
+        "🗂️ اقسّمها لمراحل: بحث → تصميم → تنفيذ → اختبار → نشر.",
+        "🔧 ابدأ بـ MVP صغير قابل للتوسع.",
+        "✅ حقّق كل خطوة بوضوح وقسّسها.",
+        "📋 حدد أدوات كل خطوة ومصادرها.",
+    ]
+
+
+def morning_digest_text() -> str:
+    """الملخص الصباحي الشامل: الصلاة + مهام اليوم."""
+    parts = []
+    try:
+        from scheduler import build_daily_plan as _bd
+        parts.append(_bd())
+    except Exception:
+        parts.append(build_daily_plan_text())
+    return "\n".join(parts)
+
+
+# ------------------------------------------------------------------ تنسيق نصوص
+def organize_notes_with_prayer_hint() -> str:
+    """إعادة ترتيب حسب الأولوية + تلميح الصلاة القادمة."""
+    try:
+        import prayer  # noqa: F401
+        try:
+            next_p = prayer.next_prayer()
+            parts = [f"📍 أولى صلواتك القادمة: {next_p[0]} عند {next_p[1]:%H:%M}"
+                    f" بعد {next_p[2]} دقيقة."]
+        except Exception:
+            parts = ["📍 استعد للصلاة القادمة."]
+        return "\n".join(parts)
+    except Exception:
+        return "📍 جهز يومك حسب الصلاة — نظام صحي ومريح."
