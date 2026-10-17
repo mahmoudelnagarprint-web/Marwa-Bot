@@ -47,7 +47,10 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]  # G:\ai\Naggar Print POS Agent
 APPS_JSON = REPO_ROOT / "orchestrator" / "agents" / "system_apps.json"
 
-WINDOW_HINT = "rdworks"   # مطابقة عنوان النافذة الرئيسية (غير حساسة لحالة الأحرف)
+# العنوان الحقيقي المكتشف لنافذة RDWorks الرئيسية على جهاز الورشة: «V8.00.32-[Blank]»
+# أي: رقم إصدار V8.x.x ثم اسم الملف المفتوح بين قوسين — ولا يحتوي كلمة RDWorks أصلاً!
+# لذلك نطابق النمطين معاً: كلمة rdworks (لو ظهرت) أو نمط Vإصدار-[ملف].
+WINDOW_TITLE_RE = re.compile(r"(rdworks|^v\d+\.\d+\.\d+\s*-\s*\[)", re.IGNORECASE)
 POLL_INTERVAL = 1.0       # ثانية بين كل محاولة رصد
 STABLE_CONFIRM = 3.0      # ثوانٍ إعادة التأكد أن النافذة ثابتة (لتجنب شاشة الـ Splash)
 
@@ -89,9 +92,9 @@ def load_apps() -> dict:
 
 
 def rdworks_windows():
-    """كل النوافذ المفتوحة التي يحتوي عنوانها على كلمة rdworks."""
+    """كل النوافذ المطابقة لعنوان RDWorks (كلمة rdworks أو نمط Vإصدار-[ملف])."""
     import pygetwindow as gw
-    return [w for w in gw.getAllWindows() if WINDOW_HINT in (w.title or "").lower()]
+    return [w for w in gw.getAllWindows() if WINDOW_TITLE_RE.search(w.title or "")]
 
 
 def find_rdworks_exe() -> str | None:
