@@ -1,0 +1,30 @@
+# ============================================================================
+# Vision-Lab - Aider configuration | LAPTOP_NODE | 2026-10-17
+# ============================================================================
+# SECURITY: this file must NEVER contain API keys or secrets.
+# The DAHL API key lives in the repo-root .env (outside the lab, git-ignored).
+# scripts/run_aider.ps1 loads it at runtime into the OPENAI_API_KEY env var
+# for the Aider process only - it is never printed or stored inside the lab.
+#
+# Gateway: DAHL (OpenAI-compatible) available on the laptop.
+# Models offered by the gateway (live check 2026-10-17):
+#   zai-org/GLM-5.3-Flash          <- selected (fast, code-focused)
+#   MiniMaxAI/MiniMax-M2.7
+#   deepseek-ai/DeepSeek-V4-Flash-0731
+#
+# NOTE: keep this file ASCII-only. Aider parses it with the system locale
+# codec on Windows (cp1252), so any non-ASCII character breaks startup.
+# ============================================================================
+
+model: openai/zai-org/GLM-5.3-Flash
+openai-api-base: https://inference.dahl.global/v1
+
+# Safe behavior inside a repo with automatic git sync (~every 15 min):
+auto-commits: false        # aider never commits - the owner autosync owns git
+yes-always: true           # ready for non-interactive / programmatic runs
+no-check-update: true
+no-show-model-warnings: true
+suggest-shell-commands: false
+analytics-disable: true
+pretty: false              # plain output - avoids rich/legacy-console Unicode crashes
+gitignore: false           # never touch .gitignore files - the lab has its own
