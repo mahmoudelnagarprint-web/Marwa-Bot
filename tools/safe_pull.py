@@ -134,7 +134,7 @@ def main():
         if row and row.get("value"):
             state = json.loads(row["value"])
             for table in ("daily_shifts", "settings"):
-                info = LS._seed_table(conn, state.get(table) or [])
+                info = LS._seed_table(conn, table, state.get(table) or [])
                 log("state %-12s %d rows" % (table, info["rows"]))
         else:
             log("vault local_state_json missing — daily_shifts/settings kept", "WARN")
