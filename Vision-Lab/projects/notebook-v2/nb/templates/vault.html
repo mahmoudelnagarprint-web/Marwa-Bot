@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}خزنة البرومبتات — النوتبوك v2{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>📜 خزنة البرومبتات</h2>
+  <p class="hint">
+    احفظ برومبتاتك الممتازة مصنّفة وموسومة، وابحث فيها <b>دلاليًا</b> (pgvector cosine)
+    — لو مفيش خدمة embeddings متوفرة، البحث يتحول تلقائيًا لكلمات (ترجم/ILIKE) ويعمل دائمًا.
+  </p>
+</div>
+
+<div class="card">
+  <h3>➕ إضافة برومبت</h3>
+  <div class="row">
+    <input id="v-title" placeholder="العنوان — مثال: مُراجِع كود عربي" style="flex:1;min-width:200px">
+    <input id="v-category" placeholder="التصنيف" style="width:140px">
+    <input id="v-tags" placeholder="وسوم مفصولة بمسافة" style="flex:1;min-width:160px">
+  </div>
+  <textarea id="v-body" rows="4" placeholder="نص البرومبت الكامل..."></textarea>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" onclick="addPrompt()">حفظ في الخزنة</button>
+    <span class="hint">النص يُضمَّن تلقائيًا لو توفرت خدمة embeddings</span>
+  </div>
+  <div id="v-msg"></div>
+</div>
+
+<div class="card">
+  <h3>🔍 البحث الدلالي</h3>
+  <div class="row">
+    <input id="v-q" placeholder="سؤال/وصف — مثال: برومبت يكتب ريبور ريتش أرل إنجليزي" style="flex:1">
+    <button class="btn" onclick="searchVault()">ابحث</button>
+  </div>
+  <div id="v-results"></div>
+</div>
+
+<script>
+async function api(url, method = 'GET', body = null) {
+  const opt = {method, headers: {'Content-Type': 'application/json'}};
+  if (body) opt.body = JSON.stringify(body);
+  const r = await fetch(url, opt); return r.json();
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+function renderList(res) {
+  const box = document.getElementById('v-results');
+  if (!res.length) { box.innerHTML = '<div class="empty">مفيش نتايج</div>'; return; }
+  box.innerHTML = res.map(p => `<div class="note">
+    <div class="title">#${p.id} — ${esc(p.title)} <span class="badge">${esc(p.category || 'عام')}</span>
+      <small style="float:left;color:#64748b">استخدم ${p.use_count || 0} مرة</small></div>
+    <div class="body">${esc((p.body || '').slice(0, 500))}</div>
+    <div class="actions"><button class="btn sm danger" onclick="delPrompt(${p.id})">حذف</button></div>
+  </div>`).join('');
+}
+async function addPrompt() {
+  const r = await api('/api/vault', 'POST', {
+    title: document.getElementById('v-title').value,
+    body: document.getElementById('v-body').value,
+    category: document.getElementById('v-category').value || 'عام',
+    tags: document.getElementById('v-tags').value.split(/\s+/).filter(Boolean)
+  });
+  document.getElementById('v-msg').innerHTML = r.ok ? '<div class="ok-box">' + esc(r.message) + '</div>' : '<div class="err-box">' + esc(r.error) + '</div>';
+  if (r.ok) { listRecent(); }
+}
+async function searchVault() {
+  const q = document.getElementById('v-q').value.trim();
+  if (!q) return;
+  const res = await api('/api/vault?q=' + encodeURIComponent(q) + '&k=6');
+  renderList(res.results); // البادئة توضح النمط — التفاصيل في الاستجابة
+}
+async function listRecent() { const res = await api('/api/vault?limit=10'); renderList(res); }
+async function delPrompt(pid) { if (confirm('حذف البرومبت؟')) { await api('/api/vault/' + pid, 'DELETE'); listRecent(); } }
+listRecent();
+</script>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}ورشة النجار برنت — النوتبوك v2{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>🔧 ورشة النجار برنت — الوحدة المستقلة (ليزر / CNC / طباعة)</h2>
+  <p class="hint">موديول أعمال منفصل تمامًا عن المحل: شغلانات وخامات وعملاء — تجاوزه لا يمس منطق الـRetail.</p>
+</div>
+
+<div class="stats" id="ws-stats"></div>
+
+<div class="tabs">
+  <button class="tab active" id="t-jobs" onclick="tab('jobs')">⚙️ شغلانات</button>
+  <button class="tab" id="t-materials" onclick="tab('materials')">🪵 الخامات</button>
+  <button class="tab" id="t-customers" onclick="tab('customers')">👥 العملاء</button>
+</div>
+
+<!-- jobs -->
+<section id="panel-jobs">
+  <div class="card">
+    <h3>➕ شغلانة جديدة</h3>
+    <div class="row">
+      <input id="j-customer" placeholder="العميل (اختياري)" style="min-width:150px">
+      <input id="j-title" placeholder="الوصف — مثال: حفر اسم على خشب MDF" style="flex:1;min-width:240px">
+      <select id="j-machine">
+        {% for k, v in machine_labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+      </select>
+      <input id="j-price" type="number" placeholder="المبلغ" style="width:100px">
+      <input id="j-due" type="date" placeholder="الميعاد" style="width:150px">
+      <button class="btn" onclick="addJob()">إضافة</button>
+    </div>
+    <div id="job-msg"></div>
+  </div>
+  <div class="card" id="jobs-body"><div class="hint">جارٍ التحميل...</div></div>
+</section>
+
+<!-- materials -->
+<section id="panel-materials" style="display:none">
+  <div class="card">
+    <h3>➕ خامة جديدة</h3>
+    <div class="row">
+      <input id="m-name" placeholder="الاسم — مثال: لوح MDF 3mm" style="flex:1;min-width:200px">
+      <input id="m-qty" type="number" placeholder="الكمية" style="width:90px">
+      <input id="m-min" type="number" placeholder="الحد الأدنى" style="width:90px">
+      <input id="m-cost" type="number" placeholder="سعر الوحدة" style="width:100px">
+      <button class="btn" onclick="addMaterial()">إضافة</button>
+    </div>
+    <div id="mat-msg"></div>
+  </div>
+  <div class="card" id="materials-body"></div>
+</section>
+
+<!-- customers -->
+<section id="panel-customers" style="display:none">
+  <div class="card" id="customers-body"></div>
+</section>
+
+<script>
+const STATUS = {{ status_labels | tojson }};
+const MACHINE = {{ machine_labels | tojson }};
+async function api(url, method = 'GET', body = null) {
+  const opt = {method, headers: {'Content-Type': 'application/json'}};
+  if (body) opt.body = JSON.stringify(body);
+  const r = await fetch(url, opt); return r.json();
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+function tab(name) {
+  ['jobs','materials','customers'].forEach(t => {
+    document.getElementById('panel-' + t).style.display = (t === name) ? '' : 'none';
+    document.getElementById('t-' + t).classList.toggle('active', t === name);
+  });
+  if (name === 'materials') loadMaterials();
+  if (name === 'customers') loadCustomers();
+}
+
+async function loadStats() {
+  const s = await api('/api/workshop/stats');
+  document.getElementById('ws-stats').innerHTML = [
+    ['مفتوح', s.open_jobs], ['عملاء', s.customers], ['خامات ناقصة', s.materials_low],
+    ['ايراد المسلّم', s.delivered_revenue], ['متبقي غير محصّل', s.unpaid_delivered]
+  ].map(([k, v]) => `<div class="stat ${k === 'متبقي غير محصّل' ? 'warn' : ''}"><b>${v}</b><span>${k}</span></div>`).join('');
+}
+
+async function loadJobs() {
+  const jobs = await api('/api/workshop/jobs');
+  const body = document.getElementById('jobs-body');
+  if (!jobs.length) { body.innerHTML = '<div class="empty">مفيش شغلانات مفتوحة — أضف أول واحدة ⬆️</div>'; return; }
+  body.innerHTML = '<table><tr><th>#</th><th>الوصف</th><th>العميل</th><th>الالة</th><th>المبلغ</th><th>المدفوع</th><th>الحالة</th><th>الاجراء</th></tr>' +
+    jobs.map(j => `<tr>
+      <td>${esc(j.job_no)}</td>
+      <td>${esc(j.title)}</td>
+      <td>${esc(j.customer_name || '—')}</td>
+      <td>${esc(MACHINE[j.machine_type] || j.machine_type)}</td>
+      <td>${j.price}</td>
+      <td>${j.paid}</td>
+      <td><span class="status-badge">${esc(STATUS[j.status] || j.status)}</span></td>
+      <td class="flex">
+        <button class="btn sm" onclick="advance(${j.id})">تقديم</button>
+        <button class="btn sm ok" onclick="pay(${j.id})">دفعة</button>
+      </td>
+    </tr>`).join('') + '</table>';
+}
+const FLOW = ['quote','confirmed','design','production','finishing','ready','delivered'];
+async function advance(jid) {
+  const cur = FLOW[(await api('/api/workshop/jobs/' + jid)).status];
+  const next = FLOW.indexOf(cur) >= 0 ? FLOW[FLOW.indexOf(cur) + 1] : null;
+  if (!next) return; await api('/api/workshop/jobs/' + jid + '/advance', 'POST', {status: next}); loadJobs(); loadStats();
+}
+function pay(jid) { const a = prompt('مبلغ الدفعة؟'); if (a && !isNaN(a)) api('/api/workshop/jobs/' + jid + '/pay', 'POST', {amount: a}).then(() => { loadJobs(); loadStats(); }); }
+
+async function addJob() {
+  const body = {
+    title: document.getElementById('j-title').value,
+    customer: document.getElementById('j-customer').value || null,
+    machine_type: document.getElementById('j-machine').value,
+    price: document.getElementById('j-price').value || 0,
+    due_date: document.getElementById('j-due').value || null
+  };
+  const r = await api('/api/workshop/jobs', 'POST', body);
+  document.getElementById('job-msg').innerHTML = r.ok ? '<div class="ok-box">' + esc(r.message) + '</div>' : '<div class="err-box">' + esc(r.error) + '</div>';
+  if (r.ok) { loadJobs(); loadStats(); }
+}
+
+async function loadMaterials() {
+  const mats = await api('/api/workshop/materials');
+  document.getElementById('materials-body').innerHTML = mats.length ? '<table><tr><th>الخامة</th><th>النوع</th><th>الكمية</th><th>حد أدنى</th><th>سعر وحدة</th><th>تعديل</th></tr>' +
+    mats.map(m => `<tr>
+      <td>${esc(m.name)}</td><td>${esc(m.kind)}</td><td>${m.qty} ${esc(m.unit)}</td><td>${m.min_qty}</td><td>${m.unit_cost}</td>
+      <td class="flex"><button class="btn sm warn" onclick="adjust(${m.id}, +1)">+1</button><button class="btn sm ghost" onclick="adjust(${m.id}, -1)">−1</button></td>
+    </tr>`).join('') + '</table>' : '<div class="empty">مفيش خامات</div>';
+}
+async function addMaterial() {
+  const r = await api('/api/workshop/materials', 'POST', {
+    name: document.getElementById('m-name').value,
+    qty: document.getElementById('m-qty').value || 0,
+    min_qty: document.getElementById('m-min').value || 0,
+    unit_cost: document.getElementById('m-cost').value || 0
+  });
+  document.getElementById('mat-msg').innerHTML = r.ok ? '<div class="ok-box">تم</div>' : '<div class="err-box">' + esc(r.error) + '</div>';
+  if (r.ok) loadMaterials();
+}
+function adjust(mid, d) { api('/api/workshop/materials/' + mid + '/adjust', 'POST', {delta: d, reason: 'تعديل يدوي'}).then(loadMaterials); }
+
+async function loadCustomers() {
+  const c = await api('/api/workshop/customers');
+  document.getElementById('customers-body').innerHTML = c.length ?
+    '<table><tr><th>العميل</th><th>الموبايل</th><th>شغلانات</th></tr>' +
+    c.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.phone || '—')}</td><td>${x.jobs}</td></tr>`).join('') + '</table>'
+    : '<div class="empty">مفيش عملاء</div>';
+}
+
+loadStats(); loadJobs();
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}النوتبوك v2 — مركز القيادة{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">💡 النوتبوك v2 <span>مركز القيادة الموحد</span></div>
+  <nav>
+    <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">🏠 الرئيسية</a>
+    <a href="{{ url_for('providers_page') }}" class="{{ 'active' if request.endpoint == 'providers_page' }}">☁️ مزودو الـAI</a>
+    <a href="{{ url_for('workshop_page') }}" class="{{ 'active' if request.endpoint == 'workshop_page' }}">🔧 الورشة</a>
+    <a href="{{ url_for('vault_page') }}" class="{{ 'active' if request.endpoint == 'vault_page' }}">📜 الخزنة</a>
+  </nav>
+  <div class="node-badge">{{ node_badge }}</div>
+</header>
+
+<main class="wrap">
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  النوتبوك v2 — تحت إدارة مروة 💙 | العقل المشترك على PostgreSQL + pgvector | بوت المالك: @Afkary22Bot
+</footer>
+</body>
+</html>

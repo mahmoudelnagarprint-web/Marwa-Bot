@@ -71,11 +71,12 @@ def process_reminders() -> int:
 
 # ------------------------------------------------------------------ الجدول اليومي
 def _claim_daily(job: str) -> bool:
-    """حجز دورة اليوم ذريًا — الفائز فقط يرسل (منع التكرار بين العقد)."""
+    """حجز دورة اليوم ذريًا بوقت محلي (القاهرة) — الفائز فقط يرسل."""
+    today = datetime.now().astimezone().strftime("%Y-%m-%d")
     row = db.q("""INSERT INTO cron_runs(job, run_date, node_id)
-                  VALUES (%s, now() AT TIME ZONE 'localtime'::date, %s)
+                  VALUES (%s, %s, %s)
                   ON CONFLICT DO NOTHING RETURNING id""",
-               (job, config.NODE_ID), one=True)
+               (job, today, config.NODE_ID), one=True)
     return bool(row)
 
 
@@ -141,8 +142,8 @@ def morning_briefing_if_due() -> bool:
         return False
     if not _claim_daily("morning"):
         return False
-    enqueue(config.OWNER_TEGRAM_ID if hasattr(config, "OWNER_TEGRAM_ID") else 0,
-            briefing_text(), "briefing", dedupe_key=f"brief-{now:%Y-%m-%d}")
+    enqueue(config.OWNER_TELEGRAM_ID, briefing_text(), "briefing",
+            dedupe_key=f"brief-{now:%Y-%m-%d}")
     return True
 
 

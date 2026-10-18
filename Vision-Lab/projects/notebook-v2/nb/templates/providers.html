@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}مزودو الـAI — النوتبوك v2{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>☁️ إدارة مزودي الذكاء الاصطناعي</h2>
+  <p class="hint">
+    أضف مفتاحك لأي مزود OpenAI-compatible (DeepSeek / OpenAI / Groq / أي بوابة) —
+    النوتبوك يكتشف النماذج تلقائيًا، ويخزّن المفاتيح <b>مشفرة</b>، وتقدر تختار
+    الافتراضي ديناميكيًا. الهدف: المنظومة تعمل بالسحابة حتى لو الأجهزة المحلية أوفلاين.
+  </p>
+</div>
+
+<div class="card">
+  <h3>➕ مزود جديد</h3>
+  <div class="row">
+    <select id="preset" onchange="applyPreset()">
+      <option value="">اختار قالب...</option>
+      {% for p in presets %}<option value="{{ p.base_url }}" data-name="{{ p.name }}">{{ p.name }}</option>{% endfor %}
+    </select>
+    <input type="text" id="p-name" placeholder="اسم المزود (مثال: DeepSeek)">
+    <input type="text" id="p-url" placeholder="https://api.deepseek.com/v1" style="flex:1;min-width:260px" class="mono">
+    <input type="password" id="p-key" placeholder="مفتاح API السري" style="flex:1;min-width:220px">
+    <button class="btn" onclick="addProvider()">إضافة وحفظ (مشفرا)</button>
+  </div>
+  <div id="add-msg"></div>
+</div>
+
+<div class="card">
+  <h3>المزودون المسجلون</h3>
+  <div id="providers"></div>
+</div>
+
+<script>
+async function api(url, method = 'GET', body = null) {
+  const opt = {method, headers: {'Content-Type': 'application/json'}};
+  if (body) opt.body = JSON.stringify(body);
+  const r = await fetch(url, opt);
+  return r.json();
+}
+const kLabels = {DEEPSEEK: 'DeepSeek', OPENAI: 'OpenAI', GROQ: 'Groq', DAHLOB: 'Dahl'};
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+async function loadProviders() {
+  const list = await api('/api/providers');
+  const box = document.getElementById('providers');
+  if (!list.length) { box.innerHTML = '<div class="empty">مفيش مزودين لسه — أضف أول مزود فوق ☝️</div>'; return; }
+  box.innerHTML = list.map(p => `
+    <div class="provider-card">
+      <div class="head">
+        <h3>${esc(p.name)}</h3>
+        <span class="pill ${p.is_default ? 'default' : 'idle'}">${p.is_default ? '★ الافتراضي' : ''}</span>
+        <span class="pill ${p.active ? 'ok' : 'bad'}">${p.active ? 'مفعّل' : 'موقوف'}</span>
+        <span class="pill ${p.last_check_ok === null ? 'idle' : (p.last_check_ok ? 'ok' : 'bad')}">
+          ${p.last_check_ok === null ? 'لم يُفحص' : (p.last_check_ok ? '✓ سليم' : '✗ خطأ')}
+        </span>
+        <span style="flex:1"></span>
+        <code class="mono">${esc(p.base_url)}</code>
+        <div class="flex">
+          <button class="btn sm" onclick="discoverModels(${p.id})">🔍 اكتشاف النماذج</button>
+          <button class="btn sm ghost" onclick="testProvider(${p.id})">🧪 اختبار</button>
+          <button class="btn sm warn" onclick="toggleActive(${p.id}, ${!p.active})">${p.active ? 'إيقاف' : 'تفعيل'}</button>
+          <button class="btn sm danger" onclick="delProvider(${p.id})">حذف</button>
+        </div>
+      </div>
+      <div class="hint">آخر فحص: ${p.last_check_msg || '—'} | المفتاح: <code>${esc(p.key_masked)}</code></div>
+      <div class="models" id="models-${p.id}">
+        ${p.is_default
+          ? `<div class="model-row"><span class="pill ok">★ الافتراضي</span><span class="mid mono">${esc(p.default_model_id)}</span></div>`
+          : ''}
+      </div>
+    </div>`).join('');
+  list.forEach(loadModels);
+}
+
+async function loadModels(p) {
+  const box = document.getElementById('models-' + p.id);
+  const models = await api('/api/providers/' + p.id + '/models');
+  if (!models.length) { box.innerHTML += '<div class="hint">شغّل "اكتشاف النماذج" لعرض الموديلات.</div>'; return; }
+  box.innerHTML = models.map(m => `
+    <div class="model-row">
+      <span class="mid mono">${esc(m.model_id)}</span>
+      ${m.active ? `<button class="btn sm ghost" onclick="setDefault(${p.id}, '${esc(m.model_id)}')">تعيين افتراضي</button>` : ''}
+    </div>`).join('');
+}
+
+function applyPreset() {
+  const s = document.getElementById('preset');
+  if (s.value) {
+    document.getElementById('p-name').value = s.options[s.selectedIndex].dataset.name;
+    document.getElementById('p-url').value = s.value;
+  }
+}
+
+async function addProvider() {
+  const msg = document.getElementById('add-msg');
+  const body = {
+    name: document.getElementById('p-name').value,
+    base_url: document.getElementById('p-url').value,
+    api_key: document.getElementById('p-key').value
+  };
+  if (!body.name || !body.base_url || !body.api_key) { msg.innerHTML = '<div class="err-box">املأ الاسم وbase_url والمفتاح</div>'; return; }
+  const r = await api('/api/providers', 'POST', body);
+  msg.innerHTML = r.ok ? `<div class="ok-box">${esc(r.message)}</div>` : `<div class="err-box">${esc(r.error)}</div>`;
+  if (r.ok) { loadProviders(); document.getElementById('p-key').value = ''; }
+}
+
+async function discoverModels(pid) {
+  const r = await api('/api/providers/' + pid + '/discover', 'POST', {});
+  alert(r.ok ? r.message : r.error); loadProviders();
+}
+async function testProvider(pid) {
+  const r = await api('/api/providers/' + pid + '/test', 'POST', {});
+  alert(r.ok ? (r.message + ' — النموذج: ' + r.model) : r.message); loadProviders();
+}
+async function setDefault(pid, model) {
+  const r = await api('/api/providers/' + pid + '/default', 'POST', {model_id: model});
+  alert(r.ok ? r.message : r.error); loadProviders();
+}
+async function toggleActive(pid, active) {
+  const r = await api('/api/providers/' + pid, 'PATCH', {active}); loadProviders();
+}
+async function delProvider(pid) {
+  if (!confirm('حذف المزود ونماذجه نهائيًا؟')) return;
+  const r = await api('/api/providers/' + pid, 'DELETE', {}); loadProviders();
+}
+
+loadProviders();
+</script>
+{% endblock %}
