@@ -286,7 +286,8 @@ def _claim_daily(job: str) -> bool:
 
 def rollcall_if_due(sender: Optional[Callable[[int, str], bool]] = None) -> int:
     """الدورة اليومية: تسأل الفريق مرة واحدة وتبعتها للمالك. ترجع عدد المُرسل."""
-    hh, _mm = (getattr(config, "SQUAD_ROLLCALL_AT", "09:00") or "09:00").split(":")[:2] + ["00"]
+    # القيمة قد تكون "09:00" أو "9" أو "09:00:00" — نأخذ الساعة فقط.
+    hh = (getattr(config, "SQUAD_ROLLCALL_AT", "09:00") or "09:00").split(":")[0].strip()
     try:
         hour = int(hh)
     except ValueError:

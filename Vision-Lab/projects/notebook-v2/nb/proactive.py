@@ -137,7 +137,8 @@ def briefing_text() -> str:
 
 def morning_briefing_if_due() -> bool:
     """نافذة الملخص الصباحي — مرة واحدة في اليوم مهما نطفت العقد."""
-    hh, _mm = (config.MORNING_BRIEFING_AT or "08:00").split(":")[:2] + ["00"]
+    # القيمة قد تكون "08:00" أو "8" أو "08:00:00" — نأخذ الساعة فقط.
+    hh = (config.MORNING_BRIEFING_AT or "08:00").split(":")[0].strip()
     try:
         hour = int(hh)
     except ValueError:

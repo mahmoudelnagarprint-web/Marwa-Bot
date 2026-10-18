@@ -162,6 +162,8 @@ WELCOME = (
 HELP = (
     "ارشادات سريعة:\n"
     "• «المستحق» / «قائمتي» / «الملخص»\n"
+    "• «الفريق» — أسأل كل الوكلاء عن ملاحظة/نوت/تذكير\n"
+    "• «حالة» — وقفة سريعة على العقدة والقيادة\n"
     "• «تم 5» / «أجّل 5» / «صنّف 5 حسابات» / «احذف 5»\n"
     "• «بومودورو 25» — جلسة تركيز\n"
     "• وأي نص حر = نوت جديد يتصنّف لوحده"
@@ -362,10 +364,15 @@ def _do_squad(tg: TelegramClient, chat_id: int) -> str:
     ok, why = squad.available()
     if not ok:
         return f"⚠️ مقدرش أنادي الفريق دلوقتي — {why}"
-    tg.typing(chat_id)
+    # مؤشر «يكتب…» تجميلي: لو فشل ما يمنعش المناداة نفسها.
+    try:
+        tg.typing(chat_id)
+    except Exception:
+        pass
     try:
         return squad.rollcall_text(store=True)
     except Exception as exc:
+        config.log(f"مناداة الفريق فشلت — {type(exc).__name__}: {exc}")
         return f"❌ حصل خطأ وأنا بنادي الفريق ({type(exc).__name__}: {exc})"
 
 
@@ -457,6 +464,16 @@ def _handle_state(tg: TelegramClient, chat_id: int, text: str):
     return None
 
 
+def _norm_set(*variants: str) -> tuple:
+    """يطبّع صيغ الأوامر بنفس مُطبِّع ai_router.
+
+    مهم: `ai_router.normalize` بيوحّد (ة→ه) و(ى→ي) و(أ→ا)، فمقارنة الرد
+    المُطبَّع بصيغة مكتوبة يدوي زي «قائمتي» أو «حالة» كانت **بتفشل دايمًا**
+    والأمر يقع على النص الحر. نطبّع الصيغ هنا عشان المطابقة تنجح.
+    """
+    return tuple(ai_router.normalize(v) for v in variants)
+
+
 # ------------------------------------------------------------------ أوامر نصية
 def _handle_command(tg: TelegramClient, chat_id: int, text: str) -> Optional[str]:
     t = (text or "").strip()
@@ -464,29 +481,26 @@ def _handle_command(tg: TelegramClient, chat_id: int, text: str) -> Optional[str
         return "ابعتلي النص 🙂"
     low = ai_router.normalize(t)
 
-    if low in ("/start", "بداية", "ابدأ"):
+    if low in _norm_set("/start", "بداية", "ابدأ"):
         return WELCOME, MAIN_KB
-    if low in ("/help", "مساعدة", "/due", "المستحق", "المواعيد"):
-        # بسبب الـmulti-part سنعالج بسبب الـcommands الخاصة هنا
-        pass
-    if low in ("/help", "مساعدة"):
+    if low in _norm_set("/help", "مساعدة"):
         return HELP, None
-    if low in ("المستحق", "/due", "المواعيد"):
+    if low in _norm_set("المستحق", "/due", "المواعيد"):
         return _brain_due(), None
-    if low in ("قائمتي", "/list", "المفتوح"):
+    if low in _norm_set("قائمتي", "/list", "المفتوح"):
         return _brain_list(), None
-    if low in ("الملخص", "/digest"):
+    if low in _norm_set("الملخص", "/digest"):
         return proactive.briefing_text(), None
-    if low in ("الفريق", "/squad", "نادي الفريق", "نادِ الفريق", "الوكلاء"):
+    if low in _norm_set("الفريق", "/squad", "نادي الفريق", "نادِ الفريق", "الوكلاء"):
         return _do_squad(tg, chat_id), None
-    if low in ("حالة", "الوضع", "/status"):
+    if low in _norm_set("حالة", "الوضع", "/status"):
         return status_text(), None
 
     m = re.match(r"^\s*(?:بومودورو|بمو?دورو)\s*(\d{1,3})?\s*$", low)
     if m:
         minutes = int(m.group(1)) if m.group(1) else 25
         return _do_pomodoro(tg, chat_id, minutes), None
-    if low in ("الغاء بومودورو", "ألغى بومودورو", "الغاء البومودورو"):
+    if low in _norm_set("الغاء بومودورو", "ألغى بومودورو", "الغاء البومودورو"):
         ok = proactive.cancel_latest_pomodoro()
         return ("اتلغى البومودورو الجاري ✔️" if ok else "مفيش بومودورو شغال دلوقتي"), None
 
