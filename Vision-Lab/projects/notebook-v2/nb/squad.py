@@ -24,21 +24,37 @@ from nb import config, db, retail
 # ------------------------------------------------------------------ التشكيلة
 # كل وكيل: صيغة ندائه (nick) + أنسب سؤال يطلّع منه ملاحظة حقيقية من بياناته.
 # صيغة السؤال مبنية على كلمات كل وكيل الفعلية (orchestrator/agents/*.py) —
-# فالسؤال بيوصله فعلًا ويوصله كمان إننا بنسأله عن ملاحظة/نوت/تذكير.
+# فالسؤال بيوصله فعلًا، وكمان بيوصله إننا بنسأله عن ملاحظة/نوت/تذكير.
+#
+# `ask` = الطلب الأساسي (مُجرَّب على كل وكيل: بيرجّع بيانات حقيقية لا بطاقة هوية).
+# `check` = السؤال التالي (فحص/ملاحظة) — بيتضاف له الـ`ask` في نص واحد عشان
+#           الرَاوتر يوجّه للسؤال الصح ويوصله إننا عايزين ملاحظة.
 _ROSTER: List[Dict[str, str]] = [
-    {"agent_id": "manufacturing", "nick": "بيبو",  "display": "بيبو — التصنيع والليزر", "ask": "الخامات"},
-    {"agent_id": "cfo",           "nick": "فارس",  "display": "فارس — المدير المالي",   "ask": "ملخص الخزينة"},
-    {"agent_id": "crm",           "nick": "سلمى",  "display": "سلمى — علاقات العملاء", "ask": "تنبيهات المتأخر"},
-    {"agent_id": "marketing",     "nick": "كوكو",  "display": "كوكو — التسويق والعروض", "ask": "الراكد"},
-    {"agent_id": "data_healer",   "nick": "حكيم",  "display": "حكيم — طبيب البيانات",   "ask": "الروتين"},
-    {"agent_id": "system_worker", "nick": "مصطفى", "display": "مصطفى — التحكم بالكمبيوتر", "ask": "امكانيات"},
-    {"agent_id": "coder",         "nick": "فيجن",  "display": "فيجن — الكودر والتطوير", "ask": "رصد الأخطاء"},
-    {"agent_id": "meta",          "nick": "راصد",  "display": "راصد — المراقب الذاتي",  "ask": "تقرير الأداء"},
+    {"agent_id": "manufacturing", "nick": "بيبو",  "display": "بيبو — التصنيع والليزر",
+     "ask": "الخامات", "check": "في خامة ناقصة أو سعر محتاج مراجعة؟"},
+    {"agent_id": "cfo",           "nick": "فارس",  "display": "فارس — المدير المالي",
+     "ask": "ملخص الخزينة", "check": "في دين متأخر أو مصروف غريب؟"},
+    {"agent_id": "crm",           "nick": "سلمى",  "display": "سلمى — علاقات العملاء",
+     "ask": "تنبيهات المتأخر", "check": "في عميل محتاج متابعة؟"},
+    {"agent_id": "marketing",     "nick": "كوكو",  "display": "كوكو — التسويق والعروض",
+     "ask": "الراكد", "check": "في عرض محتاج تجهيز؟"},
+    {"agent_id": "data_healer",   "nick": "حكيم",  "display": "حكيم — طبيب البيانات",
+     "ask": "الروتين", "check": "في مشكلة بيانات محتاجة إصلاح؟"},
+    {"agent_id": "system_worker", "nick": "مصطفى", "display": "مصطفى — التحكم بالكمبيوتر",
+     "ask": "امكانيات", "check": "في أداة ناقصة أو مورد واقف؟"},
+    {"agent_id": "coder",         "nick": "فيجن",  "display": "فيجن — الكودر والتطوير",
+     "ask": "رصد الأخطاء", "check": "في كود محتاج إصلاح؟"},
+    {"agent_id": "meta",          "nick": "راصد",  "display": "راصد — المراقب الذاتي",
+     "ask": "تقرير الأداء", "check": "في وكيل ضعيف أو مكرر؟"},
 ]
 
 # علامات «فيها ملاحظة تستاهل النقل» — بتتفحص سطر سطر، وبنستثني أسطر «✅ تمام».
-_BAD_MARKERS = ("❌", "غير متاح", "غير متثبتة", "مخالف", "مقلوب", "تعذر", "فشل",
-                "ما افترضشت", "ناقص", "واقف", "خطأ", "متأخر", "مكرر", "سالب")
+_BAD_MARKERS = ("❌", "⚠️", "غير متاح", "غير متثبتة", "مخالف", "مقلوب", "تعذر", "فشل",
+                "ما افترضشت", "ناقص", "واقف", "متأخر", "مكرر", "سالب", "معلق")
+
+# نصوص إيجابية = «تمام» مش ملاحظة (بنتخطاها حتى لو فيها ⚠️ أو رقم).
+_OK_MARKERS = ("لا طلبات متأخرة", "كل الطلبات", "مفيش", "لا يوجد", "مفيش تقارير",
+               "مفيش مخزون", "مفيش حاجة", "✅ لا", "صفرية: 0")
 
 _ORCH: Any = None
 _ORCH_ERR: str = ""
@@ -77,19 +93,34 @@ def available() -> Tuple[bool, str]:
 
 
 def question_for(m: Dict[str, str]) -> str:
-    """نص السؤال الموحَّد لكل وكيل."""
-    return f"يا {m['nick']} {m['ask']} — عندك ملاحظة أو نوت أو تذكير؟"
+    """نص السؤال الموحَّد لكل وكيل.
+
+    النداء الأول (`ask`) هو اللي بيحدّد التوجيه عند الرَاوتر، وبعده بيتضاف
+    `check` — فالسؤال بيوصله فعلًا **وكمان** بيوصله إننا بنسأله عن ملاحظة.
+    """
+    q = f"يا {m['nick']} {m['ask']}"
+    if m.get("check"):
+        q += f" — {m['check']} وكمان عندك أي ملاحظة أو نوت أو تذكير؟"
+    else:
+        q += " — عندك أي ملاحظة أو نوت أو تذكير؟"
+    return q
 
 
 # ------------------------------------------------------------------ التصنيف
 def _notable(reply: str) -> bool:
-    """هل الرد فيه ملاحظة تستاهل النقل؟ (سطر سطر، مع استثناء الإيجابيات)"""
-    for raw in (reply or "").splitlines():
-        line = raw.strip()
-        if not line or "✅" in line or line.startswith("لا "):
+    """هل الرد فيه ملاحظة تستاهل النقل؟
+
+    بنفحص بعد أول سطرين (التوقيع + عنوان التقرير مش ملاحظات)، وبنستثني
+    سطور «تمّام» الصريحة عشان ما نغرقش المالك بإيجابيات.
+    """
+    lines = [l.strip() for l in (reply or "").splitlines() if l.strip()]
+    body = lines[2:] if len(lines) > 2 else lines
+    for line in body:
+        if "✅" in line:
             continue
-        low = line
-        if any(mk in low for mk in _BAD_MARKERS):
+        if any(ok in line for ok in _OK_MARKERS):
+            continue
+        if any(mk in line for mk in _BAD_MARKERS):
             return True
     return False
 
@@ -174,32 +205,68 @@ def _store(rows: List[Dict[str, Any]], summary: Dict[str, Any]) -> None:
 
 
 # ------------------------------------------------------------------ التقرير
-def report_text(summary: Dict[str, Any], max_chars: int = 420) -> str:
-    """ملخص عربي جاهز لتليجرام/الواجهة."""
-    rows = summary.get("rows") or []
-    head = (f"🗣️ مناداة الفريق — {datetime.now():%Y-%m-%d %H:%M}\n"
-            f"سألت {summary.get('asked', 0)} وكيل: ردّوا {summary.get('answered', 0)}"
-            f" | فيهم ملاحظات: {summary.get('noted', 0)}")
-    if summary.get("failed"):
-        head += f" | بلا رد: {summary['failed']}"
-    parts = [head, ""]
-    for r in rows:
-        if not r["ok"]:
-            parts.append(f"⚠️ {r['nick']} — ما ردّش ({r.get('error') or 'سبب غير معروف'})")
+def _digest(reply: str, keep: int = 3, width: int = 110) -> str:
+    """يستخرج السطور الجوهرية من رد وكيل: تخطّي التوقيع/العنوان، ورجّح
+    السطور اللي فيها أرقام أو مؤشرات خطر — ده اللي يهم المالك فعلًا."""
+    lines = [l.strip() for l in (reply or "").splitlines() if l.strip()]
+    body = lines[2:] if len(lines) > 2 else lines          # التوقيع + العنوان
+    scored = []
+    for i, line in enumerate(body):
+        if "✅" in line or any(ok in line for ok in _OK_MARKERS):
             continue
-        mark = "🔸" if r["severity"] == "warn" else "▪️"
-        body = (r["reply"] or "").strip()
-        if len(body) > max_chars:
-            body = body[:max_chars].rstrip() + " …"
-        parts.append(f"{mark} {r['display']}\n{body}")
-    parts.append("")
-    parts.append("للتفاصيل: «حالة» | لتأكيد الاطلاع على تقرير: /api/agents/ack/<رقم>")
+        score = 0
+        if any(mk in line for mk in _BAD_MARKERS):
+            score += 3
+        if any(ch.isdigit() for ch in line):
+            score += 2
+        if "💡" in line:
+            score -= 1
+        if len(line) > 12:
+            score += 1
+        scored.append((-score, i, line))
+    if not scored:
+        return "✅ تمام — مفيش ملاحظات."
+    scored.sort()
+    chosen = sorted(scored[:keep], key=lambda t: t[1])     # نرجّع الترتيب الأصلي
+    out = []
+    for _s, _i, line in chosen:
+        out.append("   " + (line[:width].rstrip() + "…" if len(line) > width else line))
+    return "\n".join(out)
+
+
+def report_text(summary: Dict[str, Any]) -> str:
+    """ملخص عربي جاهز لتليجرام/الواجهة — ملاحظات أولًا، ثم الباقي مختصر."""
+    rows = summary.get("rows") or []
+    noted = [r for r in rows if r["ok"] and r["severity"] == "warn"]
+    calm = [r for r in rows if r["ok"] and r["severity"] != "warn"]
+    silent = [r for r in rows if not r["ok"]]
+
+    head = (f"🗣️ مناداة الفريق — {datetime.now():%Y-%m-%d %H:%M}\n"
+            f"سألت {summary.get('asked', 0)} وكيل | ردّوا {summary.get('answered', 0)}"
+            f" | ملاحظات: {summary.get('noted', 0)}")
+    if silent:
+        head += f" | بلا رد: {len(silent)}"
+    parts = [head]
+
+    if noted:
+        parts.append("\n🔸 عندهم ملاحظات/نوت/تذكير:")
+        for r in noted:
+            parts.append(f"\n• {r['display']}\n{_digest(r['reply'])}")
+    else:
+        parts.append("\n✅ مفيش وكيل عنده ملاحظة محتاجة تدخّل دلوقتي.")
+
+    if silent:
+        parts.append("\n⚠️ ما ردّوش:")
+        parts += [f"   • {r['nick']} — {r.get('error') or 'سبب غير معروف'}" for r in silent]
+    if calm:
+        parts.append("\n▪️ البقية تمام: " + "، ".join(r["nick"] for r in calm))
+    parts.append("\nللتفاصيل: «حالة» | لتأكيد تقرير: /api/agents/ack/<رقم>")
     return "\n".join(parts)
 
 
-def rollcall_text(store: bool = True) -> str:
+def rollcall_text(store: bool = True, agents: Optional[List[str]] = None) -> str:
     """ينادي الفريق وبيرجع النص جاهز — للاستخدام من البوت مباشرة."""
-    return report_text(rollcall(store=store))
+    return report_text(rollcall(store=store, agents=agents))
 
 
 # ------------------------------------------------------------------ الحجز اليومي

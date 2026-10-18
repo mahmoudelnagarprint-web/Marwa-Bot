@@ -22,7 +22,8 @@ import urllib.request
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from nb import ai_router, config, db, ha, proactive, prompt_vault, retail, workshop
+from nb import (ai_router, config, db, ha, proactive, prompt_vault, retail, squad,
+                workshop)
 
 API = "https://api.telegram.org/bot{token}/{method}"
 FILE_API = "https://api.telegram.org/file/bot{token}/{path}"
@@ -194,6 +195,178 @@ def _fmt_capture(n: Dict[str, Any]) -> str:
         ds = d.astimezone().strftime("%m-%d %H:%M") if hasattr(d, "astimezone") else str(d)[:11]
         line += f" | ← {ds}"
     return line
+
+
+# ------------------------------------------------------------------ عارضات
+def _brain_due() -> str:
+    """المستحق الآن: متأخر + مستحق النهاردة."""
+    overdue = db.overdue_captures()
+    due_today = db.q("""SELECT * FROM captures
+                        WHERE status='open' AND due_at IS NOT NULL
+                          AND due_at::date = %s::date
+                        ORDER BY due_at ASC LIMIT 20""", (db.now_local_date(),))
+    if not overdue and not due_today:
+        return "مفيش حاجة مستحقة دلوقتي — يومك فاضي ✅"
+    lines = ["⏰ المستحق الآن:"]
+    if overdue:
+        lines.append(f"\n🔴 متأخر ({len(overdue)}):")
+        lines += ["  " + _fmt_capture(n) for n in overdue[:10]]
+    if due_today:
+        lines.append(f"\n🟡 النهاردة ({len(due_today)}):")
+        lines += ["  " + _fmt_capture(n) for n in due_today[:10]]
+    lines.append("\n«تم #رقم» يقفل | «أجل #رقم ساعه» يؤجّل")
+    return "\n".join(lines)
+
+
+def _brain_list() -> str:
+    """قائمتي: النوتات/المهام المفتوحة."""
+    rows = db.list_captures(status="open", limit=40)
+    if not rows:
+        return "قائمتك فاضية — مفيش حاجة مفتوحة ✅"
+    lines = [f"📋 قائمتي — مفتوح: {len(rows)}"]
+    lines += ["  " + _fmt_capture(n) for n in rows[:25]]
+    if len(rows) > 25:
+        lines.append(f"  … و{len(rows) - 25} كمان")
+    return "\n".join(lines)
+
+
+def _brain_radar() -> str:
+    """رادار المشاريع: اللي واقف/راكد."""
+    projects = proactive.radar_projects()
+    if not projects:
+        return "🗂️ الرادار صافي — مفيش مشاريع راكدة 👌"
+    lines = [f"🗂️ رادار المشاريع — راكد: {len(projects)}"]
+    for p in projects[:15]:
+        days = p.get("days_stuck")
+        lines.append(f"  • {p.get('title') or p.get('id')}"
+                     + (f" | واقف {days} يوم" if days is not None else ""))
+    return "\n".join(lines)
+
+
+def _retail_digest() -> str:
+    """آخر ملخص مالي من لقطة المحل (قراءة فقط)."""
+    snap = retail.last_snapshot()
+    if not snap:
+        return "🏪 مفيش لقطة محل بعد — ابعت /pull أو استنى الدورة الجاية."
+    try:
+        return retail.digest(snap)
+    except Exception as exc:
+        return f"❌ تعذر تجهيز الملخص ({type(exc).__name__}) — آخر لقطة: {str(snap['captured_at'])[:16]}"
+
+
+def _retail_orders() -> str:
+    """طلبات مفتوحة من لقطة المحل."""
+    snap = retail.last_snapshot()
+    if not snap:
+        return "🏪 مفيش لقطة محل بعد."
+    payload = snap.get("payload") or {}
+    orders = payload.get("open_orders") if isinstance(payload, dict) else None
+    if not orders:
+        return "📦 مفيش طلبات مفتوحة في آخر لقطة ✅"
+    lines = [f"📦 طلبات مفتوحة: {len(orders)}"]
+    for o in list(orders)[:20]:
+        if isinstance(o, dict):
+            lines.append(f"  • {o.get('id') or ''} {o.get('customer') or ''} "
+                         f"{o.get('status') or ''} {o.get('total') or ''}".rstrip())
+        else:
+            lines.append(f"  • {o}")
+    return "\n".join(lines)
+
+
+def _retail_low() -> str:
+    """مخزون ناقص من لقطة المحل."""
+    snap = retail.last_snapshot()
+    if not snap:
+        return "🏪 مفيش لقطة محل بعد."
+    payload = snap.get("payload") or {}
+    low = payload.get("low_stock") if isinstance(payload, dict) else None
+    if not low:
+        return "⚠️ مفيش مخزون ناقص في آخر لقطة ✅"
+    lines = [f"⚠️ مخزون ناقص: {len(low)}"]
+    for it in list(low)[:20]:
+        if isinstance(it, dict):
+            lines.append(f"  • {it.get('name') or it.get('id')} — "
+                         f"{it.get('qty') if it.get('qty') is not None else '?'}")
+        else:
+            lines.append(f"  • {it}")
+    return "\n".join(lines)
+
+
+def _retail_agents() -> str:
+    """تقارير الفريق الواردة + آخر مناداة."""
+    rows = retail.latest_agent_reports(10)
+    parts = []
+    if not rows:
+        parts.append("🤝 مفيش تقارير وكلاء لسه.")
+    else:
+        parts.append(f"🤝 تقارير الفريق — غير مقروء/مهم: {len(rows)}")
+        for r in rows[:10]:
+            parts.append(f"  • [{r['severity']}] {r['agent']}: {str(r['title'])[:70]}")
+    try:
+        parts.append("\n" + squad.briefing_line())
+    except Exception:
+        pass
+    parts.append("\n«الفريق» = أنادي كل الوكلاء وأسألهم عن ملاحظاتهم دلوقتي")
+    return "\n".join(parts)
+
+
+def _ws_list() -> str:
+    """مهام الورشة قيد التنفيذ."""
+    jobs = workshop.list_jobs(limit=30)
+    jobs = [j for j in jobs if j.get("status") not in ("delivered", "cancelled")]
+    if not jobs:
+        return "⚙️ مفيش شغلانات مفتوحة في الورشة ✅"
+    lines = [f"⚙️ مهام قيد التنفيذ: {len(jobs)}"]
+    lines += ["  " + workshop.format_job(j) for j in jobs[:20]]
+    return "\n".join(lines)
+
+
+def _ws_materials(low_only: bool = False) -> str:
+    """خامات الورشة (أو الناقص منها بس)."""
+    rows = workshop.low_stock() if low_only else workshop.list_materials(limit=60)
+    title = "🪫 خامات ناقصة" if low_only else "🪵 الخامات"
+    if not rows:
+        return (f"{title}: مفيش ✅" if low_only else "🪵 مفيش خامات مسجّلة لسه.")
+    lines = [f"{title}: {len(rows)}"]
+    for m in rows[:30]:
+        lines.append(f"  • {m.get('name')} — {m.get('qty')} {m.get('unit') or ''}"
+                     f" (حد أدنى {m.get('min_qty')})".rstrip())
+    return "\n".join(lines)
+
+
+def _vault_recent() -> str:
+    """أحدث برومبتات في الخزنة."""
+    rows = prompt_vault.list_prompts(limit=5)
+    if not rows:
+        return "📜 الخزنة فاضية — ابعت «إضافة برومبت» وأبدأ أحفظ."
+    lines = [f"📜 أحدث {len(rows)} برومبت:"]
+    for p in rows:
+        lines.append(f"  • #{p['id']} {str(p.get('title'))[:60]} | {p.get('category') or 'عام'}")
+    return "\n".join(lines)
+
+
+def _do_pomodoro(tg: TelegramClient, chat_id: int, minutes: int) -> str:
+    """يبدأ بومودورو ويأكّد — مع رسالة إغلاق عند الانتهاء."""
+    try:
+        p = proactive.start_pomodoro(minutes=minutes)
+    except Exception as exc:
+        return f"❌ تعذر بدء البومودورو ({type(exc).__name__}: {exc})"
+    ends = p.get("ends_at")
+    ends_txt = ends.astimezone().strftime("%H:%M") if hasattr(ends, "astimezone") else str(ends)[11:16]
+    return (f"🍅 بدأ بومودورو {minutes} دقيقة — ينتهي {ends_txt}.\n"
+            "ركّز على مهمة واحدة، وأنا هأكدلك أول ما يخلّص 🔔")
+
+
+def _do_squad(tg: TelegramClient, chat_id: int) -> str:
+    """ينادي كل الفريق ويسأله عن ملاحظة/نوت/تذكير — ويجمّع الردود."""
+    ok, why = squad.available()
+    if not ok:
+        return f"⚠️ مقدرش أنادي الفريق دلوقتي — {why}"
+    tg.typing(chat_id)
+    try:
+        return squad.rollcall_text(store=True)
+    except Exception as exc:
+        return f"❌ حصل خطأ وأنا بنادي الفريق ({type(exc).__name__}: {exc})"
 
 
 def status_text() -> str:
@@ -485,6 +658,8 @@ def _handle_callback(tg: TelegramClient, cq: Dict[str, Any]) -> None:
         text = _brain_list()
     elif data == "brain:radar":
         text = _brain_radar()
+    elif data == "brain:squad":
+        text = _do_squad(tg, chat_id)
     elif data == "brain:pomo25":
         text = _do_pomodoro(tg, chat_id, 25)
     elif data == "brain:pomo50":

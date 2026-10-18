@@ -35,12 +35,19 @@ def utcnow() -> datetime:
 
 
 def q(sql: str, params: Optional[Sequence[Any]] = None, one: bool = False):
-    """SELECT ← قائمة dicts (أو dict واحد مع one=True، أو None)."""
+    """تنفيذ ويعيد الصفوف: SELECT ← قائمة dicts (أو dict واحد مع one=True).
+
+    مهم: `q()` كمان بتنفّذ جمل `INSERT/UPDATE ... RETURNING` (زي إيجار القيادة
+    وحجز `cron_runs` وحفظ التقارير)، فبتعمل **commit** قبل الإغلاق. من غيرها
+    كان psycopg2 يتراجع عند الإغلاق (autocommit=False) فيضيع الأثر صامتًا
+    — وهو ما كان بيخلي جدول `leader_lease` فاضي والعقدتين تظن نفسها قائدة.
+    """
     conn = connect()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params or ())
             rows = cur.fetchall()
+        conn.commit()
         if one:
             return dict(rows[0]) if rows else None
         return [dict(r) for r in rows]
