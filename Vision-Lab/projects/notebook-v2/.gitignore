@@ -1,0 +1,24 @@
+# Secrets — never in any repo (AGENT.md + RULES.md)
+.env
+.env.*
+!.env.example
+
+# Data & logs
+data/
+logs/
+*.db
+*.db-*
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.venv-*/
+
+# OS / IDE
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
