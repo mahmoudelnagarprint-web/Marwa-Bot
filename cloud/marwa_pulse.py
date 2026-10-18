@@ -194,14 +194,15 @@ class DBPulse(threading.Thread):
             return
         uri = f"file:{db.as_posix()}?mode=ro"
         last: int | None = None
+        con: sqlite3.Connection | None = None
         log(f"DBPulse: data_version كل {int(POLL_DB_S * 1000)}ms على {db.name} (mode=ro)")
+        # اكتشاف الاختبار المثبت: data_version يعمل فقط عبر اتصال دائم معيش —
+        # اتصال جديد كل استطلاع يُرجع القيمة نفسها دائماً (مُثبت بالقياس).
         while not self.stop.is_set():
             try:
-                con = sqlite3.connect(uri, uri=True, timeout=5)
-                try:
-                    ver = con.execute("PRAGMA data_version").fetchone()[0]
-                finally:
-                    con.close()
+                if con is None:
+                    con = sqlite3.connect(uri, uri=True, timeout=5)
+                ver = con.execute("PRAGMA data_version").fetchone()[0]
                 if last is None:
                     last = ver                          # الدورة الأولى: خط أساس فقط
                     log(f"data_version baseline={ver}")
@@ -209,8 +210,19 @@ class DBPulse(threading.Thread):
                     last = ver
                     self._debounced_fire()
             except sqlite3.Error as exc:
-                log(f"data_version poll failed: {type(exc).__name__}", "WARN")
+                log(f"data_version poll failed: {type(exc).__name__} — إعادة اتصال", "WARN")
+                if con is not None:
+                    try:
+                        con.close()
+                    except sqlite3.Error:
+                        pass
+                con = None                              # إعادة اتصال الدورة القادمة
             self.stop.wait(POLL_DB_S)
+        if con is not None:
+            try:
+                con.close()
+            except sqlite3.Error:
+                pass
         log("DBPulse متوقف")
 
     def _debounced_fire(self) -> None:
