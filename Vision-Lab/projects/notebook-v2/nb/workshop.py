@@ -41,7 +41,7 @@ def ensure_customer(name: str, phone: Optional[str] = None) -> int:
                 (name, phone), one=True)["id"]
 
 
-def list_customivers(limit: int = 100) -> List[Dict[str, Any]]:
+def list_customers(limit: int = 100) -> List[Dict[str, Any]]:
     return db.q("""SELECT c.*, (SELECT COUNT(*) FROM ws_jobs j WHERE j.customer_id = c.id) AS jobs
                    FROM ws_customers c ORDER BY c.id DESC LIMIT %s""", (limit,))
 
