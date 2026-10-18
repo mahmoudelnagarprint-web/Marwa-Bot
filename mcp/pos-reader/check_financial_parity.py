@@ -13,16 +13,28 @@ PASS عند تطابق الأرقام الخمسة.
 import sys
 import os
 import sqlite3
+from pathlib import Path as _Path
 sys.stdout.reconfigure(encoding="utf-8")
 
 prog = sys.argv[1] if len(sys.argv) > 1 else r"G:\ai\Elnagar POS"
 os.chdir(prog)
 sys.path.insert(0, prog)
+
+# ── ربط P1 (قرار المالك 2026-10-18): مسار مطلق صريح + mode=ro صارم ──
+# كان: sqlite3.connect("pos_data.db") نسبي حسب cwd — وsqlite3.connect ينشئ
+# قاعدة فارغة جديدة لو المجلد خالي (حادثة موثقة 12-10). الآن: رفض صريح لو
+# القاعدة غير موجودة، وفتح قراءة فقط لا يمكنه الإنشاء أبدًا.
+db_file = _Path(prog).resolve() / "pos_data.db"
+if not db_file.exists():
+    raise SystemExit(
+        f"⛔ لا توجد قاعدة عند {db_file} — أداة الفحص لا تنشئ قواعد "
+        "ولا تفتح مسارًا نسبيًا غير محسوم."
+    )
 import database
 
-conn = sqlite3.connect("pos_data.db")
+conn = sqlite3.connect(f"file:{db_file.as_posix()}?mode=ro", uri=True)
 conn.row_factory = sqlite3.Row
-conn.execute("PRAGMA query_only = 1")  # قراءة فقط بلا أي كتابة
+conn.execute("PRAGMA query_only = 1")  # قراءة فقط بلا أي كتابة (رو صارم مزدوج)
 
 shift = conn.execute(
     "SELECT opened_at FROM daily_shifts WHERE status = 'open' LIMIT 1"

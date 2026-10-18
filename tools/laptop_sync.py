@@ -556,6 +556,23 @@ def main() -> int:
         print("On the laptop: plant .env (see LAPTOP_SECRET_KIT) or use --restore-env with keys available.")
         return 2
 
+    # ── بوابة العقدة (قرار المالك 2026-10-18): عمليات اللابتوب فقط ──
+    # --pull-all يبني ROOT/pos_data.db مرآةً مشتقة من السحابة، و--restore-env يفرض
+    # NODE_ID=LAPTOP على .env — كلاهما على الورشة يخلق مصدرًا موازيًا/يفسد هوية
+    # العقدة (مخالف لقرار 70 ولتعاليم التشغيل المزدوج). الورشة تلتقط الذاكرة
+    # بـ git pull ثم --pull-brain فقط.
+    if node_id(env) == "WORKSHOP" and (args.pull_all or args.restore_env):
+        print("⛔ مرفوض على عقدة الورشة (NODE_ID=WORKSHOP):")
+        if args.pull_all:
+            print("  --pull-all يبني ROOT/pos_data.db مرآةً مشتقة من السحابة —")
+            print("  الورشة عندها القاعدة الحية الرسمية، وبناء مصدر موازٍ في جذر")
+            print("  المستودع يخالف قواعد التشغيل المزدوج (قرار 70).")
+        if args.restore_env:
+            print("  --restore-env يفرض NODE_ID=LAPTOP على .env — تشغيله هنا يفسد")
+            print("  هوية عقدة الورشة. هو عملية أجهزة جديدة/لابتوب فقط.")
+        print("  هذه العمليات لعقدة LAPTOP فقط. لالتقاط الذاكرة هنا: git pull ثم --pull-brain.")
+        return 2
+
     try:
         if args.pull_all:
             return pull_all(env)

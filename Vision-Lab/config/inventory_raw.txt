@@ -1,0 +1,767 @@
+# جرد خام لمصادر البيانات — task-2 (مُولَّد آلياً بواسطة tools/inventory_scan.py)
+# عدد السطور المطابقة: 520 | عدد الملفات: 241
+# file | line | النص
+
+G:\ai\Naggar Print POS Agent\.env.example | 9 | # LIVE_DB_PATH="G:\ai\Elnagar POS\pos_data.db"
+G:\ai\Naggar Print POS Agent\fix_balance.py | 8 | DB_PATH = r'G:\ai\Naggar Print POS Agent\pos_data.db'
+G:\ai\Naggar Print POS Agent\fix_balance.py | 15 | conn = sqlite3.connect(DB_PATH)
+G:\ai\Naggar Print POS Agent\fix_balance2.py | 8 | DB = r'G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\pos_data.db'
+G:\ai\Naggar Print POS Agent\fix_balance2.py | 13 | conn = sqlite3.connect(DB)
+G:\ai\Naggar Print POS Agent\fix_correct_db.py | 8 | DB = r'G:\ai\Elnagar POS\pos_data.db'
+G:\ai\Naggar Print POS Agent\fix_correct_db.py | 13 | conn = sqlite3.connect(DB)
+G:\ai\Naggar Print POS Agent\LAPTOP_SECRET_KIT.md | 42 | > ملحوظة الورشة: نسخة الورشة من نفس الملف تحمل `NODE_ID="WORKSHOP"` + `LIVE_DB_PATH="G:\ai\Elnagar POS\pos_data.db"` — أما اللابتوب فكما هو أعلاه.
+G:\ai\Naggar Print POS Agent\LAPTOP_SECRET_KIT.md | 109 | وفي إعدادات DSH اجعل متغير البيئة POS_DB_PATH=G:\Marwa-Bot\pos_data.db
+G:\ai\Naggar Print POS Agent\LAPTOP_SECRET_KIT.md | 131 | | **MCP pos-reader** (داخل المستودع `mcp/pos-reader`) | قراءة قاعدة اللابتوب للأدوات الست (عملاء/طلبات/كتالوج/كشف حساب/مالية/طابور) | `POS_DB_PATH=G:\Marwa-Bot\pos_data.db` |
+G:\ai\Naggar Print POS Agent\README.md | 8 | pos_data.db (الحي)                     pos_data.db (مرآة مبنية من السحابة)
+G:\ai\Naggar Print POS Agent\README.md | 41 | 4. `python tools/laptop_sync.py --pull-all` — يبني `pos_data.db` محلياً من كل جداول السحابة + ينزّل ملفات الذاكرة
+G:\ai\Naggar Print POS Agent\README.md | 50 | | `python tools/laptop_sync.py --pull-all` | اسحب كل البيانات + الذاكرة ← ابنِ/حدّث `pos_data.db` والملفات محلياً |
+G:\ai\Naggar Print POS Agent\RULES.md | 38 | - قاعدة البيانات pos_data.db هي المرجع الوحيد للحقيقة. لا تعتمد على النسخ القديمة (pos.db, mobile.db, elnagar_*.db, النسخ الاحتياطية القديمة).
+G:\ai\Naggar Print POS Agent\SALMA_CRM_STATE.md | 18 | ## 1️⃣ حالة قاعدة البيانات المحلية `pos_data.db` (قراءة حية 2026-10-17)
+G:\ai\Naggar Print POS Agent\SALMA_CRM_STATE.md | 69 | > **عاجل للمالك/مروة:** نُقلت من الخارج مجلدات طلبات على `H:\today orders\Ramdan 2026` بأرقام **327–334** (صور + نقل للحالات) لكن **لا مقابل لها في `pos_data.db`** (آخر صف = 323). تفصيلها:
+G:\ai\Naggar Print POS Agent\STATUS.md | 4 | **المرحلة 4 — الكتابة المحكومة (بدأت بأمر المالك 2026-10-11، مستوى 1)** — 4.0 فحص الدوال مكتمل (تدقيق 15 عملية كتابة عُرض على المالك)، و4.1 بيئة الاختبار جاهزة في `_sandbox_pos_writer\`، والإصلاحان (تعديل العميل + حذف الطلب) **نُقلا للملف الحي 2026-10-12 بأمر المالك (مستوى 1)** بعد نسختين احتياطيتين .bak-2026-10-11 (database.py وpos_data.db، integrity ok) واختبار حي بلا بيانات جديدة (تعديل عميل 34
+G:\ai\Naggar Print POS Agent\STATUS.md | 5 | **المرحلة 5 — الأتمتة (جارية 2026-10-13):** **Parity Watchdog — حارس التطابق المزدوج** (اقتراح معتمد من المالك 2026-10-13): `scripts\parity_watchdog.py` قراءة فقط يقارن المحلي `pos_data.db` (mode=ro) بالسحابي على 5 جداول (count + مجموع الأرصدة + مجموع المخزون + max_id + مجموع المبالغ)، اكتشاف فجوة مثبت بالاختبار (فرق 100 مصطنع → detected بدقة)، والرقابة الدائمة شغّالة الآن في الخلفية (interval 300
+G:\ai\Naggar Print POS Agent\STATUS.md | 32 | - قاعدة البيانات الفعالة: pos_data.db بنمط WAL، و28 جدولًا. القراءة بـ mode=ro على نسخة أولًا لاختبار WAL.
+G:\ai\Naggar Print POS Agent\STATUS.md | 72 | - `supabase_sync.py` **مُصلح ومُرقّى**: `LOCAL_SCHEMA` الكامل (يضاهي pos_data.db المحلي) + تقاطع ديناميكي مع أعمدة السحابة الحية (introspection عبر Swagger) — قبل تشغيل SQL السحابي: يدفع المجموعة المثبتة (52/108/50/89/92 صف بلا PGRST204)؛ بعد التشغيل: تتسع المرآة تلقائيًا للأعمدة الجديدة بلا تعديل كود.
+G:\ai\Naggar Print POS Agent\STATUS.md | 74 | - `data_healer` يقرأ فعليًا من pos_data.db (mode=ro) ويُرجع أرقامًا حقيقية: صفر تجزئة=0، صفر جملة=9، مكررات محتملة=2.
+G:\ai\Naggar Print POS Agent\STATUS.md | 126 | - **ترحيل 003 (`cloud/migrations/003_laptop_brain_vault.sql`)**: جدول `system_brain_sync` (key/value/updated_at) طبق على المحركين بعد نسخة احتياطية للحي (`pos_data.db.bak-2026-10-14-1526`، integrity ok) — محلي ✓ + سحابي عبر Frankfurt pooler 0.18ث ✓ (سجل schema_migrations = 3). **مؤمّن بـRLS بلا سياسات** = المفتاح السري فقط يفتحه (مختبر حيًا: سري ✓ / publishable محجوب ✓).
+G:\ai\Naggar Print POS Agent\STATUS.md | 127 | - **`tools/laptop_sync.py`** (هوية الجهاز من `.env` → NODE_ID=WORKSHOP/LAPTOP): `--pull-all` يسحب الـ7 جداول + العقل ويبني/يحدّث pos_data.db محليًا فورًا + يكتب ملفات الذاكرة + يرجّع حالة الشيفت/الإعدادات؛ `--push-brain` يرفع الذاكرة/القواعد/نسخة env للخزينة + git push؛ معه أيضًا `--pull-brain` و`--restore-env` و`--status`. **اختُبر حيًا**: push-brain رفع 10 مفاتيح؛ pull-all بنى مرآة مطابقة (52/10
+G:\ai\Naggar Print POS Agent\STATUS.md | 155 | - **فحص حي للقاعدة `pos_data.db`:** 52 عميلاً (قطاعي 27/ جملة 25) + 50 طلباً كلها Delivered + أرصدة 0 + لا طلبات مفتوحة — مطابقة سحابية 5/5.
+G:\ai\Naggar Print POS Agent\_last_backup.txt | 1 | pos_data.db.bak-2026-10-12-0758
+G:\ai\Naggar Print POS Agent\cloud\schema_migrator.py | 8 | * LOCAL  (pos_data.db, SQLite) — statements filtered/split safely; Postgres-only
+G:\ai\Naggar Print POS Agent\cloud\schema_migrator.py | 45 | LOCAL_DB = ROOT / "pos_data.db"
+G:\ai\Naggar Print POS Agent\cloud\schema_migrator.py | 79 | conn = sqlite3.connect(LOCAL_DB)
+G:\ai\Naggar Print POS Agent\cloud\supabase_sync.py | 7 | - push_mirror(): reads LOCAL pos_data.db (mode=ro only) tables and upserts to Supabase.
+G:\ai\Naggar Print POS Agent\cloud\supabase_sync.py | 15 | * pos_data.db opened strictly WITH mode=ro (read-only) -> no local writes from mirror.
+G:\ai\Naggar Print POS Agent\cloud\supabase_sync.py | 171 | """Read a local table with pos_data.db strictly read-only (mode=ro)."""
+G:\ai\Naggar Print POS Agent\cloud\supabase_sync.py | 172 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Naggar Print POS Agent\cloud\migrations\003_laptop_brain_vault.sql | 8 | --   * LOCAL  (pos_data.db, SQLite)
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\check_financial_parity.py | 23 | conn = sqlite3.connect("pos_data.db")
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\README.md | 3 | خادم MCP ببروتوكول **stdio** لقراءة قاعدة `pos_data.db` بشكل **قراءة فقط صارمة**.
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\README.md | 36 | 2. الافتراضي: `G:\ai\Elnagar POS\pos_data.db`
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\server.py | 14 | 2. default G:\ai\Elnagar POS\pos_data.db
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\server.py | 33 | DEFAULT_DB = r"G:\ai\Elnagar POS\pos_data.db"
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\server.py | 44 | conn = sqlite3.connect(uri, uri=True, timeout=30)
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\test_against_backup.py | 2 | Read-only integration test for pos-reader against a BACKUP copy of pos_data.db.
+G:\ai\Naggar Print POS Agent\mcp\pos-reader\test_against_backup.py | 23 | BACKUP = Path(r"G:\ai\Naggar Print POS Agent\backup\pos_data_2026-10-10_1128.db")
+G:\ai\Naggar Print POS Agent\memory\backup_status.json | 11 | "db_file": "pos_data_2026-10-16_2239.db",
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 2 | - [2026-10-17] [المصدر: المالك — أمر طوارئ: تحديث مفتاح Supabase + توجيه القاعدة + رفع مبيعات 16/17] [الثقة: عالية] **تم تنفيذ أمر الطوارئ على الورشة `G:\ai\Elnagar POS` بنجاح:** (1) **المفتاح:** قيمة `SUPABASE_SECRET_KEY` المطلوبة (`sb_secret_JuRY…`) كانت **موجودة أصلًا** في `.env` — لا تغيير مطلوب (تحقق حرفي). (2) **القاعدة الحية:** التأكيد برمجيًا أن `cloud/supabase_sync.py` يقرأ `pos_data.db` 
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 8 | - [2026-10-16] [المصدر: المالك — «عايز أعمل نوتبوك ذكية»] [الثقة: عالية] **المرحلة 1 من النوتبوك الذكية اكتملت (`notebook/`)** — أمر المالك: نوتبوك ذكية تحت إدارة مروة، تفهم النص الحر وتصنّفه وتفكّره وتتابعه، بواجهة مرتبة وملونة، وتُلتقط من أي مكان (شات/موبايل/لاب). **المنفَّذ:** (1) `notebook/store.py` SQLite محلي مستقل تمامًا (`notebook/data/notebook.db` — مستبعد من Git، ولا كتابة على `pos_data.
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 10 | - [2026-10-16] [المصدر: المالك — أمر دائم] [الثقة: عالية] **مزامنة GitHub تلقائية دائمة بلا رجوع للمالك:** «دايمًا ارفع واسحب من جيت هب بدون الرجوع لي وبشكل دوري». **التنفيذ:** أُضيف `scripts/git_autosync.py` (pull --rebase --autostash عند التأخر → git add -A → commit تلقائي `auto-sync: <NODE> @ <وقت>` → push origin HEAD) مع: قفل ملف واحد يمنع التشغيل المتزامن، **حاجز أمني** يلغي التجهيز ويرفض الك
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 21 | - [2026-10-11] [المصدر: المالك] [الثقة: عالية] **تعديل pos_search_orders (مستوى 1 مؤكد):** يُعيد لكل طلب أيضًا client_name (من clients.name فقط) وitems (product_name+qty من order_items) مع notes، ولا يُعيد رقم الهاتف أبدًا. اختُبر على نسخة مؤقتة من pos_data.db (لقطة متسقة عبر backup API خارج backup\) فظهرت الأسماء الحقيقية (جهاااد/اهداء/احمد غريب/لاستاذه نسمه). لا يُعيد تشغيل DSH الآن؛ التعديل يسر
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 28 | - [2026-10-11] [المصدر: البرنامج] [الثقة: عالية] **فحص قراءة فقط للدوال الرسمية (تمهيد 4.0)** — G:\ai\Elnagar POS\database.py (3412 سطرًا): مسار القاعدة ثابت `DB_NAME="pos_data.db"` (سطر 7) بلا متغير بيئة، كل الاتصالات عبر get_db_connection (سطر 29) → توجيهه لنسخة اختبار يتطلب تعديل الثابت أو تغيير مجلد التشغيل؛ مسار الصور يقرأ من settings key='local_images_path' (سطر 2392 عبر manage_file_system 2
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 36 | - [2026-10-11] [المصدر: المالك] [الثقة: عالية] **أمر المالك (مستوى 1): بناء pos-writer على نسخة اختبار أولًا + إصلاحان أولهما (خطوة 1 منقذة):** «نفّذ على نسخة اختبار أولًا (نسخة من pos_data.db ومن مجلد الصور) ولا تكتب في الحية قبل ما أقول» — أدوات الكتابة عبر الدوال الرسمية فقط (database.py/financial_engine.py بلا SQL مباشر)، كل أداة خطوتين (معاينة قبل/بعد ثم تنفيذ بتأكيد «نعم/لأ» واحد)، سجل `logs
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 37 | - [2026-10-12] [المصدر: المالك] [الثقة: عالية] **أمر المالك (مستوى 1): نقل الإصلاحين للملف الحي — منفذ ومُتحقق عليه، بانتظار اعتماده النهائي:** الشروط: نسخة احتياطية بامتداد .bak-2026-10-11 قبل أي تعديل → نقل الإصلاحين → تحقق قراءة/فتح الملف → تحقق الدالتين على الحي بلا بيانات جديدة → الفرق سطرًا بسطر مع سؤال تأكيد واحد «أعتمد النقل؟» → لا كتابة حية غير الإصلاح ولا بناء أدوات قبل ردّه. **المنفذ:**
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 40 | - [2026-10-12] [المصدر: المالك] [الثقة: عالية] **قرار المالك (مستوى 1): تجربة الأدوات مباشرة على البرنامج الحي بدون نسخة اختبار — لكل الأدوات ما عدا المنتجات والمخزون (تبقى على النسخة حتى أمر):** (1) القرار مسجل هنا. (2) تنفيذ إضافة العميل المعلق «اختبار الوكيل 12-10» **على الحي** بأمر صريح في نفس الرسالة ثم تحقق العملاء 53 + الواجهة، ثم حذفه بسؤال تأكيد واحد والتحقق من رجوع 52. (3) قبل أي تعديل ع
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 44 | - [2026-10-12] [المصدر: البناء بأمر المالك] [الثقة: عالية] **دورة العميل اكتملت على الحي + نسخة احتياطية قبل المنتجات + أدوات المنتجات جاهزة (معاينة):** (أ) إضافة «اختبار الوكيل 12-10» على الحي بأمر المالك (OP-26EF7D): العملاء 52→**53** (id 103، جملة، رصيد 0) وتحقق الواجهة عبر get_all_clients (دالة عرض شاشة العملاء نفسها) — بترجعه، والواجهة الحية Ramadan ERP شغالة على 8888. (ب) حذفه بتأكيد المالك 
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 70 | - `data_healer` يقرأ فعليًا pos_data.db (ro): صفر تجزئة=0، صفر جملة=9، مكررات=2.
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 92 | - **(ب) دمج المكررين (بموافقة المالك «اعتمدي دمجهما وتنظيف بياناتهما»)**: عبر `delete_product` الرسمية — حُذف 10035 (كاب تخرج المكرر) و61 (ماتور المكرر)، وبقيا الأصليان 10009 و60. نسخة احتياطية قبلها: `pos_data_merge_backup.db`. تحقق: 106 منتجًا محليًا، صفر order_items تشير للمحذوفين، صفر مراجع يتيمة.
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 127 | - **(أ) ترحيل 002 المزدوج**: `cloud/migrations/002_manufacturing_schema.sql` بلهجة محمولة (مفاتيح صريحة بلا AUTOINCREMENT) — جدول `raw_materials` (ألواح + خامات جاهزة بسعر السم² المحسوب) + جدول `product_recipes` (خامة/مسار تشغيل/أبعاد/هالك/وقت ماكينة، PK=product_id) + عمودا `products.material_type/operation_type`. **schema_migrator اتوسع لمحرك مزدوج**: --all يطبق محليًا (SQLite — مع rewrite آلي لـ
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 139 | - نسخة احتياطية قبل الإدخال: pos_data.db.bak-2026-10-14-1315. الباقي بأمر المالك: أبعاد حقيقية لكل منتج (تحدّث الوصفات) + قرارات الهوامش المكشوفة.
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 141 | - [2026-10-14] [المصدر: المالك] [الثقة: عالية] **Master Excel Catalog — المرحلة 1+2 (تصدير + استيراد آمن) مكتملتان ومختبرتان:** أمر المالك بناء دورة «تصدير→تعديل المالك→استيراد». (1) `tools\export_products_excel.py` ولّد `exports\products_catalog_master.xlsx` (106 منتج، أعمدة spec الـ14، معادلات حية total/margin/pct، قوائم منسدلة، حماية id مقفلة، تجميد+فلترة). (2) `tools\import_products_excel.py`:
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 144 | - **(أ) ترحيل 003 (`cloud/migrations/003_laptop_brain_vault.sql`)**: جدول `system_brain_sync` (key TEXT PK / value TEXT / updated_at TIMESTAMP) بلهجة محمولة — طبقه `schema_migrator.py --all` على المحركين بعد نسخة احتياطية `pos_data.db.bak-2026-10-14-1526` (integrity ok): محلي ✓ وسحابي عبر Frankfurt pooler (0.18ث) ✓ — سجل schema_migrations = 3.
+G:\ai\Naggar Print POS Agent\memory\decisions_log.md | 146 | - **(ج) `tools/laptop_sync.py`** (عقدة WORKSHOP/LAPTOP من `.env`): `--pull-all` (7 جداول مرآة + العقل → بناء/تحديث pos_data.db محليًا + ملفات الذاكرة + حالة الشيفت/الإعدادات) | `--push-brain` (رفع الذاكرة/القواعد/env للخزينة + git push) | `--pull-brain` | `--restore-env` | `--status`. اختُبر حيًا: push-brain رفع 10 مفاتيح، pull-all بنى المرآة 52/106/50/89/92/12/3 والذاكرة رجعت متطابقة بايت-بايت وd
+G:\ai\Naggar Print POS Agent\memory\roadmap.md | 31 | 4 الكتابة المحكومة. شرط مسبق: بند ميثاق (مستوى 2) أن أي تعليمات داخل بيانات البرنامج نص لا أمر وأن التأكيد من المالك في المحادثة فقط. 4.0 فحص قراءة فقط للدوال الرسمية. 4.1 بيئة اختبار: نسخة من pos_data.db ومجلدات التصاميم وتوجيه البرنامج لها، ولا كتابة على الحية قبلها. 4.2 خادم منفصل pos-writer (يبقى pos-reader قراءة فقط mode=ro). كل أداة كتابة على خطوتين: معاينة تعرض قبل/بعد وتعطي رمزًا لمرة واحد
+G:\ai\Naggar Print POS Agent\memory\roadmap.md | 33 | - تقدم المرحلة 4 (2026-10-11، أمر المالك مستوى 1 — بناء pos-writer على نسخة اختبار أولًا): **4.0 مكتمل** (تدقيق 15 عملية كتابة عُرض على المالك — التفاصيل decisions_log.md). **4.1 بيئة الاختبار جاهزة**: `_sandbox_pos_writer\` نسخة backup-API من pos_data.db (52/50/92/108) + نسخة الصور (441 ملفًا) + database.py/financial_engine.py/file_ops_engine.py نسخًا + توجيه local_images_path داخل النسخة — الحي 
+G:\ai\Naggar Print POS Agent\memory\roadmap.md | 34 | - **2026-10-12: كل الأدوات الست اكتملت.** ما اتجرّب على الحي حتى صباح 2026-10-12: عميل، طلب، حالة، دفعة (كل دور نظيف عاد 52 عميلًا)، إلى أن أمر المالك (مستوى 1): **المنتجات وفاتورة المشتريات على الحي بنسخة احتياطية (pos_data.db.bak-2026-10-12-0758)** — نفذت ونجح: منتج (إضافة 108→109، تعديل اسم، حذف، رجوع 108)، فاتورة #5 (إنشاء Pending بلا مخزون → استلام: مخزون 152→153 + مصروف 60 بمعرفها ← رجوع Pen
+G:\ai\Naggar Print POS Agent\memory\reports\2026-10-11-r2.md | 48 | - آخر نسخة: **2026-10-11 06:00:02** (أول تشغيل تلقائي للمهمة) — ok=true، القاعدة pos_data_2026-10-11_0600.db (217,088 بايت)، 52/50/92 صفًّا. من memory/backup_status.json (قراءة 08:54).
+G:\ai\Naggar Print POS Agent\memory\reports\2026-10-11-r3.md | 48 | - آخر نسخة: **2026-10-11 06:00:02** (أول تشغيل تلقائي للمهمة) — ok=true، القاعدة pos_data_2026-10-11_0600.db (217,088 بايت)، 52/50/92 صفًّا. من memory/backup_status.json (قراءة 08:55).
+G:\ai\Naggar Print POS Agent\memory\reports\2026-10-11.md | 46 | - آخر نسخة: **2026-10-11 06:00:02** — أول تشغيل تلقائي للمهمة، ok=true، القاعدة pos_data_2026-10-11_0600.db (217,088 بايت)، 52/50/92 صفًّا. من memory/backup_status.json (قراءة 07:34).
+G:\ai\Naggar Print POS Agent\memory\reports\final-combined-report-2026-10-13.md | 16 | - تم عمل نسخة احتياطية من قاعدة البيانات قبل التشغيل (`pos_data_merge_backup.db`).
+G:\ai\Naggar Print POS Agent\memory\reports\final-combined-report-2026-10-13.md | 88 | - `G:\ai\Elnagar POS\pos_data_merge_backup.db` — نسخة احتياطية قبل_merge
+G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-12-fixes.md | 48 | - القاعدة pos_data.db **لم تُلمس بالكتابة إطلاقًا** (كل الاستدعاءات SELECT، وعدّ الحركات ثابت 92 قبل/بعد).
+G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-12-telegram-stop.md | 19 | | `README.md` | توثيق: البوت يكتب في طابور Google Sheets فقط ولا يكتب في `pos_data.db` أصلًا |
+G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-13-architecture-phase0.md | 8 | البنية الحالية تعمل بأربع طبقات متراصة: **قاعدة SQLite محلية** (قلب برنامج الورشة/N0 تدخل في نقطة البيع — `pos_data.db`)، **قاعدة Supabase سحابية** (مرآة + طابور أوامر)، **جسر elnagarprint** (تليجرام مستقل لا يُمَس)، **بوت البرنامج** `telegram_bot/bot.py` (متوقف مؤخرًا بقرار المالك — النسخة السحابية Webhook ستستقبل رسائل البوت حصريًا أثناء إغلاق المحل). لا يوجد «main.py» لوجستكي موحّد — `main.py` 
+G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-13-architecture-phase0.md | 40 | │   pos_data.db (SQLite محلي)  +  برنامج الورشة      │
+G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-13-architecture-phase0.md | 46 | ### 2.2 قاعدة البيانات المحلية (`pos_data.db` / SQLite)
+G:\ai\Naggar Print POS Agent\notebook\README.md | 43 | - القاعدة: `notebook/data/notebook.db` (SQLite) — **منفصلة تمامًا** عن قاعدة البرنامج `pos_data.db` (مفيش أي كتابة على البرنامج).
+G:\ai\Naggar Print POS Agent\notebook\store.py | 4 | - قاعدة البيانات منفصلة تمامًا عن قاعدة البرنامج (pos_data.db) — لا كتابة على البرنامج أبدًا.
+G:\ai\Naggar Print POS Agent\notebook\store.py | 86 | conn = sqlite3.connect(str(DB_PATH), timeout=15)
+G:\ai\Naggar Print POS Agent\orchestrator\agents\cfo.py | 25 | # ── طبقة الربط المركزية (task-2): لا مصدر إلا الحي — أي pos_data.db قديم مرفوض ──
+G:\ai\Naggar Print POS Agent\orchestrator\agents\crm.py | 21 | # ── طبقة الربط المركزية (task-2): لا مصدر إلا الحي — أي pos_data.db قديم مرفوض ──
+G:\ai\Naggar Print POS Agent\orchestrator\agents\data_healer.py | 19 | # ── طبقة الربط المركزية (task-2): لا مصدر إلا الحي — أي pos_data.db قديم مرفوض ──
+G:\ai\Naggar Print POS Agent\orchestrator\agents\manufacturing_agent.py | 30 | # ── طبقة الربط المركزية (task-2): لا مصدر إلا الحي — أي pos_data.db قديم مرفوض ──
+G:\ai\Naggar Print POS Agent\orchestrator\agents\marketing.py | 20 | # ── طبقة الربط المركزية (task-2): لا مصدر إلا الحي — أي pos_data.db قديم مرفوض ──
+G:\ai\Naggar Print POS Agent\pos_system\android_importer.py | 18 | Does NOT touch pos_data.db via direct insert.
+G:\ai\Naggar Print POS Agent\pos_system\android_importer.py | 156 | db_path = ROOT_DIR / "pos_data.db"
+G:\ai\Naggar Print POS Agent\pos_system\android_importer.py | 158 | shutil.copy2(db_path, backup_dir / "pos_data.db")
+G:\ai\Naggar Print POS Agent\pos_system\app.py | 1830 | db_path = "pos_data.db"
+G:\ai\Naggar Print POS Agent\pos_system\app.py | 1831 | wal_path = "pos_data.db-wal"
+G:\ai\Naggar Print POS Agent\pos_system\database.py | 7 | DB_NAME = "pos_data.db"
+G:\ai\Naggar Print POS Agent\pos_system\database.py | 30 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Naggar Print POS Agent\pos_system\firebase_importer.py | 13 | DB_PATH = os.path.join(os.path.dirname(__file__), 'pos_data.db')
+G:\ai\Naggar Print POS Agent\pos_system\firebase_importer.py | 20 | backup_path = os.path.join(BACKUP_DIR, f"pos_data_backup_fb_importer_{timestamp}.db")
+G:\ai\Naggar Print POS Agent\pos_system\firebase_mirror_from_pos.py | 6 | DB_PATH = os.path.join(os.path.dirname(__file__), 'pos_data.db')
+G:\ai\Naggar Print POS Agent\pos_system\firebase_mirror_from_pos.py | 84 | conn = sqlite3.connect(DB_PATH)
+G:\ai\Naggar Print POS Agent\pos_system\main.py | 34 | self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+G:\ai\Naggar Print POS Agent\pos_system\mobile_app_stable_v0.8.0.py | 23 | self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+G:\ai\Naggar Print POS Agent\pos_system\reset_accounts.py | 5 | DB_NAME = "pos_data.db"
+G:\ai\Naggar Print POS Agent\pos_system\reset_accounts.py | 6 | BACKUP_NAME = "pos_data_backup_before_reset.db"
+G:\ai\Naggar Print POS Agent\pos_system\reset_accounts.py | 18 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Naggar Print POS Agent\pos_system\reset_drawer.py | 9 | db_path = "pos_data.db"
+G:\ai\Naggar Print POS Agent\pos_system\reset_drawer.py | 10 | conn = sqlite3.connect(db_path)
+G:\ai\Naggar Print POS Agent\pos_system\sync_pos_to_sheet.py | 94 | """Read all data from pos_data.db for mirror."""
+G:\ai\Naggar Print POS Agent\pos_system\sync_pos_to_sheet.py | 322 | safe_print("\n═══ PHASE 4: Full Mirror from pos_data.db ═══")
+G:\ai\Naggar Print POS Agent\pos_system\sync_pos_to_sheet.py | 349 | ["source_db", "pos_data.db", now_iso()],
+G:\ai\Naggar Print POS Agent\pos_system\telegram_importer.py | 137 | db_path = ROOT_DIR / "pos_data.db"
+G:\ai\Naggar Print POS Agent\pos_system\telegram_importer.py | 139 | shutil.copy2(db_path, backup_dir / "pos_data.db")
+G:\ai\Naggar Print POS Agent\pos_system\telegram_bot\README.md | 8 | - No write to `pos_data.db`
+G:\ai\Naggar Print POS Agent\scripts\backup_pos.py | 8 | - pos_data.db  : نسخة موثقة عبر SQLite backup API + integrity_check (زي الأصل).
+G:\ai\Naggar Print POS Agent\scripts\backup_pos.py | 23 | SRC_DB = ROOT / "pos_data.db"
+G:\ai\Naggar Print POS Agent\scripts\backup_pos.py | 46 | src = sqlite3.connect(f"file:{src_path.as_posix()}?mode=ro", uri=True, timeout=30)
+G:\ai\Naggar Print POS Agent\scripts\backup_pos.py | 47 | dst = sqlite3.connect(str(tmp))
+G:\ai\Naggar Print POS Agent\scripts\backup_pos.py | 81 | SRC_DB, stamp, "pos_data", ("clients", "orders", "transactions"))
+G:\ai\Naggar Print POS Agent\scripts\backup_pos.py | 120 | prune("pos_data_", ".db")
+G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py | 6 | قراءة فقط (قراءة 100%): حساب مقاييس المحلي pos_data.db (mode=ro) ومرآة Supabase —
+G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py | 12 | - pos_data.db تُفتح بِ WAL? لا — mode=ro فقط (لا كتابة). لا SQL write.
+G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py | 21 | python scripts\parity_watchdog.py --local-db "_sandbox_pos_writer\pos_data.db"  # اختبار على نسخة أولًا
+G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py | 48 | DEFAULT_LOCAL_DB = r"G:\ai\Elnagar POS\pos_data.db"
+G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py | 86 | conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py | 201 | ap.add_argument("--local-db", default=DEFAULT_LOCAL_DB, help="مسار pos_data.db (افتراضي الحي)")
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 1 | # تقرير ربط البيانات — task-2 (قطع قراءة الوكلاء من `pos_data.db` القديم)
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 13 | | **المصدر الرسمي الحي** | `G:\ai\Elnagar POS\pos_data.db` (قاعدة تطبيق Elnagar POS الشغّال: Flask على **8888** + Mobile API على **7777**، بدأ 2026-10-17 23:57:09) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 14 | | **النسخة القديمة المرفوضة** | `G:\ai\Naggar Print POS Agent\pos_data.db` (52 عميلاً/50 طلباً، أقصى طلب **#323**، أقصى تاريخ **2026-08-31**، مجموع الأرصدة **0.0**) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 21 | | **موضع الخلاف مع الفرضية الأولى** | PostgreSQL/`layan_erp` **ليس** المصدر الحي (لا عملية java، لا شيء على 18080، وبياناته متوقفة عند 24/09/2026) — المصدر الحي هو قاعدة Elnagar POS. تم الرجوع لتصحيح الـ lead بالدليل المقيس. |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 34 | | `crm.py` ✅ | 20 (ROOT)، 21 (DB_PATH)، 28 (`sqlite3.connect` mode=ro) | `G:\ai\Naggar Print POS Agent\pos_data.db` | **سلمى** — ملف العميل/الطلبات/المتأخر | `DB_PATH = _central.db_path()` و`_ro_conn() → _central.open_readonly()` + `.bak` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 37 | | `data_healer.py` ✅ | 18، 19، 29 **و 415** (`sqlite3.connect(DB_PATH)` كتابةً) | نفسه | **حكيم** — الفحوص + الوسم الآلي | القراءة → الطبقة المركزية؛ **الكتابة** → `_central.open_readwrite(approved=False)` ⇒ مرفوضة افتراضيًا (قرار أمان — القسم 7) + `.bak` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 46 | | `cloud/supabase_sync.py` ✅ | 42 (ROOT)، 49 (DB_PATH)، 164‑165 (mode=ro) | `G:\ai\Naggar Print POS Agent\pos_data.db` (أرصدة صفرية) | رفع المرآة إلى Supabase | رُبط بالطبقة المركزية (يقرأ الحي الآن) + `.bak` — **لم يُشغَّل** (لا كتابة سحابية في هذه المهمة) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 47 | | `G:\ai\Elnagar POS\cloud\supabase_sync.py` ⬜ | 49، 166 | `G:\ai\Elnagar POS\pos_data.db` ✔ (الحي) | نفسه | سليم أصلاً — لا تغيير (P1: توجيهه للطبقة لاحقًا) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 55 | | `mcp/pos-reader/server.py` ⬜ | 14، 33 (DEFAULT)، 37 (`POS_DB_PATH`)، 43‑44 (`mode=ro`) | `G:\ai\Elnagar POS\pos_data.db` ✔ (الحي) + تجاوز للاختبار على نسخة | قارئ MCP قراءة فقط | **تحقّق:** `mode=ro` صارم، صفر `INSERT/UPDATE/DELETE`، صفر PRAGMA كتابة ⇒ **لم يُلمس** (لا كسر لأداة تعمل) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 57 | | `mcp/pos-reader/test_against_backup.py` ⬜ | 2، 23 | `backup\pos_data_2026-10-10_1128.db` | اختبار مقابل نسخة احتياطية | لا تغيير (اختبار مقصود) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 58 | | `mcp/pos-reader/check_financial_parity.py` ⬜ | 23 | `"pos_data.db"` نسبي (cwd) | مطابقة مالية | P1 — المسار النسبي خطر؛ لم يُعدّل |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 64 | | `scripts/backup_pos.py` ⬜ | 23 (`SRC_DB=ROOT/pos_data.db`)، 46‑47، 81 | نسخة المساحة **الميتة** | نسخ احتياطي دوري | ⚠️ P1 عاجل: النسخ الاحتياطية الحالية بلا قيمة (تحفظ صفر أرصدة) — موصى بتوجيهه للطبقة؛ لم يُعدّل |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 65 | | `scripts/parity_watchdog.py` ⬜ | 6، 12، 48 (DEFAULT_LOCAL_DB)، 86، 201 | `G:\ai\Elnagar POS\pos_data.db` ✔ | مراقبة التطابق محلي↔سحابة | سليم — لا تغيير |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 67 | | `tools/export_products_excel.py` ⬜ | 16، 102، 268 | `G:\ai\Elnagar POS\pos_data.db` ✔ | تصدير كتالوج | سليم — لا تغيير |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 75 | | `pos_system/database.py` ⬜ | 7 (`DB_NAME="pos_data.db"`)، 30 | نسبي حسب cwd | دوال البرنامج | لا تغيير (نسخة برنامج) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 78 | | `pos_system/firebase_mirror_from_pos.py` ⬜ | 6، 84 | `os.path.dirname(__file__)/pos_data.db` | مرآة Firebase | لا تغيير |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 80 | | `pos_system/android_importer.py` ⬜ | 18، 156، 158 | `ROOT_DIR/pos_data.db` | مستورد الأندرويد | لا تغيير |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 91 | | `fix_balance2.py` ⬜ | 8، 13 | `_sandbox_pos_writer\pos_data.db` | إصلاح على الساندبوكس | لا تغيير |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 92 | | `fix_correct_db.py` ⬜ | 8، 13 | `G:\ai\Elnagar POS\pos_data.db` (**كتابة**) | تصحيح تاريخي على الحي | لا تغيير — ⚠️ يُذكر أن فيه كتابة مباشرة على الحي (خطر إن أُعيد تشغيله) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 115 | | `G:\ai\Elnagar POS\database.py` ⬜ | 7 (`DB_NAME`)، 30 | `pos_data.db` نسبي = **الحي** | محرك البرنامج الرسمي | لا تغيير (هو الحي) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 146 | | `G:\ai\Naggar Print POS Agent\pos_data.db` | نسخة متجمدة: 52 عميلاً/50 طلباً، أقصى طلب #323، أقصى تاريخ 2026-08-31، مجموع الأرصدة 0.0 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 147 | | `G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\pos_data.db` | ساندبوكس اختبار كتابة |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 148 | | `G:\ai\Elnagar POS\pos_data_merge_backup.db` | نسخة قبل دمج المكرّرات |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 150 | **قواعد الرفض العامة:** أي `pos_data.db` ليس المسار الرسمي • أي مسار داخل `backup\`/`Backups\`/`_quarantine_unused*`/`_ARCHIVE_SCRIPTS`/`backup_code_before_fix\` • أي اسم يطابق `pos_data.db.*` أو `pos_data_backup*` أو `pos_data_merge_backup*` أو `pos_data_20*` أو `*.bak-*`.
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 174 | | المصدر | `G:\ai\Elnagar POS\pos_data.db` (تصنيف: official) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 192 | | المصدر الرسمي معتمد | PASS | `live_db=G:\ai\Elnagar POS\pos_data.db` (verdict=official) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 201 | | ربط الوكلاء الخمسة | PASS ×5 | `DB_PATH=G:\ai\Elnagar POS\pos_data.db`، صفر `sqlite3.connect(` في الكود، صفر `ROOT / "pos_data.db"` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 207 | المسار المطلوب : G:\ai\Naggar Print POS Agent\pos_data.db
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 209 | المصدر الرسمي  : G:\ai\Elnagar POS\pos_data.db
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md | 240 | 3. **`mcp\pos-reader\check_financial_parity.py`:** يستخدم `sqlite3.connect("pos_data.db")` نسبيًا (حسب cwd) — مسار غير آمن؛ P1.
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.json | 4 | "live_db": "G:\\ai\\Elnagar POS\\pos_data.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.json | 13 | "path": "G:\\ai\\Naggar Print POS Agent\\pos_data.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.json | 17 | "path": "G:\\ai\\Naggar Print POS Agent\\_sandbox_pos_writer\\pos_data.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.json | 21 | "path": "G:\\ai\\Elnagar POS\\pos_data_merge_backup.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 4 | task-2: قطع قراءة الوكلاء من `pos_data.db` القديم وربطهم بالمصدر الحي.
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 7 | • المصدر الرسمي الحي = ``G:\\ai\\Elnagar POS\\pos_data.db`` — قاعدة التطبيق الشغّال
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 10 | • أي نسخة `pos_data.db` أخرى (مساحة العمل، الساندبوكس، النسخ الاحتياطية، الأرشيف)
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 43 | DEFAULT_LIVE_DB = r"G:\ai\Elnagar POS\pos_data.db"
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 55 | r"G:\ai\Naggar Print POS Agent\pos_data.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 59 | r"G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\pos_data.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 63 | r"G:\ai\Elnagar POS\pos_data_merge_backup.db",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 79 | "pos_data.db.",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 80 | "pos_data_backup",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 81 | "pos_data_merge_backup",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 82 | "pos_data_20",
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 164 | if name == "pos_data.db":
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 165 | return "legacy", "نسخة pos_data.db غير المسار الرسمي — مصدر قديم مرفوض"
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 246 | conn = sqlite3.connect(f"file:{Path(target).as_posix()}?mode=ro", uri=True, timeout=30)
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 256 | conn = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True, timeout=30)
+G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py | 273 | conn = sqlite3.connect(str(target), timeout=30)
+G:\ai\Naggar Print POS Agent\Vision-Lab\projects\MarwaNotebook\store.py | 4 | - قاعدة البيانات منفصلة تمامًا عن قاعدة البرنامج (pos_data.db) — لا كتابة على البرنامج أبدًا.
+G:\ai\Naggar Print POS Agent\Vision-Lab\projects\MarwaNotebook\store.py | 86 | conn = sqlite3.connect(str(DB_PATH), timeout=15)
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 40 | - متطلبات التشغيل: PostgreSQL محلي `layan_erp` على 5432 + متغير بيئة `DB_PASSWORD` (يوجد fallback ثابت داخل `Database.java:24` و`application.properties:16` — مخاطرة أمنية أدناه). ويشهد `WINDOWS_LOCAL_SETUP_REPORT.md` أن JDK 21 مضمّن في `tools\jdk21` وMaven 3.9.6 في `apache-maven-3.9.6` وأن Maven compile/test نجحا (22 اختبارًا).
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 112 | | **PostgreSQL `layan_erp`** (localhost:5432) | المخزن الأساسي: Spring JPA (`application.properties`: HikariCP 20 اتصالًا، `ddl-auto=update`، توقيت Africa/Cairo، JSON بـSNAKE_CASE) + JDBC مباشر بـHikariCP في `Database.java` (تجمع 20/5) | قراءة الملفين + `POSTGRES_MIGRATION_FINALIZATION.md` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 115 | | **SQLite (تاريخي)** | اختفى من النسخة الحية: `Database.initializeTables()` يتجاوز هجرات SQLite صراحة (`isPostgres = true`)، ولا `layan_erp.db` في جذر الحي (موجود في الـsnapshot فقط، 413KB)، وpom الحالي بلا `sqlite-jdbc` | `Database.java:56-65` + pom.xml الحالي + مقارنة قائمتي الجذرين |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 138 | | 2 | `G:\ai\LayanStoreERP` | **snapshot أبريل قديم** — أحدث ملف مصدر فيه **2026-04-22**، يحمل بقايا مرحلة ما قبل الهجرة: `layan_erp.db` (SQLite، 413KB)، سجلات أخطاء بناء (`build_errors.log` 70KB)، حزمة JavaFX القديمة `com.layanerp`، و`utils\CommandRouter.java` المحذوف من الحي | مقارنة أزمنة الملفات + جذر الـsnapshot يحوي db وlogs لا وجود لها في الحي؛ Git له ملكية Windows مختلفة (فشل قراءة اللوج ب
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 192 | 2. **التشغيل**: PostgreSQL `layan_erp` + `DB_PASSWORD` ثم `run.bat` (بعد بناء الجرّ) أو `_backend.bat` (تشغيل مباشر). المنافذ: 9090 بوابة، 18080 Spring، 8443 HTTPS.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 218 | 2. **التشغيل**: PostgreSQL `layan_erp` + `DB_PASSWORD` ثم `run.bat` (بعد بناء الجرّ) أو `_backend.bat` (مباشر من المصدر). المنافذ: 9090 (بوابة) و18080 (Spring) و8443 (HTTPS).
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 236 | | `LayanErpApplication.java` | نقطة Spring | توقيت القاهرة + banner «PostgreSQL layan_erp» |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md | 237 | | `application.properties` | إعدادات Spring | منفذ 18080، PostgreSQL layan_erp، HikariCP 20، ddl-auto=update، JSON SNAKE_CASE |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 11 | > **النظام الحي = `G:\ai\Elnagar POS` (Python/Eel + Flask)، وقاعدته `G:\ai\Elnagar POS\pos_data.db`.**
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 12 | > **PostgreSQL `layan_erp` + مشروع `LayanStoreERP` = فرع ميت (Dead End)** — خدمة PostgreSQL شغّالة، لكن التطبيق نفسه لا يعمل، وبياناتها متجمدة عند 24/09/2026.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 20 | | **الاتصال الحرفي (URL)** | `jdbc:postgresql://localhost:5432/layan_erp` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 24 | | قاعدة البيانات | `layan_erp` — موجودة، حجمها 11 MB، **47 جدولًا** في schema `public` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 27 | `config.setJdbcUrl("jdbc:postgresql://localhost:5432/layan_erp")` — أي أن الـ helper القديم (الذي تستدعيه كل الـ controllers) أيضًا على PostgreSQL، **لا SQLite**.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 33 | | `src\main\resources\application.properties` | port 18080 + `jdbc:postgresql://localhost:5432/layan_erp` | ✅ **الفعّال** (Spring Boot يقرأ هذا الاسم افتراضيًا) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 35 | | `src\main\resources\application_new.properties` | port **9090** + `jdbc:h2:mem:layan_erp` (H2) | ❌ **بقايا ميتة** — Spring Boot لا يحمّله (الاسم غير قياسي)، لا يوجد فيه أي profile |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 49 | | `pg_stat_activity` على `layan_erp` | **الاتصال الوحيد الموجود = اتصال `psql` بتاعي** (application_name=psql) — لا يوجد أي اتصال `PostgreSQL JDBC Driver` |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 66 | | أ | **PostgreSQL** `layan_erp` | `jdbc:postgresql://localhost:5432/layan_erp` | **24/09/2026 18:57** (customer_ledger) | **11** | 8 (transactions) | 8 | ⚠️ الخدمة تعمل / **التطبيق ميت** (لا java، لا 18080) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 67 | | ب | **النظام الحي (Elnagar POS)** | `G:\ai\Elnagar POS\pos_data.db` | **16/10/2026 20:39** (txn #482) | **56** | **58** | **44** | ✅ **نعم — شغّال فعلًا** |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 68 | | ج | **نسخة مساحة الوكلاء (متجمدة)** | `G:\ai\Naggar Print POS Agent\pos_data.db` | **03/09/2026** | **52** | **50** | **41** | ❌ لا — نسخة قديمة، بلا أي كتابة |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 69 | | ج2 | نسخة الكتابة المعزولة | `G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\pos_data.db` | 03/09/2026 (ملف 16/10 23:08) | 52 | 50 | 41 | ❌ (هدف كتابة، مش مصدر حقيقة) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 78 | PostgreSQL layan_erp : customers=11  transactions=8  customer_ledger=8  obligations=2  products=56
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 86 | **ملاحظة فنية مهمة:** النسخة المتجمدة في جذر مساحة الوكلاء فيها **9 جداول فقط** (بنية POS القديمة: clients/orders/transactions/…)، بينما الحي و sandbox فيهما **32 جدولًا**. يعني هي مش «نسخة أحدث ناقصة»، هي **snapshot أقدم ببنية أقدم**. ملفها اتلمس آخر مرة 16/10 22:53 لكن البيانات جواها واقفة عند 03/09 — و`pos_data.db-wal` صفر بايت من 14/10 (مفيش أي كتابة).
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 90 | ## 5) إثبات إن الحي بيقرأ فعلًا من `G:\ai\Elnagar POS\pos_data.db`
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 106 | الـ API رجّع **56 عميلًا**، ودي القيمة الوحيدة المطابقة لـ `G:\ai\Elnagar POS\pos_data.db` (52 و11 و0 كلهم اختلفوا) → **الحي يقرأ من ملف Elnagar POS، قطعًا.**
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 109 | - `G:\ai\Elnagar POS\database.py` سطر 7: `DB_NAME = "pos_data.db"` (مسار **نسبي** — يعني قاعدة البيانات = ملف في مجلد تشغيل العملية).
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 111 | `LIVE_DB_PATH = "G:\ai\Elnagar POS\pos_data.db"` — يعني حتى مساحة الوكلاء **معرِّفة الحي صح**، والكود بيقرأ منه:
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 113 | - `scripts\parity_watchdog.py` سطر 48: `DEFAULT_LOCAL_DB = r"G:\ai\Elnagar POS\pos_data.db"`.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 150 | **في PostgreSQL `layan_erp` (47 جدولًا، الأسماء PascalCase قديمة + snake_case جديدة):**
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 174 | ?? Database: layan_erp (PostgreSQL)
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 176 | (بوابة 9090 + Spring 18080، والاتصال بقاعدة `layan_erp`.)
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 226 | - فيها **نسخة قديمة** في الجذر (`pos_data.db`) + **نسخة معزولة للكتابة** (`_sandbox_pos_writer`) — و`mcp\pos-writer\server.py` بيقول بالنص: *«الهدف الافتراضي نسخة الاختبار (_sandbox_pos_writer)؛ الحي يتطلب POS_WRITER_TARGET=live (بأمر المالك فقط)»*.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 227 | - **ده بالظبط مصدر الإحساس بالانفصام:** الوكلاء بيكتبوا في `_sandbox` أو بصول على `pos_data.db` القديم في الجذر، بينما النظام الحي بيكتب في `G:\ai\Elnagar POS`. حتى `.env` عندهم مضبوط صح (`LIVE_DB_PATH`) — لكن الأدوات الافتراضية + النسخة القديمة في الجذر بتخلّي القراءة تروح لمكان تاني.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 241 | │  database.py : DB_NAME = "pos_data.db" (نسبي)                               │
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 245 | G:\ai\Elnagar POS\pos_data.db   ← ★ المصدر الوحيد للحقيقة ★
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 253 | │ LIVE_DB_PATH = "G:\ai\Elnagar POS\pos_data.db"
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 255 | ├── pos_data.db .................. ❌ نسخة مجمّدة (52 عميل، تنتهي 03/09) — الفخ
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 256 | ├── _sandbox_pos_writer\pos_data.db ❌ هدف الكتابة الافتراضي للأدوات
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 260 | G:\ai\codex\LayanStoreERP  ──X──▶  jdbc:postgresql://localhost:5432/layan_erp
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 268 | 1. **أي وكيل يتعامل مع أرقام الورشة لازم يقرأ من `G:\ai\Elnagar POS\pos_data.db`** (أو يستخدم `LIVE_DB_PATH` من `.env`) — **لا** من `pos_data.db` في جذر مساحة الوكلاء.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 269 | 2. **`pos_data.db` في جذر `Naggar Print POS Agent` لازم يتعلّم (mark) كملف قديم/غير حي** أو ينقل لأرشيف — وجوده في الجذر هو سبب لبس «الـ workspace».
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 271 | 4. **قبل أي تنظيف:** لا تُمس `G:\ai\Elnagar POS\pos_data.db` ولا `Backups` — ده الحي.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 288 | & 'C:\Program Files\PostgreSQL\18\bin\psql.exe' -U postgres -h localhost -d layan_erp -c "\dt"
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md | 291 | python -c "import sqlite3;print(sqlite3.connect(r'file:G:\ai\Elnagar POS\pos_data.db?mode=ro',uri=True).execute('SELECT COUNT(*),SUM(balance) FROM clients').fetchone())"
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 13 | > 1. **مصدره الوحيد** هو `G:\ai\Elnagar POS\pos_data.db` (عمود `clients.balance`)، وهو مصدر **حيّ فعلًا** (عملية شغّالة تخدمه الآن)، لكن **بياناته متجمدة عند 16/10/2026** — مفيش أي حركة بتاريخ 17/10 ولا 18/10. فالوصف الدقيق: «الرصيد الحالي في المصدر الحيّ = 1040»، وليس «مديونيات اليوم».
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 26 | | S1 | `G:\ai\Elnagar POS\pos_data.db` | SQLite (تطبيق Python حيّ) | ✅ قراءة مباشرة read-only |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 28 | | S3 | `G:\ai\Naggar Print POS Agent\pos_data.db` | SQLite قديم | ✅ قراءة مباشرة read-only |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 29 | | S4 | PostgreSQL `localhost:5432/layan_erp` | Spring Boot backend | ✅ psql مباشر (الـ backend نفسه متوقف) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 63 | sqlite3.connect("file:G:/ai/Elnagar POS/pos_data.db?mode=ro", uri=True)
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 105 | وأتأكد إن الـ API فعلًا قرأ نفس الملف S1 بدليل تطابق البصمة: `clients_count=56`، `orders_total=58`، `products_count=105` — ودي أرقام `pos_data.db` بتاع Elnagar بالظبط (S3 عندها 52/50/106، فمستحيل يكون هو).
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 117 | ### S1 — `G:\ai\Elnagar POS\pos_data.db` (المصدر الحيّ)
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 131 | ⚠️ لكن **«اليوم» ≠ 16/10**. دلوقتي 18/10 00:35. العملية الحيّة شغّالة من 17/10 23:57 و**لم تكتب أي صف جديد** في `pos_data.db` (الـ mtime لسه 16/10 23:39). يعني الرقم 1040 هو **بصمة آخر لحظة عمل (16/10)، مش حالة اليوم**.
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 133 | ### S3 — `G:\ai\Naggar Print POS Agent\pos_data.db` (القديم)
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 175 | ## 7. PostgreSQL `layan_erp` — الناتج 0، مش 1040
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 177 | `G:\ai\codex\LayanStoreERP` → `spring.datasource.url=jdbc:postgresql://localhost:5432/layan_erp`. اتصلت مباشرة بـ psql:
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 191 | **قاعدة `layan_erp` بياناتها أقدم من المصدر الحيّ (24/09 مقابل 16/10) وأرصدتها صفر. لو أي حد حسب 1040 من هنا فهو غلط.**
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 224 | $py -c "import sqlite3; c=sqlite3.connect('file:G:/ai/Elnagar POS/pos_data.db?mode=ro',uri=True); print(c.execute('select coalesce(sum(balance),0), count(*) from clients where balance>0').fetchall()); print(c.execute('select max(date) from orders').fetchone()); print(c.execute('select max(date) from transactions').fetchone())"
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 239 | & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost -d layan_erp -c "SELECT COALESCE(SUM(current_balance),0) FROM customers WHERE current_balance > 0 AND is_deleted = false;"
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 248 | | E1 | `pos_data.db` (Elnagar) mtime | 2026-10-16 23:39:36 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 249 | | E2 | `pos_data.db` (Elnagar) last order | #334 @ 2026-10-16 16:22:56, Delivered, 150.0 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 250 | | E3 | `pos_data.db` (Elnagar) last transaction | 2026-10-16 20:39:12 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 251 | | E4 | `pos_data.db` (Naggar) mtime | 2026-10-16 22:53:24 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 252 | | E5 | `pos_data.db` (Naggar) last business record | 2026-09-03 (transactions) / 2026-08-31 (orders) |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 253 | | E6 | `pos_data.db` (Naggar) `SUM(balance)` | 0 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 254 | | E7 | `layan_erp` last transaction | 2026-09-24 18:57:41 |
+G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md | 255 | | E8 | `layan_erp` `SUM(current_balance)` | 0 |
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\database.py | 7 | DB_NAME = "pos_data.db"
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\database.py | 30 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\setup.py | 2 | """Setup sandbox DB: backup-API copy of live pos_data.db + redirect local_images_path to sandbox images."""
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\setup.py | 7 | TEST_DB = os.path.join(BASE, "pos_data.db")
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\setup.py | 10 | src = sqlite3.connect(r"file:G:\ai\Elnagar POS\pos_data.db?mode=ro", uri=True)
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\setup.py | 11 | dst = sqlite3.connect(TEST_DB)
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_fixes.py | 12 | ro = sqlite3.connect(os.path.join(HERE, "pos_data.db"))
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_live_port.py | 16 | ro = sqlite3.connect(os.path.join(POS, "pos_data.db"))
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py | 6 | يُشغَّل من داخل _sandbox_pos_writer (لكي يقرأ database.py المعدّلة وقاعدة pos_data.db الخاصة بالنسخة).
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py | 14 | DB_PATH = os.path.join(os.getcwd(), "pos_data.db")
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py | 22 | con = sqlite3.connect(DB_PATH)
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py | 41 | con = sqlite3.connect(DB_PATH); con.execute("UPDATE products SET stock_qty=0 WHERE id=?", (PRODUCT_ID,)); con.commit(); con.close()
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py | 44 | con = sqlite3.connect(DB_PATH)
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py | 84 | con = sqlite3.connect(DB_PATH)
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\patches\apply_fixes_2026-10-12.py | 17 | كل الاستبدالات مُتحقَّقة (تظهر مرة واحدة بالضبط). لا يلمس pos_data.db إطلاقًا.
+G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\patches\verify_fix_live_2026-10-12.py | 6 | قبل/بعد لإثبات أن الاستدعاء SELECT فقط. لا تكتب في pos_data.db إطلاقًا.
+G:\ai\Elnagar POS\android_importer.py | 18 | Does NOT touch pos_data.db via direct insert.
+G:\ai\Elnagar POS\android_importer.py | 156 | db_path = ROOT_DIR / "pos_data.db"
+G:\ai\Elnagar POS\android_importer.py | 158 | shutil.copy2(db_path, backup_dir / "pos_data.db")
+G:\ai\Elnagar POS\app.py | 1830 | db_path = "pos_data.db"
+G:\ai\Elnagar POS\app.py | 1831 | wal_path = "pos_data.db-wal"
+G:\ai\Elnagar POS\cleanup_jan15.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\database.py | 7 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\database.py | 30 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\firebase_importer.py | 13 | DB_PATH = os.path.join(os.path.dirname(__file__), 'pos_data.db')
+G:\ai\Elnagar POS\firebase_importer.py | 20 | backup_path = os.path.join(BACKUP_DIR, f"pos_data_backup_fb_importer_{timestamp}.db")
+G:\ai\Elnagar POS\firebase_mirror_from_pos.py | 6 | DB_PATH = os.path.join(os.path.dirname(__file__), 'pos_data.db')
+G:\ai\Elnagar POS\firebase_mirror_from_pos.py | 84 | conn = sqlite3.connect(DB_PATH)
+G:\ai\Elnagar POS\main.py | 34 | self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+G:\ai\Elnagar POS\mobile_app_stable_v0.8.0.py | 23 | self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+G:\ai\Elnagar POS\reset_accounts.py | 5 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\reset_accounts.py | 6 | BACKUP_NAME = "pos_data_backup_before_reset.db"
+G:\ai\Elnagar POS\reset_accounts.py | 18 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\reset_drawer.py | 9 | db_path = "pos_data.db"
+G:\ai\Elnagar POS\reset_drawer.py | 10 | conn = sqlite3.connect(db_path)
+G:\ai\Elnagar POS\setup_android_google_direct.py | 10 | Does NOT touch pos_data.db. Does NOT break Telegram bot or importer.
+G:\ai\Elnagar POS\sync_pos_to_sheet.py | 94 | """Read all data from pos_data.db for mirror."""
+G:\ai\Elnagar POS\sync_pos_to_sheet.py | 322 | safe_print("\n═══ PHASE 4: Full Mirror from pos_data.db ═══")
+G:\ai\Elnagar POS\sync_pos_to_sheet.py | 349 | ["source_db", "pos_data.db", now_iso()],
+G:\ai\Elnagar POS\telegram_importer.py | 137 | db_path = ROOT_DIR / "pos_data.db"
+G:\ai\Elnagar POS\telegram_importer.py | 139 | shutil.copy2(db_path, backup_dir / "pos_data.db")
+G:\ai\Elnagar POS\android_companion_app\apps_script_proxy\Code.gs | 6 | * and Google Sheets / Google Drive. It NEVER touches pos_data.db directly.
+G:\ai\Elnagar POS\android_companion_app\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 7 | - لا يتصل بقاعدة البيانات `pos_data.db` مطلقًا.
+G:\ai\Elnagar POS\android_companion_app\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 159 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\android_companion_app\lib\services\order_queue_service.dart | 8 | /// Never touches orders/order_items in pos_data.db.
+G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\apps_script_proxy\Code.gs | 6 | * and Google Sheets / Google Drive. It NEVER touches pos_data.db directly.
+G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 7 | - لا يتصل بقاعدة البيانات `pos_data.db` مطلقًا.
+G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 159 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\lib\services\order_queue_service.dart | 8 | /// Never touches orders/order_items in pos_data.db.
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\apps_script_proxy\Code.gs | 6 | * and Google Sheets / Google Drive. It NEVER touches pos_data.db directly.
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 7 | - لا يتصل بقاعدة البيانات `pos_data.db` مطلقًا.
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 159 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\lib\services\order_queue_service.dart | 8 | /// Never touches orders/order_items in pos_data.db.
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_ui_final_20260516_002300\apps_script_proxy\Code.gs | 6 | * and Google Sheets / Google Drive. It NEVER touches pos_data.db directly.
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_ui_final_20260516_002300\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 7 | - لا يتصل بقاعدة البيانات `pos_data.db` مطلقًا.
+G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_ui_final_20260516_002300\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 159 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\android_companion_app_old_skeleton\apps_script_proxy\Code.gs | 6 | * and Google Sheets / Google Drive. It NEVER touches pos_data.db directly.
+G:\ai\Elnagar POS\android_companion_app_old_skeleton\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 7 | - لا يتصل بقاعدة البيانات `pos_data.db` مطلقًا.
+G:\ai\Elnagar POS\android_companion_app_old_skeleton\apps_script_proxy\README_APPS_SCRIPT_PROXY.md | 159 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\android_companion_app_old_skeleton\lib\services\order_queue_service.dart | 8 | /// Never touches orders/order_items in pos_data.db.
+G:\ai\Elnagar POS\backup_code_before_fix\database_20260511_211410.py | 7 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\backup_code_before_fix\database_20260511_211410.py | 10 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\android_importer.py | 18 | Does NOT touch pos_data.db via direct insert.
+G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\android_importer.py | 154 | db_path = ROOT_DIR / "pos_data.db"
+G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\android_importer.py | 156 | shutil.copy2(db_path, backup_dir / "pos_data.db")
+G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\telegram_importer.py | 137 | db_path = ROOT_DIR / "pos_data.db"
+G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\telegram_importer.py | 139 | shutil.copy2(db_path, backup_dir / "pos_data.db")
+G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\telegram_bot\README.md | 8 | - No write to `pos_data.db`
+G:\ai\Elnagar POS\cloud\schema_migrator.py | 8 | * LOCAL  (pos_data.db, SQLite) — statements filtered/split safely; Postgres-only
+G:\ai\Elnagar POS\cloud\schema_migrator.py | 45 | LOCAL_DB = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\cloud\schema_migrator.py | 79 | conn = sqlite3.connect(LOCAL_DB)
+G:\ai\Elnagar POS\cloud\supabase_sync.py | 7 | - push_mirror(): reads LOCAL pos_data.db (mode=ro only) tables and upserts to Supabase.
+G:\ai\Elnagar POS\cloud\supabase_sync.py | 15 | * pos_data.db opened strictly WITH mode=ro (read-only) -> no local writes from mirror.
+G:\ai\Elnagar POS\cloud\supabase_sync.py | 49 | DB_PATH = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\cloud\supabase_sync.py | 165 | """Read a local table with pos_data.db strictly read-only (mode=ro)."""
+G:\ai\Elnagar POS\cloud\supabase_sync.py | 166 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Elnagar POS\cloud\migrations\003_laptop_brain_vault.sql | 8 | --   * LOCAL  (pos_data.db, SQLite)
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 11 | - SQLite database in `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 49 | ├─ pos_data.db
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 54 | ├─ pos_data_backup_before_reset.db
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 55 | ├─ pos_data_backup_jan19.db
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 111 | 3. `database.py` reads/writes `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 172 | - `pos_data.db`: main production SQLite database
+G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md | 187 | Core tables in `pos_data.db`:
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_APPS_SCRIPT_PROXY_REPORT.md | 12 | - لا اتصال مباشر بـ `pos_data.db`.
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_APPS_SCRIPT_PROXY_REPORT.md | 191 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_APPS_SCRIPT_PROXY_REPORT.md | 196 | - لا يعرف عن وجود `pos_data.db`.
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_APP_PLAN.md | 10 | - **Sync**: A Local Importer on the POS machine processes the queues and updates the local SQLite database (`pos_data.db`).
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_APP_PLAN.md | 182 | **Did we touch `pos_data.db` directly?** No.
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_BUILD_STATE_DIAGNOSIS.md | 51 | ## 9. هل تم لمس pos_data.db؟
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_BUILD_STATE_DIAGNOSIS.md | 52 | **لا**، لم يتم المساس بملف `pos_data.db` أو أي من ملفات النظام الأخرى نهائياً. تم تنفيذ عمليات القراءة والتشخيص فقط.
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_FLUTTER_COMPLETION_REPORT.md | 33 | - **هل تم لمس `pos_data.db`؟ لا، لم يتم المساس به إطلاقاً.**
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_UI_ORDERS_CLIENTS_ACCOUNTS_UPGRADE_REPORT.md | 162 | ## 11. هل تم لمس pos_data.db؟
+G:\ai\Elnagar POS\docs_ai_audit\ANDROID_FAST_DIRECT_GOOGLE_API_REPORT.md | 308 | ## هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\docs_ai_audit\DATA_SAFETY_AND_BACKUP.md | 13 | - `G:\ai\Elnagar POS\pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\DATA_SAFETY_AND_BACKUP.md | 30 | - `G:\ai\Elnagar POS\pos_data_backup_before_reset.db`
+G:\ai\Elnagar POS\docs_ai_audit\DATA_SAFETY_AND_BACKUP.md | 31 | - `G:\ai\Elnagar POS\pos_data_backup_jan19.db`
+G:\ai\Elnagar POS\docs_ai_audit\DATA_SAFETY_AND_BACKUP.md | 92 | ## Main Table Families In `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\DATA_SAFETY_AND_BACKUP.md | 107 | 1. Copy `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_APP_MIGRATION_PHASE2_REPORT.md | 4 | This report details the execution of Phase 2: Upgrading the Elnagar POS Android Companion App to utilize the Firebase Runtime exclusively, with no reliance on Google Sheets APIs or the local `pos_data.db`. The application was completely overhauled for a premium UI/UX, incorporating new rapid-action workflows.
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_APP_MIGRATION_PHASE2_REPORT.md | 47 | - **Was `pos_data.db` touched?**: **No**. The Android app now writes strictly to `android_*_queue` collections. The backend Python Importer safely handles the SQLite operations.
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_APP_PHASE2_UI_FEATURES_REPORT.md | 18 | | pos_data.db touched | ❌ NO — never touched |
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_APP_PHASE2_UI_FEATURES_REPORT.md | 187 | - `pos_data.db` ✅
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_QUEUE_WRITE_PERMISSION_FIX_REPORT.md | 48 | 5. Verify the order is successfully fetched from `android_orders_queue` and added to `pos_data.db`.
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_IMPORTER_REPORT.md | 4 | This report details the implementation of the new Firebase Importer, designed to replace the legacy Google Sheets polling mechanism. The importer acts as the central ingestion point for all external client data (Android and Telegram), ensuring that `pos_data.db` is updated safely and consistently.
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_IMPORTER_REPORT.md | 15 | 2. **Safe Backups**: Before processing any queues, the importer performs a complete backup of `pos_data.db` using `shutil.copy2` to the `Backups/` directory.
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_RUNTIME_MIGRATION_PHASE1_REPORT.md | 18 | - Developed `firebase_mirror_from_pos.py` to perform a safe, read-only extraction of data from `pos_data.db`.
+G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_RUNTIME_MIGRATION_PHASE1_REPORT.md | 27 | - `pos_data.db` is strictly untouched during mirroring.
+G:\ai\Elnagar POS\docs_ai_audit\FULL_REBUILD_AND_SYNC_UPGRADE_REPORT.md | 33 | ## Phase 4: Full Mirror from pos_data.db ✅
+G:\ai\Elnagar POS\docs_ai_audit\FULL_REBUILD_AND_SYNC_UPGRADE_REPORT.md | 125 | - ✅ `pos_data.db` was NOT touched directly
+G:\ai\Elnagar POS\docs_ai_audit\GOOGLE_SHEETS_REALTIME_SYNC_REPORT.md | 186 | - قرأ البيانات من `pos_data.db` فقط
+G:\ai\Elnagar POS\docs_ai_audit\LOCAL_LAN_SYNC_ARCHITECTURE_REPORT.md | 14 | - POST /api/orders لإرسال الطلبات مباشرة إلى قاعدة بيانات SQLite (pos_data.db) عبر دوال البرنامج الأصلية database.py.
+G:\ai\Elnagar POS\docs_ai_audit\LOCAL_LAN_SYNC_FINAL_DEVICE_TEST_REPORT.md | 18 | - تم إرسال طلب لـ `http://127.0.0.1:7788/health` وكانت النتيجة `{"ok":true,"service":"elnagar-local-mobile-api","version":"1.0","db_ok":true}`، ما يثبت إمكانية الوصول ونجاح قراءة قاعدة بيانات `pos_data.db`.
+G:\ai\Elnagar POS\docs_ai_audit\LOCAL_LAN_SYNC_FINAL_DEVICE_TEST_REPORT.md | 24 | - إنشاء طلب جديد من التطبيق يرسل الطلب مباشرة إلى المنفذ `7788` والذي يحفظه فوراً في `pos_data.db` ويجعله متاحاً لبرنامج POS الأساسي في لحظتها.
+G:\ai\Elnagar POS\docs_ai_audit\LOCAL_MOBILE_API_SERVER_REPORT.md | 16 | السيرفر لا يفتح pos_data.db بشكل مباشر، بل يستورد وحدة database ويستخدم الدوال الأصلية مثل save_order_transaction، و dd_quick_product و
+G:\ai\Elnagar POS\docs_ai_audit\LOCAL_MSE_AI_API_INTEGRATION_REPORT.md | 17 | `pos_data.db` was not modified during this task.
+G:\ai\Elnagar POS\docs_ai_audit\LOCAL_MSE_AI_API_INTEGRATION_REPORT.md | 139 | ## Was `pos_data.db` Touched?
+G:\ai\Elnagar POS\docs_ai_audit\ONE_CLICK_LAUNCHER_AND_CLEANUP_REPORT.md | 22 | - `pos_data.db` is perfectly intact.
+G:\ai\Elnagar POS\docs_ai_audit\OPENROUTER_BOT_AI_REPLACEMENT_REPORT.md | 122 | تم تنفيذ الاختبارات التالية بدون لمس `pos_data.db`:
+G:\ai\Elnagar POS\docs_ai_audit\OPENROUTER_BOT_AI_REPLACEMENT_REPORT.md | 142 | - هل تم لمس `pos_data.db`؟ لا
+G:\ai\Elnagar POS\docs_ai_audit\PRODUCTS_AND_PRICING_SYNC_REPORT.md | 33 | تم فحص schema الحقيقي من `pos_data.db` عبر `PRAGMA table_info(products)`.
+G:\ai\Elnagar POS\docs_ai_audit\PRODUCTS_AND_PRICING_SYNC_REPORT.md | 284 | هل تم لمس الداتا؟ نعم على مستوى قراءة `pos_data.db` فقط أثناء الفحص وعمليات sync outbound.
+G:\ai\Elnagar POS\docs_ai_audit\PROJECT_FILE_AUDIT_REPORT.md | 4 | - `pos_data.db`, `elnagar_pos.db`
+G:\ai\Elnagar POS\docs_ai_audit\PYTHON_311_LAUNCHER_FIX_REPORT.md | 10 | `pos_data.db` was not modified.
+G:\ai\Elnagar POS\docs_ai_audit\REPAIR_REPORT.md | 18 | - `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\RUN_APP_ALL_SERVICES_REPORT.md | 13 | `pos_data.db` was not modified during this startup repair task.
+G:\ai\Elnagar POS\docs_ai_audit\RUN_APP_LOCAL_SERVICES_REPORT.md | 12 | كل الخدمات تعمل الآن بزر تشغيل واحد، مع الاحتفاظ بـ pos_data.db دون تغيير هيكلي ودون كسره، كل التفاعلات تتم برمجياً لضمان الموثوقية.
+G:\ai\Elnagar POS\docs_ai_audit\RUN_WINDOWS.md | 18 | 1. Back up `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\RUN_WINDOWS.md | 22 | 5. Keep `Backups\` and `pos_data_backup_*.db` untouched
+G:\ai\Elnagar POS\docs_ai_audit\SMART_ARABIC_BOT_ASSISTANT_REPORT.md | 12 | `pos_data.db` was not touched.
+G:\ai\Elnagar POS\docs_ai_audit\SMART_ARABIC_BOT_ASSISTANT_REPORT.md | 197 | Executed without touching `pos_data.db`:
+G:\ai\Elnagar POS\docs_ai_audit\SMART_ARABIC_BOT_ASSISTANT_REPORT.md | 212 | ## Was `pos_data.db` Touched?
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 21 | - بدون تنفيذ دفعات أو تعديل أسعار مباشرة داخل `pos_data.db` من البوت
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 41 | - لكنه **كان قادرًا على الكتابة في `pos_data.db`** عن طريق إنشاء عميل جديد
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 62 | - وقت آخر تعديل `pos_data.db` قبل وبعد `dry-run` كان نفسه تمامًا:
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 308 | - لا يوجد أي write مباشر لدفعة داخل `pos_data.db` من البوت
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 349 | - وليس direct update في `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 426 | ## 12. هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 433 | - لم يتم لمس `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 443 | - تم لمس `pos_data.db` مرة واحدة عبر المسار الآمن الأصلي للـ importer
+G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md | 518 | - `pos_data.db` لم يُلمس بواسطة `dry-run`
+G:\ai\Elnagar POS\docs_ai_audit\SMART_TELEGRAM_NATURAL_LANGUAGE_ORDERS_REPORT.md | 208 | هل تم لمس `pos_data.db`؟
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_BOT_QUEUE_REPORT.md | 10 | - No write to `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_BOT_QUEUE_REPORT.md | 230 | ## `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_BOT_QUEUE_REPORT.md | 232 | Was `pos_data.db` touched?
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_LOCAL_IMPORTER_REPORT.md | 58 | - `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_LOCAL_IMPORTER_REPORT.md | 256 | ## Was `pos_data.db` touched?
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_PENDING_ORDERS_VISIBILITY_REPORT.md | 23 | بدون تعديل منطق التسجيل أو Local Importer أو `pos_data.db`.
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_PENDING_ORDERS_VISIBILITY_REPORT.md | 100 | - لمس `pos_data.db`
+G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_PENDING_ORDERS_VISIBILITY_REPORT.md | 157 | ## Was `pos_data.db` touched?
+G:\ai\Elnagar POS\firebase\README_FIREBASE_SETUP.md | 23 | 1. **Mirror**: Read-only copy of the `pos_data.db` (clients, products, orders, etc.). Only the Admin Importer modifies these.
+G:\ai\Elnagar POS\firebase\README_FIREBASE_SETUP.md | 24 | 2. **Android Queues**: Collections where the Android Companion App pushes new data/actions (orders, payments, clients). The Python Importer reads these, writes to `pos_data.db`, and updates the status to `imported`.
+G:\ai\Elnagar POS\mobile_build_ready\main.py | 35 | self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+G:\ai\Elnagar POS\orchestrator\agents\cfo.py | 25 | DB_PATH = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\orchestrator\agents\cfo.py | 30 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Elnagar POS\orchestrator\agents\crm.py | 21 | DB_PATH = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\orchestrator\agents\crm.py | 28 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Elnagar POS\orchestrator\agents\data_healer.py | 19 | DB_PATH = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\orchestrator\agents\data_healer.py | 29 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Elnagar POS\orchestrator\agents\data_healer.py | 415 | wconn = sqlite3.connect(DB_PATH)
+G:\ai\Elnagar POS\orchestrator\agents\manufacturing_agent.py | 30 | DB_PATH = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\orchestrator\agents\manufacturing_agent.py | 36 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Elnagar POS\orchestrator\agents\marketing.py | 20 | DB_PATH = ROOT / "pos_data.db"
+G:\ai\Elnagar POS\orchestrator\agents\marketing.py | 28 | conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\check_settings_debug.py | 7 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\cleanup_jan15.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\database.py | 7 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\database.py | 10 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_image_failure.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_kpi.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_move.py | 7 | DB_PATH = 'pos_data.db'
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_move.py | 10 | conn = sqlite3.connect(DB_PATH)
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_omnia.py | 3 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_sync_v2.py | 16 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\dump_rofayda.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_aya_final.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_db.py | 3 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_db.py | 6 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_hajer.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_hajer_correct.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_hiba.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_marwa.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_omnia_balance.py | 3 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_rofayda_direct.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_hiba.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_marwa.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_rofayda.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\migrate_db_v2.py | 4 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\migrate_db_v3.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\migrate_db_v4_stock.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\recalc_rofayda.py | 9 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\review_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\test_transaction.py | 7 | if not os.path.exists("pos_data.db"):
+G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\test_transaction.py | 8 | print("ERROR: pos_data.db not found!")
+G:\ai\Elnagar POS\scratch\check_clients.py | 6 | conn = sqlite3.connect("g:/ai/Elnagar POS/pos_data.db")
+G:\ai\Elnagar POS\scratch\check_prices.py | 7 | conn = sqlite3.connect("g:/ai/Elnagar POS/pos_data.db")
+G:\ai\Elnagar POS\scratch\db_schema.py | 7 | conn = sqlite3.connect("g:/ai/Elnagar POS/pos_data.db")
+G:\ai\Elnagar POS\scratch\test_db.py | 4 | conn = sqlite3.connect("pos_data.db")
+G:\ai\Elnagar POS\telegram_bot\README.md | 8 | - No write to `pos_data.db`
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\check_finances.py | 4 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\check_finances.py | 9 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\check_settings_debug.py | 7 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_image_failure.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_kpi.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_move.py | 7 | DB_PATH = 'pos_data.db'
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_move.py | 10 | conn = sqlite3.connect(DB_PATH)
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_omnia.py | 3 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_sync_v2.py | 16 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\dump_rofayda.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_aya_final.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_db.py | 3 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_db.py | 6 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_hajer.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_hajer_correct.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_hiba.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_marwa.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_omnia_balance.py | 3 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_prices.py | 9 | conn = sqlite3.connect("g:/ai/Elnagar POS/pos_data.db")
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_revert_balances.py | 7 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_revert_balances.py | 12 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_rofayda_direct.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\force_fix.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_hiba.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_hind.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_logs.py | 6 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_logs.py | 10 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_marwa.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_rofayda.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\migrate_db_v2.py | 4 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\migrate_db_v3.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\migrate_db_v4_stock.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\recalc_rofayda.py | 9 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\revert_script.py | 3 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\revert_script.py | 8 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\review_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\simple_check.py | 3 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\test_transaction.py | 7 | if not os.path.exists("pos_data.db"):
+G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\test_transaction.py | 8 | print("ERROR: pos_data.db not found!")
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\check_finances.py | 4 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\check_finances.py | 9 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\check_settings_debug.py | 7 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\cleanup_jan15.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_image_failure.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_kpi.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_move.py | 7 | DB_PATH = 'pos_data.db'
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_move.py | 10 | conn = sqlite3.connect(DB_PATH)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_omnia.py | 3 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_sync_v2.py | 16 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\dump_rofayda.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_aya_final.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_db.py | 3 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_db.py | 6 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_hajer.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_hajer_correct.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_hiba.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_marwa.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_omnia_balance.py | 3 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_revert_balances.py | 7 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_revert_balances.py | 12 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_rofayda_direct.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\force_fix.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_aya.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_hiba.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_hind.py | 12 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_logs.py | 6 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_logs.py | 10 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_marwa.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_rofayda.py | 4 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\main.py | 31 | self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\migrate_db_v2.py | 4 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\migrate_db_v3.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\migrate_db_v4_stock.py | 6 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\mobile_app_stable_v0.8.0.py | 23 | self.conn = sqlite3.connect(DB_NAME, check_same_thread=False)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\recalc_rofayda.py | 9 | conn = sqlite3.connect('g:/ai/Elnagar POS/pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\reset_accounts.py | 5 | DB_NAME = "pos_data.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\reset_accounts.py | 6 | BACKUP_NAME = "pos_data_backup_before_reset.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\reset_accounts.py | 18 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\revert_script.py | 3 | DB_NAME = "g:\\ai\\Elnagar POS\\pos_data.db"
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\revert_script.py | 8 | conn = sqlite3.connect(DB_NAME)
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\setup_android_google_direct.py | 10 | Does NOT touch pos_data.db. Does NOT break Telegram bot or importer.
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\simple_check.py | 3 | conn = sqlite3.connect('pos_data.db')
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\test_transaction.py | 7 | if not os.path.exists("pos_data.db"):
+G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\test_transaction.py | 8 | print("ERROR: pos_data.db not found!")
+
+# ── ملخص بعدد المطابقات لكل ملف ──
+  35  G:\ai\Naggar Print POS Agent\Vision-Lab\studies\live_db_architecture.md
+  30  G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_binding_report.md
+  22  G:\ai\Naggar Print POS Agent\Vision-Lab\studies\verification.md
+  16  G:\ai\Naggar Print POS Agent\memory\decisions_log.md
+  16  G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.py
+   9  G:\ai\Elnagar POS\docs_ai_audit\SMART_BOT_SYNC_AND_STARTUP_V2_REPORT.md
+   8  G:\ai\Naggar Print POS Agent\STATUS.md
+   8  G:\ai\Naggar Print POS Agent\Vision-Lab\studies\LayanStoreERP-live.md
+   7  G:\ai\Elnagar POS\docs_ai_audit\AI_PROJECT_CONTEXT.md
+   6  G:\ai\Naggar Print POS Agent\scripts\backup_pos.py
+   6  G:\ai\Naggar Print POS Agent\scripts\parity_watchdog.py
+   6  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_purchase_fixes.py
+   5  G:\ai\Elnagar POS\cloud\supabase_sync.py
+   5  G:\ai\Elnagar POS\docs_ai_audit\DATA_SAFETY_AND_BACKUP.md
+   4  G:\ai\Naggar Print POS Agent\cloud\supabase_sync.py
+   4  G:\ai\Naggar Print POS Agent\Vision-Lab\config\data_source.json
+   4  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\setup.py
+   3  G:\ai\Naggar Print POS Agent\LAPTOP_SECRET_KIT.md
+   3  G:\ai\Naggar Print POS Agent\README.md
+   3  G:\ai\Naggar Print POS Agent\cloud\schema_migrator.py
+   3  G:\ai\Naggar Print POS Agent\mcp\pos-reader\server.py
+   3  G:\ai\Naggar Print POS Agent\memory\roadmap.md
+   3  G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-13-architecture-phase0.md
+   3  G:\ai\Naggar Print POS Agent\pos_system\android_importer.py
+   3  G:\ai\Naggar Print POS Agent\pos_system\reset_accounts.py
+   3  G:\ai\Naggar Print POS Agent\pos_system\sync_pos_to_sheet.py
+   3  G:\ai\Elnagar POS\android_importer.py
+   3  G:\ai\Elnagar POS\reset_accounts.py
+   3  G:\ai\Elnagar POS\sync_pos_to_sheet.py
+   3  G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\android_importer.py
+   3  G:\ai\Elnagar POS\cloud\schema_migrator.py
+   3  G:\ai\Elnagar POS\docs_ai_audit\ANDROID_APPS_SCRIPT_PROXY_REPORT.md
+   3  G:\ai\Elnagar POS\docs_ai_audit\SMART_ARABIC_BOT_ASSISTANT_REPORT.md
+   3  G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_BOT_QUEUE_REPORT.md
+   3  G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_PENDING_ORDERS_VISIBILITY_REPORT.md
+   3  G:\ai\Elnagar POS\orchestrator\agents\data_healer.py
+   3  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\reset_accounts.py
+   2  G:\ai\Naggar Print POS Agent\fix_balance.py
+   2  G:\ai\Naggar Print POS Agent\fix_balance2.py
+   2  G:\ai\Naggar Print POS Agent\fix_correct_db.py
+   2  G:\ai\Naggar Print POS Agent\SALMA_CRM_STATE.md
+   2  G:\ai\Naggar Print POS Agent\mcp\pos-reader\README.md
+   2  G:\ai\Naggar Print POS Agent\mcp\pos-reader\test_against_backup.py
+   2  G:\ai\Naggar Print POS Agent\memory\reports\final-combined-report-2026-10-13.md
+   2  G:\ai\Naggar Print POS Agent\notebook\store.py
+   2  G:\ai\Naggar Print POS Agent\pos_system\app.py
+   2  G:\ai\Naggar Print POS Agent\pos_system\database.py
+   2  G:\ai\Naggar Print POS Agent\pos_system\firebase_importer.py
+   2  G:\ai\Naggar Print POS Agent\pos_system\firebase_mirror_from_pos.py
+   2  G:\ai\Naggar Print POS Agent\pos_system\reset_drawer.py
+   2  G:\ai\Naggar Print POS Agent\pos_system\telegram_importer.py
+   2  G:\ai\Naggar Print POS Agent\Vision-Lab\projects\MarwaNotebook\store.py
+   2  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\database.py
+   2  G:\ai\Elnagar POS\app.py
+   2  G:\ai\Elnagar POS\database.py
+   2  G:\ai\Elnagar POS\firebase_importer.py
+   2  G:\ai\Elnagar POS\firebase_mirror_from_pos.py
+   2  G:\ai\Elnagar POS\reset_drawer.py
+   2  G:\ai\Elnagar POS\telegram_importer.py
+   2  G:\ai\Elnagar POS\android_companion_app\apps_script_proxy\README_APPS_SCRIPT_PROXY.md
+   2  G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\apps_script_proxy\README_APPS_SCRIPT_PROXY.md
+   2  G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\apps_script_proxy\README_APPS_SCRIPT_PROXY.md
+   2  G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_ui_final_20260516_002300\apps_script_proxy\README_APPS_SCRIPT_PROXY.md
+   2  G:\ai\Elnagar POS\android_companion_app_old_skeleton\apps_script_proxy\README_APPS_SCRIPT_PROXY.md
+   2  G:\ai\Elnagar POS\backup_code_before_fix\database_20260511_211410.py
+   2  G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\telegram_importer.py
+   2  G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_APP_PLAN.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_BUILD_STATE_DIAGNOSIS.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_APP_MIGRATION_PHASE2_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_APP_PHASE2_UI_FEATURES_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_IMPORTER_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_RUNTIME_MIGRATION_PHASE1_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\FULL_REBUILD_AND_SYNC_UPGRADE_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\LOCAL_LAN_SYNC_FINAL_DEVICE_TEST_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\LOCAL_MSE_AI_API_INTEGRATION_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\OPENROUTER_BOT_AI_REPLACEMENT_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\PRODUCTS_AND_PRICING_SYNC_REPORT.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\RUN_WINDOWS.md
+   2  G:\ai\Elnagar POS\docs_ai_audit\TELEGRAM_LOCAL_IMPORTER_REPORT.md
+   2  G:\ai\Elnagar POS\firebase\README_FIREBASE_SETUP.md
+   2  G:\ai\Elnagar POS\orchestrator\agents\cfo.py
+   2  G:\ai\Elnagar POS\orchestrator\agents\crm.py
+   2  G:\ai\Elnagar POS\orchestrator\agents\manufacturing_agent.py
+   2  G:\ai\Elnagar POS\orchestrator\agents\marketing.py
+   2  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\database.py
+   2  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_move.py
+   2  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_db.py
+   2  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\test_transaction.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\check_finances.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_move.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_db.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_revert_balances.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_logs.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\revert_script.py
+   2  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\test_transaction.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\check_finances.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_move.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_db.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_revert_balances.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_logs.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\revert_script.py
+   2  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\test_transaction.py
+   1  G:\ai\Naggar Print POS Agent\.env.example
+   1  G:\ai\Naggar Print POS Agent\RULES.md
+   1  G:\ai\Naggar Print POS Agent\_last_backup.txt
+   1  G:\ai\Naggar Print POS Agent\cloud\migrations\003_laptop_brain_vault.sql
+   1  G:\ai\Naggar Print POS Agent\mcp\pos-reader\check_financial_parity.py
+   1  G:\ai\Naggar Print POS Agent\memory\backup_status.json
+   1  G:\ai\Naggar Print POS Agent\memory\reports\2026-10-11-r2.md
+   1  G:\ai\Naggar Print POS Agent\memory\reports\2026-10-11-r3.md
+   1  G:\ai\Naggar Print POS Agent\memory\reports\2026-10-11.md
+   1  G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-12-fixes.md
+   1  G:\ai\Naggar Print POS Agent\memory\reports\report-2026-10-12-telegram-stop.md
+   1  G:\ai\Naggar Print POS Agent\notebook\README.md
+   1  G:\ai\Naggar Print POS Agent\orchestrator\agents\cfo.py
+   1  G:\ai\Naggar Print POS Agent\orchestrator\agents\crm.py
+   1  G:\ai\Naggar Print POS Agent\orchestrator\agents\data_healer.py
+   1  G:\ai\Naggar Print POS Agent\orchestrator\agents\manufacturing_agent.py
+   1  G:\ai\Naggar Print POS Agent\orchestrator\agents\marketing.py
+   1  G:\ai\Naggar Print POS Agent\pos_system\main.py
+   1  G:\ai\Naggar Print POS Agent\pos_system\mobile_app_stable_v0.8.0.py
+   1  G:\ai\Naggar Print POS Agent\pos_system\telegram_bot\README.md
+   1  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_fixes.py
+   1  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\test_live_port.py
+   1  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\patches\apply_fixes_2026-10-12.py
+   1  G:\ai\Naggar Print POS Agent\_sandbox_pos_writer\patches\verify_fix_live_2026-10-12.py
+   1  G:\ai\Elnagar POS\cleanup_jan15.py
+   1  G:\ai\Elnagar POS\main.py
+   1  G:\ai\Elnagar POS\mobile_app_stable_v0.8.0.py
+   1  G:\ai\Elnagar POS\setup_android_google_direct.py
+   1  G:\ai\Elnagar POS\android_companion_app\apps_script_proxy\Code.gs
+   1  G:\ai\Elnagar POS\android_companion_app\lib\services\order_queue_service.dart
+   1  G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\apps_script_proxy\Code.gs
+   1  G:\ai\Elnagar POS\android_companion_app_backup_before_flutter_create_20260514_212442\lib\services\order_queue_service.dart
+   1  G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\apps_script_proxy\Code.gs
+   1  G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_20260515_063411\lib\services\order_queue_service.dart
+   1  G:\ai\Elnagar POS\android_companion_app_backup_before_phase2_ui_final_20260516_002300\apps_script_proxy\Code.gs
+   1  G:\ai\Elnagar POS\android_companion_app_old_skeleton\apps_script_proxy\Code.gs
+   1  G:\ai\Elnagar POS\android_companion_app_old_skeleton\lib\services\order_queue_service.dart
+   1  G:\ai\Elnagar POS\backup_code_before_fix\launcher_cleanup_20260514_225307\telegram_bot\README.md
+   1  G:\ai\Elnagar POS\cloud\migrations\003_laptop_brain_vault.sql
+   1  G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_FLUTTER_COMPLETION_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\ANDROID_COMPANION_UI_ORDERS_CLIENTS_ACCOUNTS_UPGRADE_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\ANDROID_FAST_DIRECT_GOOGLE_API_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\FIREBASE_ANDROID_QUEUE_WRITE_PERMISSION_FIX_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\GOOGLE_SHEETS_REALTIME_SYNC_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\LOCAL_LAN_SYNC_ARCHITECTURE_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\LOCAL_MOBILE_API_SERVER_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\ONE_CLICK_LAUNCHER_AND_CLEANUP_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\PROJECT_FILE_AUDIT_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\PYTHON_311_LAUNCHER_FIX_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\REPAIR_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\RUN_APP_ALL_SERVICES_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\RUN_APP_LOCAL_SERVICES_REPORT.md
+   1  G:\ai\Elnagar POS\docs_ai_audit\SMART_TELEGRAM_NATURAL_LANGUAGE_ORDERS_REPORT.md
+   1  G:\ai\Elnagar POS\mobile_build_ready\main.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\check_settings_debug.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\cleanup_jan15.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_image_failure.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_kpi.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_omnia.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\debug_sync_v2.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\dump_rofayda.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_aya.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_aya_final.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_hajer.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_hajer_correct.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_hiba.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_marwa.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_omnia_balance.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\fix_rofayda_direct.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_aya.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_hiba.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_marwa.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\inspect_rofayda.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\migrate_db_v2.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\migrate_db_v3.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\migrate_db_v4_stock.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\recalc_rofayda.py
+   1  G:\ai\Elnagar POS\SAFE_BACKUP_BEFORE_REPAIR\20260511_211114\Backups\Backup_2026-01-21_23-51-09\review_aya.py
+   1  G:\ai\Elnagar POS\scratch\check_clients.py
+   1  G:\ai\Elnagar POS\scratch\check_prices.py
+   1  G:\ai\Elnagar POS\scratch\db_schema.py
+   1  G:\ai\Elnagar POS\scratch\test_db.py
+   1  G:\ai\Elnagar POS\telegram_bot\README.md
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\check_settings_debug.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_image_failure.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_kpi.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_omnia.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\debug_sync_v2.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\dump_rofayda.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_aya.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_aya_final.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_hajer.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_hajer_correct.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_hiba.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_marwa.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_omnia_balance.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_prices.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\fix_rofayda_direct.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\force_fix.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_aya.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_hiba.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_hind.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_marwa.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\inspect_rofayda.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\migrate_db_v2.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\migrate_db_v3.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\migrate_db_v4_stock.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\recalc_rofayda.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\review_aya.py
+   1  G:\ai\Elnagar POS\_ARCHIVE_SCRIPTS\simple_check.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\check_settings_debug.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\cleanup_jan15.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_image_failure.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_kpi.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_omnia.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\debug_sync_v2.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\dump_rofayda.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_aya.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_aya_final.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_hajer.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_hajer_correct.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_hiba.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_marwa.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_omnia_balance.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\fix_rofayda_direct.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\force_fix.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_aya.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_hiba.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_hind.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_marwa.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\inspect_rofayda.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\main.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\migrate_db_v2.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\migrate_db_v3.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\migrate_db_v4_stock.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\mobile_app_stable_v0.8.0.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\recalc_rofayda.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\setup_android_google_direct.py
+   1  G:\ai\Elnagar POS\_quarantine_unused_20260514_225636\simple_check.py

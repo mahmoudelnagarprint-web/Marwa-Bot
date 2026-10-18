@@ -39,14 +39,21 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # --- Path setup -------------------------------------------------------------
-ROOT = Path(__file__).resolve().parent.parent          # G:\ai\Elnagar POS
-SYNC_DIR = Path(__file__).resolve().parent             # G:\ai\Elnagar POS\cloud
+ROOT = Path(__file__).resolve().parent.parent          # G:\ai\Naggar Print POS Agent
+SYNC_DIR = Path(__file__).resolve().parent             # G:\ai\Naggar Print POS Agent\cloud
+
+# ── طبقة الربط المركزية (task-2): المرآة تقرأ من المصدر الرسمي الحي فقط ──
+_VISION_LAB = Path(__file__).resolve().parent.parent / "Vision-Lab"   # نسبي — يعمل على أي عقدة (ورشة/لابتوب)
+if str(_VISION_LAB) not in sys.path:
+    sys.path.insert(0, str(_VISION_LAB))
+from config import data_source as _central  # noqa: E402
+
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(SYNC_DIR) not in sys.path:
     sys.path.insert(0, str(SYNC_DIR))
 
-DB_PATH = ROOT / "pos_data.db"
+DB_PATH = _central.db_path()          # المصدر الرسمي الحي — بدل نسخة المساحة الميتة
 ENV_PATH = ROOT / ".env"
 LOG_PATH = SYNC_DIR / "supabase_sync.log"
 

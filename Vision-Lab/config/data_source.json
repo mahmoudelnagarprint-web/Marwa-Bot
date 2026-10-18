@@ -1,0 +1,25 @@
+{
+  "_comment": "الإعداد المركزي الوحيد لربط البيانات (task-2). لا تضع أي سر هنا.",
+  "engine": "sqlite",
+  "live_db": "G:\\ai\\Elnagar POS\\pos_data.db",
+  "override_env": "POS_LIVE_DB",
+  "write_guard_env": "POS_LIVE_WRITE",
+  "verified_at": "2026-10-18T00:24:00+03:00",
+  "official_definition": "قاعدة التطبيق الحي Elnagar POS (Flask على 8888 + Mobile API على 7777) — بدأ التشغيل 2026-10-17 23:57:09.",
+  "official_debt_sql": "SELECT COUNT(*) AS debt_clients_count, IFNULL(SUM(balance), 0) AS total_receivables FROM clients WHERE balance > 0",
+  "expected_debt": { "debt_clients_count": 4, "total_receivables": 1040.0 },
+  "legacy_sources": [
+    {
+      "path": "G:\\ai\\Naggar Print POS Agent\\pos_data.db",
+      "reason": "نسخة مساحة العمل المتجمدة: 52 عميلاً/50 طلباً، أقصى طلب #323، أقصى تاريخ 2026-08-31، مجموع الأرصدة = 0.0 (صفر كاذب)"
+    },
+    {
+      "path": "G:\\ai\\Naggar Print POS Agent\\_sandbox_pos_writer\\pos_data.db",
+      "reason": "نسخة الساندبوكس (اختبار كتابة) — ليست بيانات حية"
+    },
+    {
+      "path": "G:\\ai\\Elnagar POS\\pos_data_merge_backup.db",
+      "reason": "نسخة احتياطية قبل دمج المنتجات المكرّرة"
+    }
+  ]
+}

@@ -21,6 +21,9 @@ Security rules honoured:
   * Credentials live in .env only; NEVER printed/logged anywhere.
   * Local DB writes (DDL only) happen under explicit owner orders — a .bak
     timestamped backup is the owner's standing convention before migrations.
+  * 2026-10-18 (owner-approved P1 binding): LOCAL target = the LIVE official DB
+    (central layer db_path()); local DDL is gated behind POS_LIVE_WRITE=1 —
+    read/verify paths stay free (mode=ro).
 
 Usage:
   python cloud/schema_migrator.py <path/to/migration.sql>
@@ -28,6 +31,7 @@ Usage:
 """
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import sys
@@ -35,14 +39,36 @@ import time
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-ROOT = Path(__file__).resolve().parent.parent          # G:\ai\Elnagar POS
+ROOT = Path(__file__).resolve().parent.parent          # جذر المستودع (Marwa-Bot — أي عقدة)
 sys.path.insert(0, str(ROOT))
 
 from cloud.supabase_sync import load_env               # noqa: E402  (official .env loader)
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 APPLIED_LOG = MIGRATIONS_DIR / "applied_migrations.log"
-LOCAL_DB = ROOT / "pos_data.db"
+
+
+# ── ربط P1 (قرار المالك 2026-10-18): الترحيل المحلي يستهدف القاعدة الحية الرسمية ──
+# كان: ROOT / "pos_data.db" (نسخة المساحة المتجمدة — أرصدة صفرية كاذبة).
+# الآن: مسار الحي من الطبقة المركزية (Vision-Lab/config/data_source.py) — وهو نفس
+# الهدف الذي كانت تشير إليه نسخة الأداة في مجلد البرنامج الحي أصلًا.
+# أي DDL محلي = كتابة إنتاج → يمر ببوابة POS_LIVE_WRITE=1 الصريحة (نفس سياسة
+# الطبقة المركزية open_readwrite: الرفض افتراضيًا حتى تفعيل صريح من المالك).
+def _resolve_local_db() -> Path:
+    try:
+        from config import data_source as _central   # مسار الطبقة يزرعه supabase_sync عند الاستيراد
+        return Path(_central.db_path())
+    except Exception:
+        live = (load_env().get("LIVE_DB_PATH") or "").strip().strip('"').strip("'")
+        return Path(live) if live else Path(r"G:\ai\Elnagar POS\pos_data.db")
+
+
+LOCAL_DB = _resolve_local_db()
+if LOCAL_DB.resolve() == (ROOT / "pos_data.db").resolve():
+    raise SystemExit(
+        "⛔ مرفوض: هدف الترحيل المحلي انحلّ إلى نسخة المستودع (ROOT/pos_data.db — "
+        "مرآة/نسخة مشتقة). الترحيلات تستهدف القاعدة الحية الرسمية فقط (LIVE_DB_PATH)."
+    )
 
 BOOTSTRAP_SQL = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -75,15 +101,28 @@ _ALTER_RE = re.compile(
 )
 
 
-def _local_conn():
-    conn = sqlite3.connect(LOCAL_DB)
+def _local_conn(readonly: bool = False):
+    """اتصال بالقاعدة الحية الرسمية — قراءة فقط افتراضيًا (mode=ro).
+    الكتابة (DDL) تمر حصرًا عبر _local_apply بعد بوابة POS_LIVE_WRITE=1."""
+    if readonly:
+        conn = sqlite3.connect(f"file:{LOCAL_DB.as_posix()}?mode=ro", uri=True, timeout=30)
+    else:
+        conn = sqlite3.connect(str(LOCAL_DB), timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def _local_apply(sql_path: Path) -> Tuple[bool, str]:
     """Apply one migration file to the LOCAL SQLite DB (DDL only, one transaction).
-    Handles the Postgres-only `ADD COLUMN IF NOT EXISTS` via PRAGMA + rewrite."""
+    Handles the Postgres-only `ADD COLUMN IF NOT EXISTS` via PRAGMA + rewrite.
+    2026-10-18: LOCAL = القاعدة الحية الرسمية — أي DDL كتابة إنتاج، مرفوضة
+    افتراضيًا حتى POS_LIVE_WRITE=1 بأمر المالك (نفس سياسة الطبقة المركزية)."""
+    if os.environ.get("POS_LIVE_WRITE") != "1":
+        return False, (
+            "⛔ مرفوض: الترحيل المحلي يستهدف القاعدة الحية الرسمية ("
+            f"{LOCAL_DB}) وأي DDL عليها كتابة إنتاج. "
+            "للتفعيل بعد أمر المالك الصريح: اضبط POS_LIVE_WRITE=1 في بيئة التشغيل ثم أعد المحاولة."
+        )
     sql = sql_path.read_text(encoding="utf-8")
     if not sql.strip():
         return False, "empty file"
@@ -234,7 +273,7 @@ def verify_columns() -> None:
     expected_002_tables = ["raw_materials", "product_recipes"]
 
     # ---------- LOCAL ----------
-    conn = _local_conn()
+    conn = _local_conn(readonly=True)
     try:
         cur = conn.cursor()
         missing = []

@@ -1277,6 +1277,114 @@
         "reply"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-17T20:22:04.125371+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى حالتنا خلاص تقرير الربط مع القاعدة وبيبو",
+      "matched_keywords": [],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T20:22:40.203950+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى حالة الطلبات",
+      "matched_keywords": [
+        "حالة الطلب",
+        "الطلبات",
+        "طلبات"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T20:51:47.536803+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى حساب العملاء",
+      "matched_keywords": [
+        "عملاء"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T21:44:32.355141+00:00",
+      "agent_id": "cfo",
+      "input_text": "عايز الديون والمستحقات الحالية",
+      "matched_keywords": [
+        "ديون",
+        "مستحقات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T23:31:52.041604+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى حساب العملاء",
+      "matched_keywords": [
+        "عملاء"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-17T23:58:24.380915+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس الحسابات والمستحقات",
+      "matched_keywords": [
+        "حسابات",
+        "مستحقات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T02:45:58.827351+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس الحسابات والمستحقات",
+      "matched_keywords": [
+        "حسابات",
+        "مستحقات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [

@@ -16,20 +16,26 @@
 from __future__ import annotations
 
 import sqlite3
+import sys as _sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..base import SubAgent
 
-ROOT = Path(__file__).resolve().parent.parent.parent          # G:\ai\Elnagar POS
-DB_PATH = ROOT / "pos_data.db"
+# ── طبقة الربط المركزية (task-2): لا مصدر إلا الحي — أي pos_data.db قديم مرفوض ──
+_VISION_LAB = Path(__file__).resolve().parent.parent.parent / "Vision-Lab"   # نسبي — يعمل على أي عقدة
+if str(_VISION_LAB) not in _sys.path:
+    _sys.path.insert(0, str(_VISION_LAB))
+from config import data_source as _central  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent.parent          # G:\ai\Naggar Print POS Agent
+DB_PATH = _central.db_path()          # المصدر الرسمي الحي (يتجاوزه POS_LIVE_DB فقط)
 CAP = 10
 
 
 def _ro_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """اتصال قراءة فقط بالمصدر الرسمي الحي — يرفض أي مسار قديم صراحةً."""
+    return _central.open_readonly()
 
 
 def _fmt(n) -> str:

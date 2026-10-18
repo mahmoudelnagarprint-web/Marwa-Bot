@@ -20,7 +20,33 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent          # جذر المشروع — يتحرك مع المستودع
-SRC_DB = ROOT / "pos_data.db"
+# ── المصدر الرسمي الحي (منقذ 2026-10-18 — قرار المالك، ربط P1 العاجل) ──
+# القاعدة الحية = حسب .env (LIVE_DB_PATH). إن غاب أو أشار لجذر المساحة (النسخة
+# المتجمدة صفر الأرصدة) → رفض صريح، لا نسخة بلا قيمة أبداً.
+_LIVE_ENV = "LIVE_DB_PATH"
+_LIVE_DEFAULT = r"G:\ai\Elnagar POS\pos_data.db"
+
+
+def _resolve_live_db() -> Path:
+    env_path = ROOT / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if line.startswith(_LIVE_ENV + "="):
+                val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if val:
+                    return Path(val)
+    # لا .env أو لا قيمة: الافتراضي الحي، مع تحذير
+    print(f"[backup] {_LIVE_ENV} غير موجود في .env — استخدم الافتراضي {_LIVE_DEFAULT}")
+    return Path(_LIVE_DEFAULT)
+
+
+SRC_DB = _resolve_live_db()
+if SRC_DB.resolve() == (ROOT / "pos_data.db").resolve():
+    raise SystemExit(
+        "⛔ مرفوض: LIVE_DB_PATH يشير لنسخة المساحة المتجمدة (ROOT/pos_data.db — أرصدة "
+        "صفرية). صحّح .env إلى القاعدة الحية ثم أعد التشغيل."
+    )
 NOTEBOOK_DB = ROOT / "notebook" / "data" / "notebook.db"
 WORKSPACE = ROOT
 BACKUP_DIR = ROOT / "backup"
