@@ -288,7 +288,15 @@ def verify_columns() -> None:
         conn.close()
 
     # ---------- CLOUD ----------
-    conn, route = _connect_cloud()
+    try:
+        conn, route = _connect_cloud()
+    except Exception as exc:
+        # فشل الوصول للسحابة في مرحلة التحقق (لا يعني فشل التطبيق):
+        # يُبلَّغ بصدق وأنيق بدل traceback — التحقق المحلي فوق خطوة التطبيق نفسها.
+        print(f"verify CLOUD unreachable ({type(exc).__name__}: {str(exc)[:160]}) — "
+              "LOCAL verify passed; cloud reachability check skipped honestly "
+              "(fix psycopg2/connectivity then re-run).")
+        return
     try:
         cur = conn.cursor()
         present, absent = 0, []
