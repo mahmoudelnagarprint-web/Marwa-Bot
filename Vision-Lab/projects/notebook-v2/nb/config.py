@@ -85,6 +85,11 @@ POS_DB_PATH = get("NB2_POS_DB_PATH")
 # ------------------------------------------------------------------ سلوك
 MORNING_BRIEFING_AT = get("NB2_MORNING_BRIEFING_AT", "08:00")
 RADAR_STAGNANT_DAYS = get_int("NB2_RADAR_STAGNANT_DAYS", 7)
+
+# ------------------------------------------------------------------ مناداة الفريق
+SQUAD_ROLLCALL_AT = get("NB2_SQUAD_ROLLCALL_AT", "09:00")          # ساعة مناداة الوكلاء
+SQUAD_ROLLCALL_ENABLED = (get("NB2_SQUAD_ROLLCALL", "1").strip().lower()
+                          not in ("0", "false", "no", "off"))
 WEB_PORT = get_int("NB2_PORT", 8110)
 LEASE_TTL_SECONDS = 45
 HEARTBEAT_SECONDS = 15

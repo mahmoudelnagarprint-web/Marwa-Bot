@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -137,8 +138,9 @@ WORKSHOP_KB = [
 
 BRAIN_KB = [
     [("⏰ مستحق الآن", "brain:due"), ("📋 قائمتي", "brain:list")],
-    [("🗂️ رادار المشاريع", "brain:radar"), ("🍅 بومودورو 25", "brain:pomo25")],
-    [("🍅 بومودورو 50", "brain:pomo50"), ("➕ إضافة نوت", "brain:add")],
+    [("🗣️ نادِ الفريق", "brain:squad"), ("🗂️ رادار المشاريع", "brain:radar")],
+    [("🍅 بومودورو 25", "brain:pomo25"), ("🍅 بومودورو 50", "brain:pomo50")],
+    [("➕ إضافة نوت", "brain:add")],
 ] + BACK
 
 VAULT_KB = [
@@ -302,6 +304,8 @@ def _handle_command(tg: TelegramClient, chat_id: int, text: str) -> Optional[str
         return _brain_list(), None
     if low in ("الملخص", "/digest"):
         return proactive.briefing_text(), None
+    if low in ("الفريق", "/squad", "نادي الفريق", "نادِ الفريق", "الوكلاء"):
+        return _do_squad(tg, chat_id), None
     if low in ("حالة", "الوضع", "/status"):
         return status_text(), None
 

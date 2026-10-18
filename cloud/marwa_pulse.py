@@ -251,9 +251,17 @@ class CommandPump(threading.Thread):
         while not self.stop.is_set():
             try:
                 if self.cfg["role"] == "WORKSHOP":
-                    res = mgr.pull_queue(limit=10)   # المسار الرسمي القائم (تطبيق + تعليم)
-                    if res.get("applied") or res.get("failed"):
-                        log(f"commands: applied={len(res['applied'])} failed={len(res['failed'])}")
+                    if self.cfg["live"]:
+                        res = mgr.pull_queue(limit=10)   # المسار الرسمي القائم (تطبيق + تعليم)
+                        if res.get("applied") or res.get("failed"):
+                            log(f"commands: applied={len(res['applied'])} failed={len(res['failed'])}")
+                    else:
+                        # dry-run: قراءة فقط — التنفيذ الحقيقي للأوامر ممنوع (تعاقد المراقبة)
+                        resp = mgr._get_client().table("commands").select("id") \
+                            .eq("status", "pending").execute()
+                        pending = len(resp.data or [])
+                        if pending:
+                            log(f"[dry-run] {pending} أمر معلّق — التنفيذ معطل في وضع المراقبة")
                 else:
                     self._watch_events(mgr)
             except Exception as exc:

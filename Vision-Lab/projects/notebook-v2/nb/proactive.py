@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
-from nb import config, db, prayer, retail
+from nb import config, db, prayer, retail, squad
 
 
 def enqueue(chat_id: int, body: str, kind: str = "plain",
@@ -127,6 +127,10 @@ def briefing_text() -> str:
     if reports:
         parts.append(f"\n🤝 آخر تقارير الفريق:")
         parts += [f"   • [{r['severity']}] {r['agent']}: {r['title'][:60]}" for r in reports]
+    try:
+        parts.append("\n" + squad.briefing_line())
+    except Exception as exc:
+        parts.append(f"\n🗣️ الفريق: ما قدرتش أقرا آخر مناداة ({type(exc).__name__})")
     parts.append("\n💡 اقتراحي: ابدأ بأقدم متأخر، وبعتلي «تم <رقم>» أول ما تخلّص.")
     return "\n".join(parts)
 
@@ -200,6 +204,7 @@ def run_cycle(sender: Callable[[int, str], bool]) -> Dict[str, int]:
     for name, fn in (("reminders", process_reminders),
                      ("briefing", morning_briefing_if_due),
                      ("radar", radar_scan_if_due),
+                     ("squad", squad.rollcall_if_due),
                      ("pomodoro", pomodoro_endings)):
         try:
             out[name] = 1 if fn() else 0

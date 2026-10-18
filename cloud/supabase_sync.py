@@ -488,19 +488,22 @@ class HermesSyncManager:
         return resp.data or []
 
     # ---------------------------------------------------------------- daemon
-    def run_daemon(self, interval: int = DEFAULT_INTERVAL) -> None:
-        log(f"daemon starting interval={interval}s")
+    def run_daemon(self, interval: int = DEFAULT_INTERVAL, no_pull: bool = False) -> None:
+        """no-pull: الدفع فقط — سحب الأوامر يبقى لمشرف وحيد (Marwa Pulse في المرحلة 2)
+        لتفادي التنفيذ المزدوج لنفس الأمر عند تعدد الساحبين."""
+        log(f"daemon starting interval={interval}s no_pull={no_pull}")
         while True:
             try:
                 self.push_mirror()
             except Exception as exc:
                 log(f"push_mirror error: {exc}", "ERROR")
-            try:
-                res = self.pull_queue()
-                if res["pending"]:
-                    log(f"pull_queue applied={len(res['applied'])} failed={len(res['failed'])}")
-            except Exception as exc:
-                log(f"pull_queue error: {exc}", "ERROR")
+            if not no_pull:
+                try:
+                    res = self.pull_queue()
+                    if res["pending"]:
+                        log(f"pull_queue applied={len(res['applied'])} failed={len(res['failed'])}")
+                except Exception as exc:
+                    log(f"pull_queue error: {exc}", "ERROR")
             time.sleep(interval)
 
 
@@ -509,6 +512,8 @@ def _main() -> int:
     ap.add_argument("--push-once", action="store_true")
     ap.add_argument("--pull-once", action="store_true")
     ap.add_argument("--daemon", action="store_true")
+    ap.add_argument("--no-pull", action="store_true",
+                    help="daemon: الدفع فقط (سحب الأوامر لمشرف وحيد — Pulse)")
     ap.add_argument("--interval", type=int, default=DEFAULT_INTERVAL)
     ap.add_argument("--query-client", type=str)
     ap.add_argument("--query-product", type=str)
@@ -529,7 +534,7 @@ def _main() -> int:
             rows = mgr.query_products(args.query_product, args.limit)
             print(json.dumps(rows, ensure_ascii=False, indent=2))
         elif args.daemon:
-            mgr.run_daemon(interval=args.interval)
+            mgr.run_daemon(interval=args.interval, no_pull=args.no_pull)
         else:
             ap.print_help()
             return 2

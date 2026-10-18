@@ -1417,6 +1417,749 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:21:47.675888+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو عندك ملاحظة او نوت او تذكير للورشة؟",
+      "matched_keywords": [],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:30.748769+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:31.137943+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:31.583683+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:32.032350+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [
+        "تذكير"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:32.495217+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:32.958974+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [],
+      "result_action": null,
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:33.600540+00:00",
+      "agent_id": "coder",
+      "input_text": "يا فيجن عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [
+        "فيجن"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:23:33.981332+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى عندك ملاحظة أو نوت أو تذكير للورشة؟",
+      "matched_keywords": [
+        "مصطفى"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:25:12.928174+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو عندك ملاحظة؟",
+      "matched_keywords": [],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:14.779608+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس ملخص الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:14.819263+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى تنبيهات المتأخر",
+      "matched_keywords": [
+        "متأخر"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:14.854102+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم فحص سريع",
+      "matched_keywords": [
+        "فحص"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:14.886715+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد تقرير الأداء",
+      "matched_keywords": [
+        "تقرير",
+        "أداء",
+        "تقرير الأداء"
+      ],
+      "result_action": "show_performance",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.329173+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو خامات ناقصة",
+      "matched_keywords": [
+        "خامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.366837+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو الخامات",
+      "matched_keywords": [
+        "خامات",
+        "الخامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.398932+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى حالة النظام",
+      "matched_keywords": [
+        "مصطفى"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.432390+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى ايه الأخبار",
+      "matched_keywords": [
+        "مصطفى"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.458953+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن حالة الكود",
+      "matched_keywords": [
+        "فيجن"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.483402+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن آخر استدعاءات",
+      "matched_keywords": [
+        "فيجن"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.530093+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو ملاحظة تسويقية",
+      "matched_keywords": [
+        "تسويق"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.576407+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو الراكد",
+      "matched_keywords": [
+        "راكد"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.629131+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس الديون",
+      "matched_keywords": [
+        "ديون"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.695750+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس ملخص الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.732881+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى الطلبات المفتوحة",
+      "matched_keywords": [
+        "الطلبات",
+        "طلبات"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.766962+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى تنبيهات المتأخر",
+      "matched_keywords": [
+        "متأخر"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.803920+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم فحص سريع",
+      "matched_keywords": [
+        "فحص"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.864824+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم المزامنة",
+      "matched_keywords": [],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.901343+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد تقرير الأداء",
+      "matched_keywords": [
+        "تقرير",
+        "أداء",
+        "تقرير الأداء"
+      ],
+      "result_action": "show_performance",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:26:54.931554+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد اقتراحات التطوير",
+      "matched_keywords": [
+        "اقتراحات"
+      ],
+      "result_action": "self_improve_proposals",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:00.936179+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن حالة المشروع",
+      "matched_keywords": [
+        "فيجن",
+        "حالة المشروع"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:00.953302+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن رصد الأخطاء",
+      "matched_keywords": [
+        "فيجن",
+        "رصد الأخطاء"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:00.978349+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن أخطاء الوكلاء",
+      "matched_keywords": [
+        "فيجن",
+        "أخطاء الوكلاء"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.449573+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن git",
+      "matched_keywords": [
+        "فيجن",
+        "git"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.518838+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى امكانيات",
+      "matched_keywords": [
+        "مصطفى",
+        "امكانيات"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.542405+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى حالة الجهاز",
+      "matched_keywords": [
+        "مصطفى",
+        "حالة الجهاز",
+        "الجهاز"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.565204+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى متاح",
+      "matched_keywords": [
+        "مصطفى",
+        "متاح"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.672161+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم ملفات مفقودة",
+      "matched_keywords": [
+        "ملفات مفقودة"
+      ],
+      "result_action": "data_healer_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.712266+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم الروتين",
+      "matched_keywords": [
+        "الروتين"
+      ],
+      "result_action": "morning_routine",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.741148+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد سجل الخبرة",
+      "matched_keywords": [
+        "سجل الخبرة",
+        "خبرة"
+      ],
+      "result_action": "show_ledger_summary",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:29:01.768732+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد إحصائيات الوكلاء",
+      "matched_keywords": [
+        "إحصائيات",
+        "إحصائي"
+      ],
+      "result_action": "show_stats",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.119487+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو الخامات",
+      "matched_keywords": [
+        "خامات",
+        "الخامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.170332+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى امكانيات",
+      "matched_keywords": [
+        "مصطفى",
+        "امكانيات"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.192466+00:00",
+      "agent_id": "coder",
+      "input_text": "فيجن رصد الأخطاء",
+      "matched_keywords": [
+        "فيجن",
+        "رصد الأخطاء"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.223049+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو الراكد",
+      "matched_keywords": [
+        "راكد"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.252624+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس ملخص الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.286736+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى تنبيهات المتأخر",
+      "matched_keywords": [
+        "متأخر"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.318150+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم الروتين",
+      "matched_keywords": [
+        "الروتين"
+      ],
+      "result_action": "morning_routine",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T20:30:10.338410+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد تقرير الأداء",
+      "matched_keywords": [
+        "تقرير",
+        "أداء",
+        "تقرير الأداء"
+      ],
+      "result_action": "show_performance",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [
