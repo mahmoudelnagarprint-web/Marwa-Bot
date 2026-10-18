@@ -1,17 +1,17 @@
-# تقرير التطابق — 2026-10-13 16:11:07
+# تقرير التطابق — 2026-10-18 21:28:30
 
 - ✅ clients: مطابق
-- ✅ products: مطابق
+- ❌ products: count={'local': 105, 'cloud': 108, 'delta': 3}
 - ✅ orders: مطابق
 - ✅ order_items: مطابق
-- ✅ transactions: مطابق
+- ❌ transactions: count={'local': 45, 'cloud': 99, 'delta': 54}; sum_amount={'local': 20875.0, 'cloud': 37538.5, 'delta': 16663.5}
 
 ## ملخص الأرقام
-- clients: {"count": 52, "sum_balance": 1383.5} (local)
-- products: {"count": 108, "sum_stock_qty": -612} (local)
-- orders: {"count": 50, "max_id": 323, "sum_total": 15288.5} (local)
-- order_items: {"count": 89, "sum_total": 15288.5} (local)
-- transactions: {"count": 92, "max_id": 463, "sum_amount": 34353.5} (local)
+- clients: {"count": 56, "sum_balance": 790.0} (local)
+- products: {"count": 105, "sum_stock_qty": -453} (local)
+- orders: {"count": 58, "max_id": 334, "sum_total": 17833.5} (local)
+- order_items: {"count": 104, "sum_total": 17833.5} (local)
+- transactions: {"count": 45, "max_id": 483, "sum_amount": 20875.0} (local)
 
 ## الحالة
-**مطابق**
+**فجوة — راجع الفرق أعلاه**

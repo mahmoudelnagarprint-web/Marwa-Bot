@@ -120,6 +120,13 @@ def main():
             log("notebook db not found — skipped (honest)")
 
         # 3) لقطة الـWorkspace (بلا قواعد حية — لها نسخها الموثقة)
+        #    استثناءات موسّعة 2026-10-18 بقرار المالك: مجلدات محلية ثقيلة/منفصلة
+        #    (رصد راصد: _sandbox_pos_writer وحده = ~203MB من 212MB — 96%).
+        _EXCLUDE_TOP = {
+            ".git", ".venv", ".claude", ".agents", ".firebase", ".aider.tags.cache.v4",
+            "_sandbox_pos_writer", "pos_images", "orders", "debug_images",
+            "logs", "runtime_logs", "backup", "node_modules",
+        }
         zpath = BACKUP_DIR / f"agent_workspace_{stamp}.zip"
         with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
             backup_root = BACKUP_DIR.resolve()
@@ -128,10 +135,12 @@ def main():
                     continue
                 rel = p.relative_to(WORKSPACE)
                 parts = set(rel.parts)
+                top = next(iter(rel.parts)) if rel.parts else ""
                 is_notebook_data = (len(rel.parts) >= 2
                                     and rel.parts[0] == "notebook" and rel.parts[1] == "data")
                 if (p.name == "backup.log"
-                        or ".venv" in parts or "__pycache__" in parts
+                        or top in _EXCLUDE_TOP
+                        or "__pycache__" in parts
                         or p.name.endswith((".db", ".db-wal", ".db-shm", ".log", ".tmp"))
                         or is_notebook_data
                         or p.resolve().is_relative_to(backup_root)):

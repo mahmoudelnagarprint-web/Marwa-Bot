@@ -525,7 +525,10 @@ def status(env: Dict[str, str]) -> int:
         finally:
             conn.close()
     else:
-        print("[db]   no local pos_data.db yet — run --pull-all")
+        if node_id(env) == "WORKSHOP":
+            print("[db]   no local mirror (by design) — الورشة تقرأ القاعدة الحية مباشرة (LIVE_DB_PATH)")
+        else:
+            print("[db]   no local pos_data.db yet — run --pull-all")
     try:
         client = get_client(env)
         vault = _vault_rows(client)

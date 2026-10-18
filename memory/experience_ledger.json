@@ -1385,6 +1385,22 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-18T18:24:32.172031+00:00",
+      "agent_id": "cfo",
+      "input_text": "الديون والمستحقات",
+      "matched_keywords": [
+        "ديون",
+        "مستحقات"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [
