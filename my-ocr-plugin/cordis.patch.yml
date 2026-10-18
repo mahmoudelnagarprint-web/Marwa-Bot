@@ -1,0 +1,4 @@
+- insert:
+    - id: ocr-plugin
+      name: '@local/ocr-plugin'
+      config: {}
