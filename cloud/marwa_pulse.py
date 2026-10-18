@@ -452,7 +452,7 @@ def main() -> int:
         dbp = DBPulse(cfg, on_change=lambda: push_on_event("db_change"), stop=stop)
         dbp.start()
         threads.append(dbp)
-    pump = CommandPump(cfg, state, hlc, stop,
+    pump = CommandPump(cfg, state, hlc, stop=stop,
                        on_db_event=pull_now if role == "LAPTOP" else (lambda: None))
     pump.start()
     threads.append(pump)
