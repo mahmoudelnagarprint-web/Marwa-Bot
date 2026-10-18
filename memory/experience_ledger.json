@@ -1401,6 +1401,22 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-18T18:54:54.765082+00:00",
+      "agent_id": "cfo",
+      "input_text": "الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [
