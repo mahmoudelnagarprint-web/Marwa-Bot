@@ -3206,6 +3206,270 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.148387+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو الخامات — في خامة ناقصة أو سعر محتاج مراجعة؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "خامات",
+        "خامة",
+        "الخامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.198117+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس ملخص الخزينة — في دين متأخر أو مصروف غريب؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة",
+        "مصروف",
+        "دين"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.280348+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى تنبيهات المتأخر — في عميل محتاج متابعة؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "عميل",
+        "متأخر",
+        "تذكير"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.331508+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو الراكد — في عرض محتاج تجهيز؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "راكد",
+        "عرض"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.395913+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم الروتين — في مشكلة بيانات محتاجة إصلاح؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "الروتين"
+      ],
+      "result_action": "morning_routine",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.447473+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى امكانيات — في أداة ناقصة أو مورد واقف؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "مصطفى",
+        "امكانيات"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.471101+00:00",
+      "agent_id": "coder",
+      "input_text": "يا فيجن رصد الأخطاء — في كود محتاج إصلاح؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "فيجن",
+        "رصد الأخطاء"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:06:08.499721+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد تقرير الأداء — في وكيل ضعيف أو مكرر؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "تقرير",
+        "أداء",
+        "تقرير الأداء"
+      ],
+      "result_action": "show_performance",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.134658+00:00",
+      "agent_id": "manufacturing",
+      "input_text": "يا بيبو الخامات — في خامة ناقصة أو سعر محتاج مراجعة؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "خامات",
+        "خامة",
+        "الخامات"
+      ],
+      "result_action": "manufacturing",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.172697+00:00",
+      "agent_id": "cfo",
+      "input_text": "يا فارس ملخص الخزينة — في دين متأخر أو مصروف غريب؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة",
+        "مصروف",
+        "دين"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.223671+00:00",
+      "agent_id": "crm",
+      "input_text": "يا سلمى تنبيهات المتأخر — في عميل محتاج متابعة؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "عميل",
+        "متأخر",
+        "تذكير"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.275205+00:00",
+      "agent_id": "marketing",
+      "input_text": "يا كوكو الراكد — في عرض محتاج تجهيز؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "راكد",
+        "عرض"
+      ],
+      "result_action": "marketing_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.329371+00:00",
+      "agent_id": "data_healer",
+      "input_text": "يا حكيم الروتين — في مشكلة بيانات محتاجة إصلاح؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "الروتين"
+      ],
+      "result_action": "morning_routine",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.389605+00:00",
+      "agent_id": "system_worker",
+      "input_text": "يا مصطفى امكانيات — في أداة ناقصة أو مورد واقف؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "مصطفى",
+        "امكانيات"
+      ],
+      "result_action": "system_worker",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.413663+00:00",
+      "agent_id": "coder",
+      "input_text": "يا فيجن رصد الأخطاء — في كود محتاج إصلاح؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "فيجن",
+        "رصد الأخطاء"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-18T21:07:31.441782+00:00",
+      "agent_id": "meta",
+      "input_text": "يا راصد تقرير الأداء — في وكيل ضعيف أو مكرر؟ وكمان عندك أي ملاحظة أو نوت أو تذكير؟",
+      "matched_keywords": [
+        "تقرير",
+        "أداء",
+        "تقرير الأداء"
+      ],
+      "result_action": "show_performance",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [
