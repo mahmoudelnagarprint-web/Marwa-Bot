@@ -49,7 +49,10 @@ def report() -> str:
     try:
         from nb import providers
         drow, dmodel = providers.get_default()
-        lines.append(f"• مزود الـAI: {'لا يوجد' if not drow else f'{drow[\"name\"]}:{dmodel}'}")
+        if drow:
+            lines.append(f"• مزود الـAI: {drow['name']}:{dmodel}")
+        else:
+            lines.append("• مزود الـAI: لا يوجد")
     except Exception:
         pass
     try:
