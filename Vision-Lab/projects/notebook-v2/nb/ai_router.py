@@ -166,13 +166,6 @@ def _parse_date(text: str, base: datetime) -> Optional[datetime]:
     return None
 
 
-def _localize(dt: datetime) -> datetime:
-    """تحويل الساذج إلى متحيّز بالتوقيت المحلي للجهاز (القاهرة)."""
-    if dt.tzinfo is None:
-        return dt.astimezone() if False else dt.replace(tzinfo=None).astimezone()
-    return dt
-
-
 def parse_when(text: str, base: Optional[datetime] = None) -> Dict[str, Any]:
     """ميعاد/تذكير من نص عربي — يرجع datetimes متحيّزة أو None."""
     base = base or datetime.now().astimezone()
