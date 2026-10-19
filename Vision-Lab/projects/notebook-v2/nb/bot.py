@@ -22,8 +22,8 @@ import urllib.request
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from nb import (ai_router, config, db, ha, proactive, prompt_vault, retail, squad,
-                workshop)
+from nb import (ai_router, config, db, ha, intent, persona, proactive, prompt_vault,
+                retail, squad, workshop)
 
 API = "https://api.telegram.org/bot{token}/{method}"
 FILE_API = "https://api.telegram.org/file/bot{token}/{path}"
@@ -74,11 +74,20 @@ class TelegramClient:
     def _kb(rows: List[List[tuple]]) -> Dict[str, Any]:
         return {"inline_keyboard": [[{"text": t, "callback_data": c} for t, c in row] for row in rows]}
 
+    @staticmethod
+    def _reply_kb(rows: List[List[str]]) -> Dict[str, Any]:
+        """كيبورد سفلي ثابت — بيقعد تحت خانة الكتابة بدل ما يختفي."""
+        return {"keyboard": [[{"text": t} for t in row] for row in rows],
+                "resize_keyboard": True, "is_persistent": True}
+
     def send(self, chat_id: int, text: str, kb: Optional[List[List[tuple]]] = None,
-             reply_to: Optional[int] = None) -> bool:
+             reply_to: Optional[int] = None, reply_kb: Optional[List[List[str]]] = None,
+             kind: Optional[str] = None) -> bool:
         payload = {"chat_id": chat_id, "text": text[:4000], "disable_web_page_preview": "true"}
         if kb:
             payload["reply_markup"] = json.dumps(self._kb(kb), ensure_ascii=False)
+        elif reply_kb:
+            payload["reply_markup"] = json.dumps(self._reply_kb(reply_kb), ensure_ascii=False)
         if reply_to:
             payload["reply_to_message_id"] = reply_to
         res = self.call("sendMessage", payload)
@@ -149,24 +158,40 @@ VAULT_KB = [
     [("➕ إضافة برومبت", "vault:new")],
 ] + BACK
 
+# الكيبورد السفلي الثابت — بيوصله من أي مكان بكبسة واحدة (A7)
+MAIN_REPLY_KB = [["🧠 أفكاري", "📋 مهام اليوم"], ["🔧 الورشة", "🍅 بومودورو"]]
+
+
+def reminder_kb(note_id: int) -> List[List[tuple]]:
+    """خمس أزرار Inline لأي تذكير/مهمة (A7): تم | أجّل | الميعاد | صنّف | امسح."""
+    return [
+        [("✅ تم", f"cap:done:{note_id}"), ("⏰ أجّل ساعة", f"cap:snooze:{note_id}")],
+        [("📅 الميعاد", f"cap:due:{note_id}"), ("🗂️ صنّف", f"cap:cat:{note_id}")],
+        [("🗑️ امسح", f"cap:del:{note_id}")],
+    ]
+
+
+CAPTURE_KB = [[("🧠 أفكاري", "brain:list"), ("📋 مهام اليوم", "brain:today")],
+              [("⏰ المستحق", "brain:due")]] + BACK
+
 WELCOME = (
-    "أهلاً يا صاحب المنظومة 👋\n"
-    "دي قناة النوتبوك v2 الشخصية — كل شيء من هنا:\n\n"
-    "• 🏪 المحل: خلاصة مالية وطلبات ومخزون وتقارير الفريق\n"
-    "• 🔧 الورشة: شغلانات ليزر/CNC واردة من النجار برنت\n"
-    "• 🧠 الذاكرة الثانية: نوتاتك ومهامك وبومودورو\n"
-    "• 📜 الخزنة: برومبتاتك الأفضل — بحث دلالي\n\n"
-    "وابعت أي نص عادي وأنا أصنّفه وأحفظه فورًا 📝"
+    "أهلاً يا أفكار 👋\n"
+    "أنا «فوفا» — مساعدتك في «أفكاري».\n\n"
+    "• ابعتلي **أي حاجة في دماغك** وأنا أقرر: كلام = نردّ عليك، حاجة تتحفظ = أسجّلها\n"
+    "• «📋 مهام اليوم» تشوف مهامك ومواعيدك\n"
+    "• «🔧 الورشة» شغلانات وخامات النجار برنت\n"
+    "• «🍅 بومودورو» جلسة تركيز\n\n"
+    "ومفيش حاجة تتحفظ من غير ما أقولك ✅"
 )
 
 HELP = (
-    "ارشادات سريعة:\n"
-    "• «المستحق» / «قائمتي» / «الملخص»\n"
-    "• «الفريق» — أسأل كل الوكلاء عن ملاحظة/نوت/تذكير\n"
-    "• «حالة» — وقفة سريعة على العقدة والقيادة\n"
+    "أنا فوفا — دي أسرع حاجات:\n"
+    "• «مهام اليوم» / «المستحق» / «قائمتي»\n"
+    "• «حالة» — وقفة على العقدة والقيادة\n"
     "• «تم 5» / «أجّل 5» / «صنّف 5 حسابات» / «احذف 5»\n"
     "• «بومودورو 25» — جلسة تركيز\n"
-    "• وأي نص حر = نوت جديد يتصنّف لوحده"
+    "• أي نص حر: أنا بفرّق بنفسي — يا كلام نردّه، يا حاجة تتحفظ فأقولك ✅\n"
+    "• وكل تذكير جايلك فيه أزرار: تم | أجّل | الميعاد | صنّف | امسح"
 )
 
 
@@ -217,6 +242,34 @@ def _brain_due() -> str:
         lines.append(f"\n🟡 النهاردة ({len(due_today)}):")
         lines += ["  " + _fmt_capture(n) for n in due_today[:10]]
     lines.append("\n«تم #رقم» يقفل | «أجل #رقم ساعه» يؤجّل")
+    return "\n".join(lines)
+
+
+def _brain_today() -> str:
+    """مهام اليوم: متأخر ← النهاردة ← المهم المفتوح. ده الزر الرئيسي في الكيبورد."""
+    overdue = db.overdue_captures()
+    due_today = db.q("""SELECT * FROM captures
+                        WHERE status='open' AND due_at IS NOT NULL
+                          AND due_at::date = %s::date
+                        ORDER BY due_at ASC LIMIT 20""", (db.now_local_date(),))
+    important = db.q("""SELECT * FROM captures
+                        WHERE status='open' AND priority IN ('high','urgent')
+                          AND (due_at IS NULL OR due_at::date > %s::date)
+                        ORDER BY CASE priority WHEN 'urgent' THEN 0 ELSE 1 END, id DESC
+                        LIMIT 10""", (db.now_local_date(),))
+    if not (overdue or due_today or important):
+        return "📋 مهام اليوم فاضية — مفيش حاجة مستحقة ولا مهمة معلّقة ✅"
+    lines = ["📋 مهام اليوم"]
+    if overdue:
+        lines.append(f"\n🔴 متأخر ({len(overdue)}):")
+        lines += ["  " + _fmt_capture(n) for n in overdue[:8]]
+    if due_today:
+        lines.append(f"\n🟡 النهاردة ({len(due_today)}):")
+        lines += ["  " + _fmt_capture(n) for n in due_today[:8]]
+    if important:
+        lines.append(f"\n⭐ مهم ومفتوح ({len(important)}):")
+        lines += ["  " + _fmt_capture(n) for n in important[:6]]
+    lines.append("\nاضغط على أي تذكير وفيه أزرار: تم | أجّل | الميعاد | صنّف | امسح")
     return "\n".join(lines)
 
 
@@ -587,19 +640,46 @@ def _handle_message(tg: TelegramClient, msg: Dict[str, Any]) -> None:
             tg.send(chat_id, cmd, kb=BACK if chat_id not in STATES else None)
         return
 
-    # غير كده: نوت/مهمة/احتياج جديد
+    # غير كده: بوابة النوايا تقرر — كلام ولا حاجة تتحفظ؟ (A1/A2/A5/A6)
+    #
+    # قبل كده كان أي نص حر بيتبعت على route() ويتحفظ فورًا، فكلمة «هاي» اتحفظت
+    # كنوت. دلوقتي: الافتراضي محادثة، والحفظ محتاج دليل صريح أو حكم الموديل.
     tg.typing(chat_id)
     try:
-        analysis = ai_router.route(text, source="telegram")
-        if not analysis.get("ok"):
-            tg.send(chat_id, "مش فاهم النص ده 🤔")
-            return
+        verdict = intent.gate(text, chat_id=chat_id)
+    except Exception as exc:
+        config.log(f"intent gate error: {type(exc).__name__}: {exc}")
+        verdict = {"intent": "chat", "reply": None, "analysis": None,
+                   "routed_by": "rules", "reason": f"خطأ في البوابة: {type(exc).__name__}"}
+
+    persona.remember(chat_id, "user", text)
+    config.log(f"intent: {verdict['intent']} | {verdict['reason'][:160]} | "
+               f"routed_by={verdict['routed_by']} | chat={chat_id}")
+
+    if verdict["intent"] == "chat":
+        reply = verdict.get("reply")
+        meta = {"fallback": True, "reason": "رد محلي"}
+        if not reply:
+            reply, meta = persona.reply(text, chat_id=chat_id)
+        persona.remember(chat_id, "assistant", reply)
+        tg.send(chat_id, reply, reply_kb=MAIN_REPLY_KB)
+        return
+
+    analysis = verdict["analysis"] or {}
+    try:
         cid = db.add_capture(analysis)
-        tg.send(chat_id, ai_router.confirm_message(analysis, cid),
-                kb=BACK if chat_id not in STATES else None)
     except Exception as exc:
         config.log(f"capture error: {type(exc).__name__}: {exc}")
-        tg.send(chat_id, f"❌ حصل خطأ داخلي ({type(exc).__name__}) — ما افترضتش أي نتيجة.")
+        tg.send(chat_id, f"❌ مش قادر أحفظ دلوقتي ({type(exc).__name__}) — "
+                         "ما افترضتش أي نتيجة.", reply_kb=MAIN_REPLY_KB)
+        return
+    analysis.setdefault("meta", {})
+    if verdict.get("reference"):
+        analysis["meta"]["reference_of"] = verdict["reference"][:200]
+    confirm = ai_router.confirm_message(analysis, cid)
+    persona.remember(chat_id, "assistant", confirm, {"note_id": cid})
+    kb = reminder_kb(cid) if analysis.get("due_at") else CAPTURE_KB
+    tg.send(chat_id, confirm, kb=kb, reply_kb=MAIN_REPLY_KB)
 
 
 def _handle_voice(tg: TelegramClient, chat_id: int, msg: Dict[str, Any]) -> None:
@@ -626,6 +706,50 @@ def _handle_voice(tg: TelegramClient, chat_id: int, msg: Dict[str, Any]) -> None
 
 
 # ------------------------------------------------------------------ callback
+def _handle_capture_cb(tg: TelegramClient, chat_id: int, message_id: Optional[int],
+                       data: str) -> None:
+    """cap:done|snooze|due|cat|del:<id> — التعديل الفوري على النوت/التذكير."""
+    parts = data.split(":")
+    if len(parts) < 3:
+        return
+    action, raw_id = parts[1], parts[2]
+    try:
+        nid = int(raw_id)
+    except ValueError:
+        return
+    note = db.q("SELECT id, title, kind, category, due_at FROM captures WHERE id=%s",
+                (nid,), one=True)
+    if not note:
+        tg.send(chat_id, f"مفيش نوت #{nid} 🤔", reply_kb=MAIN_REPLY_KB)
+        return
+
+    if action == "done":
+        db.set_capture_status(nid, "done")
+        text, kb = f"✅ تمام يا أفكار — قفلت #{nid}: {note['title']}", None
+    elif action == "snooze":
+        db.snooze_capture(nid, 60)
+        text, kb = f"⏰ أجّلت #{nid} ساعة — هرجّع أفكرك.", reminder_kb(nid)
+    elif action == "due":
+        when = note.get("due_at")
+        when_txt = when.astimezone().strftime("%Y-%m-%d %H:%M") if when else "مفيش ميعاد"
+        text, kb = (f"📅 #{nid}: {note['title']}\n• الميعاد الحالي: {when_txt}\n"
+                    "عايز أغيّره؟ ابعت «فكرني <الميعاد الجديد>»."), reminder_kb(nid)
+    elif action == "cat":
+        STATES[chat_id] = {"step": "cap_category", "note_id": nid}
+        text, kb = (f"🗂️ #{nid}: {note['title']}\n"
+                    f"• التصنيف الحالي: {note.get('category') or 'غير مصنف'}\n"
+                    "ابعت اسم التصنيف الجديد."), BACK
+    elif action == "del":
+        db.x("DELETE FROM captures WHERE id=%s", (nid,))
+        text, kb = f"🗑️ اتمسح #{nid}: {note['title']}", None
+    else:
+        return
+
+    if message_id and tg.edit(chat_id, message_id, text, kb=kb):
+        return
+    tg.send(chat_id, text, kb=kb, reply_kb=MAIN_REPLY_KB)
+
+
 def _handle_callback(tg: TelegramClient, cq: Dict[str, Any]) -> None:
     data = cq.get("data") or ""
     msg = cq.get("message") or {}
@@ -635,6 +759,11 @@ def _handle_callback(tg: TelegramClient, cq: Dict[str, Any]) -> None:
     if chat_id is None:
         return
     tg.answer_cb(cbid)
+
+    # أزرار الالتقاط (cap:…) — بتتولّد مع كل تذكير/مهمة، وبتعدّل نفس الجدول
+    if data.startswith("cap:"):
+        _handle_capture_cb(tg, chat_id, message_id, data)
+        return
 
     text, kb = None, None
     if data == "menu:main":
@@ -668,6 +797,8 @@ def _handle_callback(tg: TelegramClient, cq: Dict[str, Any]) -> None:
         text, kb = "اللي يثبت الورشة — الصيغة:\n«العميل | الوصف | المبلغ | الميعاد»", BACK
     elif data == "brain:due":
         text = _brain_due()
+    elif data == "brain:today":
+        text = _brain_today()
     elif data == "brain:list":
         text = _brain_list()
     elif data == "brain:radar":

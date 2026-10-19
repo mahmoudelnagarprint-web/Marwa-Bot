@@ -19,7 +19,12 @@ INSERT INTO settings(key, value) VALUES
     ('morning_briefing_at', '"08:00"'::jsonb),
     ('radar_stagnant_days',  '7'::jsonb),
     ('default_provider_id',   'null'::jsonb),
-    ('default_model_id',     'null'::jsonb)
+    ('default_model_id',     'null'::jsonb),
+    -- R5 (أفكاري): هوية الرد + ذاكرة المحادثة + عمر الكاش
+    ('persona_name',      '"أفكاري"'::jsonb),
+    ('persona_nick',      '"فوفا"'::jsonb),
+    ('cache_ttl_seconds',  '45'::jsonb),
+    ('chat_memory_limit',  '12'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
 -- ------------------------------------------------------------- ai_providers
@@ -104,6 +109,9 @@ CREATE INDEX IF NOT EXISTS idx_captures_due    ON captures(due_at);
 CREATE INDEX IF NOT EXISTS idx_captures_remind ON captures(remind_at);
 CREATE INDEX IF NOT EXISTS idx_captures_tags   ON captures USING gin (tags);
 CREATE INDEX IF NOT EXISTS idx_captures_trgm_title ON captures USING gin (title gin_trgm_ops);
+-- مركّبة لخدمة لوحة القيادة: كل استعلاماتها `status='open' AND <وقت>`.
+CREATE INDEX IF NOT EXISTS idx_captures_status_due    ON captures(status, due_at);
+CREATE INDEX IF NOT EXISTS idx_captures_status_remind ON captures(status, remind_at);
 
 CREATE TABLE IF NOT EXISTS capture_events (
     id         SERIAL PRIMARY KEY,
@@ -349,3 +357,19 @@ CREATE TABLE IF NOT EXISTS pomodoros (
                CHECK (status IN ('running','done','cancelled')),
     node_id    TEXT
 );
+
+-- ------------------------------------------- conversations (ذاكرة فوفا — R5)
+-- دفتر محادثة البوت: كل رسالة صف. `recent_messages()` بتقرا آخر N
+-- بالترتيب الزمني (الأقدم الأول) عشان تتغذى للموديل كـ messages[].
+-- BIGSERIAL: chat_id تليجرام بيكبر على INTEGER فـBIGINT إجباري.
+-- مافيش FK للبوت: الرسائل تتسجل حتى لو الجدول الأب اتغيّر.
+CREATE TABLE IF NOT EXISTS conversations (
+    id         BIGSERIAL PRIMARY KEY,
+    chat_id    BIGINT NOT NULL,
+    role       TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
+    content    TEXT NOT NULL DEFAULT '',
+    meta       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_conversations_chat
+    ON conversations(chat_id, id DESC);
