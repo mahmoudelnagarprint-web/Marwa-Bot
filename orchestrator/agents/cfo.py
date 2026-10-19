@@ -59,23 +59,43 @@ def _shift_opened_at(conn: sqlite3.Connection) -> str:
     return (row["opened_at"] if row else None) or "1970-01-01 00:00:00"
 
 
+def _accounting_start(conn: sqlite3.Connection) -> Optional[str]:
+    """نافذة الحساب المعتمدة (settings.accounting_start_date = 2026-10-01) —
+    نفس منطق الإنتاج (database.get_financial_stats) عشان التقرير يطابق الشاشة بالمليم.
+    ترجع None لو الإعداد غير موجود (يُرجع حينها سلوك فتح الشيفت)."""
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = 'accounting_start_date' LIMIT 1"
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    val = (row["value"] if row else None)
+    if not val:
+        return None
+    val = str(val).strip()
+    if len(val) == 10:      # 'YYYY-MM-DD' → بداية اليوم
+        val = val + " 00:00:00"
+    return val
+
+
 def _financial_stats(conn: sqlite3.Connection) -> Dict[str, Any]:
     """حرفيًا منطق get_financial_stats الفعّال (SELECT فقط) — مُتحقق منه في pos-reader."""
     opened_at = _shift_opened_at(conn)
+    acc_start = _accounting_start(conn) or opened_at
     income = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) FROM transactions "
-        "WHERE type IN ('Income', 'payment') AND date >= ?", (opened_at,),
+        "WHERE type IN ('Income', 'payment') AND date >= ?", (acc_start,),
     ).fetchone()[0]
     expense = conn.execute(
         "SELECT COALESCE(SUM(amount), 0) FROM transactions "
-        "WHERE type = 'Expense' AND date >= ?", (opened_at,),
+        "WHERE type = 'Expense' AND date >= ?", (acc_start,),
     ).fetchone()[0]
     cash_on_hand = income - expense
     shift_cogs = conn.execute(
         "SELECT COALESCE(SUM(oi.qty * COALESCE(p.last_cost_price, p.price_wholesale, 0)), 0) "
         "FROM order_items oi JOIN orders o ON oi.order_id = o.id "
         "JOIN products p ON oi.product_id = p.id "
-        "WHERE o.status != 'Cancelled' AND o.date >= ?", (opened_at,),
+        "WHERE o.status != 'Cancelled' AND o.date >= ?", (acc_start,),
     ).fetchone()[0]
     profit = income - shift_cogs
     total_debt = conn.execute(
@@ -85,7 +105,7 @@ def _financial_stats(conn: sqlite3.Connection) -> Dict[str, Any]:
         "SELECT COALESCE(SUM(balance), 0) FROM clients WHERE balance > 0"
     ).fetchone()[0]
     return {
-        "opened_at": opened_at, "income": income, "expense": expense,
+        "opened_at": opened_at, "acc_start": acc_start, "income": income, "expense": expense,
         "cash_on_hand": cash_on_hand, "cogs": shift_cogs, "profit": profit,
         "total_debt": total_debt, "positive_sum": positive_sum,
     }
@@ -114,7 +134,12 @@ class CfoAgent(SubAgent):
         return {"reply": f"💼 {title}\n{body}", "action": "cfo_report", "payload": {}}
 
     @staticmethod
-    def _shift_note(opened_at: str) -> str:
+    def _shift_note(opened_at: str, acc_start: Optional[str] = None) -> str:
+        # نافذة الحساب المعتمدة (2026-10-01) تُذكر صراحةً — والرقم المحسوب من
+        # الحركات لا يشمل الرصيد الافتتاحي (دفتر فارس §9 هو المرجع للخزنة الفعلية).
+        if acc_start and acc_start != opened_at:
+            return (f"📌 الأرقام مرتبطة بنافذة الحساب المعتمدة من {acc_start[:10]} "
+                    f"(الرصيد الافتتاحي 5,625 غير محسوب هنا — الخزنة الفعلية في دفتر فارس §9).")
         return f"📌 الأرقام مرتبطة بشيفت مفتوح منذ {opened_at[:16]} بدون إغلاق."
 
     def _summary_report(self, conn: sqlite3.Connection) -> Dict[str, Any]:
@@ -128,7 +153,7 @@ class CfoAgent(SubAgent):
                if abs(s["cogs"]) < 0.01 else ""),
             f"• إجمالي الديون (كل الأرصدة): {_fmt(s['total_debt'])} جنيه — "
             f"منها الموجبة {_fmt(s['positive_sum'])} والفرق {_fmt(s['total_debt'] - s['positive_sum'])} (أرصدة سالبة/دائنة).",
-            self._shift_note(s["opened_at"]),
+            self._shift_note(s["opened_at"], s.get("acc_start")),
             "الأوامر المتاحة: «ديون»، «طرق الدفع»، «مصروفات»، «الأكثر مبيعًا»، «هوامش»، «حركات».",
         ]
         return self._reply("ملخص الخزينة والمحاسبة", "\n".join(body))
@@ -147,15 +172,16 @@ class CfoAgent(SubAgent):
             body.append("• أعلى المستحقات:")
             body.append("  " + "\n  ".join(
                 f"{d['name'].strip()}: {_fmt(d['balance'])} جنيه" for d in debtors))
-        body.append(self._shift_note(s["opened_at"]))
+        body.append(self._shift_note(s["opened_at"], s.get("acc_start")))
         body.append("🔒 أي تسوية/شطب/تخفيض مديونية = بموافقتك الصريحة فقط عبر القناة الرسمية.")
         return self._reply("الديون والمستحقات", "\n".join(body))
 
     def _payment_methods_report(self, conn: sqlite3.Connection) -> Dict[str, Any]:
         opened_at = _shift_opened_at(conn)
+        acc_start = _accounting_start(conn) or opened_at
         rows = conn.execute(
             "SELECT amount, notes FROM transactions "
-            "WHERE type IN ('Income', 'payment') AND date >= ?", (opened_at,),
+            "WHERE type IN ('Income', 'payment') AND date >= ?", (acc_start,),
         ).fetchall()
 
         def detect(notes: Optional[str]) -> str:
@@ -182,13 +208,14 @@ class CfoAgent(SubAgent):
         body = ["• توزيع الدفعات خلال الشيفت المفتوح (من داخل notes):"]
         for m, d in sorted(agg.items(), key=lambda kv: -kv[1]["sum"]):
             body.append(f"  {m}: {_fmt(d['count'])} دفعة بإجمالي {_fmt(round(d['sum'], 2))} جنيه")
-        body.append(self._shift_note(opened_at))
+        body.append(self._shift_note(opened_at, acc_start))
         body.append("ملاحظة: طريقة الدفع بلا عمود مستقل — تُقرأ من نص الحركة، فبعضها «غير محدد».")
         return self._reply("طرق الدفع", "\n".join(body))
 
     def _expenses_report(self, conn: sqlite3.Connection) -> Dict[str, Any]:
         opened_at = _shift_opened_at(conn)
         s = _financial_stats(conn)
+        acc_start = s.get("acc_start") or opened_at
         last = [dict(r) for r in conn.execute(
             "SELECT id, date, amount, notes, expense_type FROM transactions "
             "WHERE type = 'Expense' ORDER BY date DESC LIMIT 8"
@@ -197,9 +224,9 @@ class CfoAgent(SubAgent):
             "SELECT COALESCE(expense_type, 'غير مصنف') AS et, COUNT(*) AS c, "
             "COALESCE(SUM(amount), 0) AS s FROM transactions "
             "WHERE type = 'Expense' AND date >= ? GROUP BY et ORDER BY s DESC",
-            (opened_at,),
+            (acc_start,),
         ).fetchall()]
-        body = [f"• إجمالي المصروفات خلال الشيفت: {_fmt(s['expense'])} جنيه"]
+        body = [f"• إجمالي المصروفات خلال النافذة المعتمدة: {_fmt(s['expense'])} جنيه"]
         if by_type:
             body.append("• بالأنواع: " + "، ".join(
                 f"{b['et']} = {_fmt(round(b['s'], 2))} ({_fmt(b['c'])})" for b in by_type))
@@ -213,7 +240,7 @@ class CfoAgent(SubAgent):
             "🔒 لتسجيل مصروف جديد: ابعت التفاصيل (المبلغ + البيان) وأنا أجهزها كاقتراح "
             "يمر بالقناة الرسمية للكتابة بعد تأكيدك — لا أكتب في الفلوس بنفسي أبدًا."
         )
-        body.append(self._shift_note(opened_at))
+        body.append(self._shift_note(opened_at, acc_start))
         return self._reply("المصروفات", "\n".join(body))
 
     def _margins_report(self, conn: sqlite3.Connection) -> Dict[str, Any]:
@@ -229,7 +256,7 @@ class CfoAgent(SubAgent):
             f"• تحليل الهوامش الحقيقي: غير متاح — last_cost_price = 0 لـ{_fmt(zero_cost)}"
             f" من {_fmt(total_products)} صنفًا (قرارك المعتمد: لا ربح تقديري من سعر الجملة).",
             "• لتشغيل الهوامش: سجّل تكلفة أهم الأصناف (يوجد سؤال مفتوح بذلك في ملف الأسئلة).",
-            self._shift_note(s["opened_at"]),
+            self._shift_note(s["opened_at"], s.get("acc_start")),
         ]
         return self._reply("الأرباح والهوامش", "\n".join(body))
 
