@@ -756,7 +756,28 @@ def A17_gate_all_doors(live: bool) -> Result:
     ]
     outcomes: List[str] = []
     bad_cases: List[str] = []
+
+    def unguard() -> None:
+        """إرجاع الـspies — بيتنادى على كل مسار خروج (حتى الـskip)."""
+        while restore:
+            mod, attr, old = restore.pop()
+            setattr(mod, attr, old)
+
+    # شبكة أمان مستقلة عن الـspy: عدّ الصفوف الفعلي. الـspy بيشوف
+    # `add_capture` بس — وأي مسار بيكتب بـINSERT خام (زي
+    # `db.x("INSERT INTO captures …")`) كان هيعدّي من غير ما يبان.
+    # العدّ ده بيمسك **أي** كتابة مهما كان بابها. (بنعدّ بس، مش بنمسح
+    # حاجة على أساسه — فالعدّ هنا آمن.)
+    def row_count() -> Optional[int]:
+        try:
+            return int(db.scalar("SELECT count(*) FROM captures") or 0)
+        except Exception:  # noqa: BLE001
+            return None
+
+    rows_before = row_count()
+
     try:
+        # ---- 1) باب البوت/الويب الداخلي (process_text)
         for text, want in cases:
             calls.clear()
             try:
@@ -765,24 +786,60 @@ def A17_gate_all_doors(live: bool) -> Result:
                 got = process_text(text, chat_id=chat_id)
             except Exception as exc:  # noqa: BLE001
                 return res.bad(f"«{text}» وقعت: {type(exc).__name__}: {exc}")
-            intent_val = None
-            if isinstance(got, dict):
-                intent_val = got.get("intent")
+            intent_val = got.get("intent") if isinstance(got, dict) else None
             saved = len(calls) > 0
-            outcomes.append(f"{jdump(text)}→intent={intent_val or '?'}"
+            outcomes.append(f"text:{jdump(text)}→{intent_val or '?'}"
                             f"{'/سجّل!' if saved else '/نضيف'}")
             if want == "chat" and saved:
-                bad_cases.append(f"«{text}» عدّى وسجّل {len(calls)} صف — البوابة اتخطّت")
+                bad_cases.append(f"«{text}» سجّل {len(calls)} صف من process_text")
+
+        # ---- 2) نفس الحاجة من **باب الويب الحقيقي** (ده اللي كان مكسور فعلًا).
+        # `A1` ما كانش شايفه لأنه بيقيس `intent.gate`، والعيب كان في الراوت
+        # نفسه اللي بينادي ai_router.route مباشرة. فالبند لازم يضرب الراوت.
+        web, werr = load("nb.web")
+        if web is None:
+            return res.skip(f"nb/web.py مش متاح ({werr})")
+        app = getattr(web, "app", None)
+        if app is None or not hasattr(app, "test_client"):
+            return res.skip("nb.web مفيهوش Flask app — مقدرناش نضرب الباب")
+
+        doors: List[str] = []
+        client = app.test_client()
+        for route in ("/api/capture", "/api/chat"):
+            for text, want in cases:
+                calls.clear()
+                resp = client.post(route, json={"text": text, "chat_id": chat_id})
+                if resp.status_code != 200:
+                    bad_cases.append(f"{route} ردّ {resp.status_code} على «{text}»")
+                    continue
+                saved = len(calls) > 0
+                doors.append(f"{route}{'/سجّل!' if saved else '/نضيف'}")
+                if want == "chat" and saved:
+                    bad_cases.append(f"{route} سجّل «{text}» ({len(calls)} صف) "
+                                     f"— البوابة اتخطّت من باب الويب")
+    except Exception as exc:  # noqa: BLE001
+        return res.bad(f"ضرب الأبواب وقع: {type(exc).__name__}: {exc}")
     finally:
-        for mod, attr, old in restore:
-            setattr(mod, attr, old)
+        unguard()
 
     if bad_cases:
         return res.bad("كلام اتسجّل كنوت من باب المفروض يرفضه · "
                        + " · ".join(bad_cases))
 
-    return res.ok(f"{len(cases)} رسالة كلام مرّت على البوابة و**صفر تسجيل** "
-                  f"· محروس: {'+'.join(guarded)} · {' · '.join(outcomes)}")
+    # شبكة الأمان: أي صف جديد (مهما كانت طريقة كتابته) = البوابة اتخطّت
+    rows_after = row_count()
+    if rows_before is not None and rows_after is not None:
+        grew = rows_after - rows_before
+        if grew != 0:
+            return res.bad(f"عدد صفوف captures زاد {grew} "
+                           f"({rows_before}→{rows_after}) أثناء ضرب الكلام على "
+                           f"الأبواب — فيه كتابة بتتخطّى الـspy والبوابة معًا")
+
+    net = (f" · الصفوف ثابتة ({rows_before})"
+           if rows_before is not None and rows_after == rows_before else "")
+    return res.ok(f"{len(cases)} رسالة كلام × {len(doors) + len(cases)} باب/نداء "
+                  f"= **صفر تسجيل**{net} · محروس: {'+'.join(guarded)} "
+                  f"· {' · '.join(outcomes)}")
 
 
 def A11_tokenizer(live: bool) -> Result:
