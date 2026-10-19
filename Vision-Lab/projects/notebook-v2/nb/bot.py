@@ -32,6 +32,34 @@ DATA_DIR = config.DATA_DIR / "voice"
 
 
 # ------------------------------------------------------------------ client
+
+class _V4FirstHTTPSHandler(urllib.request.HTTPSHandler):
+    """عالج «getUpdates فشل: WinError 10051»: الورشة فيها route IPv6 مكسور،
+    وurllib بيجرب عنوان IPv6 الأول ويموت بدل ما يجرب IPv4. الحل: handler يرتب
+    نتايج getaddrinfo بحيث AF_INET الأول — بنفس النطاق وبيرجّع الحالة زي ما هي."""
+
+    def https_open(self, req: urllib.request.Request):
+        import socket as _socket
+        orig_getaddrinfo = _socket.getaddrinfo
+
+        def v4_first_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            res = orig_getaddrinfo(host, port, family, type, proto, flags)
+            return sorted(res, key=lambda r: 0 if r[0] == _socket.AF_INET else 1)
+
+        _socket.getaddrinfo = v4_first_getaddrinfo
+        try:
+            from http.client import HTTPSConnection as _HC
+            return self.do_open(
+                _HC, req,
+                context=self._context if hasattr(self, "_context") else None)
+        finally:
+            _socket.getaddrinfo = orig_getaddrinfo
+
+
+# opener ثابت للعميلة كلها — الاتصال HTMLellaneous بيفضّل IPv4 على api.telegram.org
+_OPENER_V4 = urllib.request.build_opener(_V4FirstHTTPSHandler)
+
+
 class TelegramClient:
     """غلاف خفيف على Telegram Bot API — صفر تبعيات."""
 
@@ -44,7 +72,7 @@ class TelegramClient:
         data = urllib.parse.urlencode(payload or {}).encode("utf-8")
         req = urllib.request.Request(API.format(token=self.token, method=method), data=data)
         try:
-            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as resp:
+            with _OPENER_V4.open(req, timeout=timeout or self.timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", "replace")[:200]
