@@ -163,12 +163,13 @@ MAIN_REPLY_KB = [["🧠 أفكاري", "📋 مهام اليوم"], ["🔧 ال�
 
 
 def reminder_kb(note_id: int) -> List[List[tuple]]:
-    """خمس أزرار Inline لأي تذكير/مهمة (A7): تم | أجّل | الميعاد | صنّف | امسح."""
-    return [
-        [("✅ تم", f"cap:done:{note_id}"), ("⏰ أجّل ساعة", f"cap:snooze:{note_id}")],
-        [("📅 الميعاد", f"cap:due:{note_id}"), ("🗂️ صنّف", f"cap:cat:{note_id}")],
-        [("🗑️ امسح", f"cap:del:{note_id}")],
-    ]
+    """خمس أزرار Inline لأي تذكير/مهمة (A7): تم | أجّل | الميعاد | صنّف | امسح.
+
+    المصدر الحقيقي في `proactive.capture_kb` — الرسائل الفورية (هنا) والرسائل
+    الاستباقية (الصندوق) لازم يبقوا **نفس الأزرار بالحرف**، وإلا المستخدم
+    يشوف شكلين لأزرار تذكير واحدة.
+    """
+    return proactive.capture_kb(note_id)
 
 
 CAPTURE_KB = [[("🧠 أفكاري", "brain:list"), ("📋 مهام اليوم", "brain:today")],
@@ -626,6 +627,63 @@ def _handle_command(tg: TelegramClient, chat_id: int, text: str) -> Optional[str
     return None
 
 
+# ------------------------------------------------------------------ القلب المشترك
+def process_text(text: str, chat_id: Optional[int] = None,
+                 source: str = "telegram") -> Dict[str, Any]:
+    """بوابة النوايا ← كلام نردّه ولا حاجة تتحفظ. **المصدر الوحيد** للمنطق ده.
+
+    البوت (تليجرام) والويب (/api/chat) والبريدج بينادوا الدالة دي، عشان
+    الحفظ يحصل في مكان واحد بالظبط — لو كل واجهة كتبت منطقها، هيحصل
+    تباعد: نفس الجملة تتحفظ من التليجرام وما تتحفظش من الويب.
+
+    بترجّع: `{ok, intent, reply, kb, note_id, routed_by, reason, error}`.
+    **مابتبعتش حاجة لأي حد** — الإرسال مسؤولية اللي بينادي.
+    """
+    cid_chat = int(chat_id or config.OWNER_TELEGRAM_ID or 0)
+    out: Dict[str, Any] = {"ok": True, "intent": "chat", "reply": "", "kb": None,
+                           "note_id": None, "routed_by": "rules", "reason": "",
+                           "error": None}
+    try:
+        verdict = intent.gate(text, chat_id=cid_chat, source=source)
+    except Exception as exc:
+        config.log(f"intent gate error: {type(exc).__name__}: {exc}")
+        verdict = {"intent": "chat", "reply": None, "analysis": None,
+                   "routed_by": "rules", "reason": f"خطأ في البوابة: {type(exc).__name__}"}
+
+    persona.remember(cid_chat, "user", text)
+    out["routed_by"] = verdict.get("routed_by") or "rules"
+    out["reason"] = verdict.get("reason") or ""
+    config.log(f"intent[{source}]: {verdict['intent']} | {out['reason'][:160]} | "
+               f"routed_by={out['routed_by']} | chat={cid_chat}")
+
+    if verdict["intent"] == "chat":
+        reply = verdict.get("reply")
+        if not reply:
+            reply, _meta = persona.reply(text, chat_id=cid_chat)
+        persona.remember(cid_chat, "assistant", reply)
+        out["reply"] = reply
+        return out
+
+    analysis = verdict.get("analysis") or {}
+    try:
+        note_id = db.add_capture(analysis)
+    except Exception as exc:
+        config.log(f"capture error: {type(exc).__name__}: {exc}")
+        out.update(ok=False, error=f"{type(exc).__name__}: {exc}",
+                   reply=(f"❌ مش قادر أحفظ دلوقتي ({type(exc).__name__}) — "
+                          "ما افترضتش أي نتيجة."))
+        return out
+
+    analysis.setdefault("meta", {})
+    if verdict.get("reference"):
+        analysis["meta"]["reference_of"] = verdict["reference"][:200]
+    confirm = ai_router.confirm_message(analysis, note_id)
+    persona.remember(cid_chat, "assistant", confirm, {"note_id": note_id})
+    out.update(intent="capture", reply=confirm, note_id=note_id,
+               kb=reminder_kb(note_id) if analysis.get("due_at") else CAPTURE_KB)
+    return out
+
+
 # ------------------------------------------------------------------ استقبال update
 def _handle_message(tg: TelegramClient, msg: Dict[str, Any]) -> None:
     chat_id = (msg.get("chat") or {}).get("id")
@@ -669,42 +727,16 @@ def _handle_message(tg: TelegramClient, msg: Dict[str, Any]) -> None:
     #
     # قبل كده كان أي نص حر بيتبعت على route() ويتحفظ فورًا، فكلمة «هاي» اتحفظت
     # كنوت. دلوقتي: الافتراضي محادثة، والحفظ محتاج دليل صريح أو حكم الموديل.
+    # المنطق نفسه في `process_text` عشان الويب والبريدج يستخدموه بلا نسخة تانية.
     tg.typing(chat_id)
-    try:
-        verdict = intent.gate(text, chat_id=chat_id)
-    except Exception as exc:
-        config.log(f"intent gate error: {type(exc).__name__}: {exc}")
-        verdict = {"intent": "chat", "reply": None, "analysis": None,
-                   "routed_by": "rules", "reason": f"خطأ في البوابة: {type(exc).__name__}"}
-
-    persona.remember(chat_id, "user", text)
-    config.log(f"intent: {verdict['intent']} | {verdict['reason'][:160]} | "
-               f"routed_by={verdict['routed_by']} | chat={chat_id}")
-
-    if verdict["intent"] == "chat":
-        reply = verdict.get("reply")
-        meta = {"fallback": True, "reason": "رد محلي"}
-        if not reply:
-            reply, meta = persona.reply(text, chat_id=chat_id)
-        persona.remember(chat_id, "assistant", reply)
-        tg.send(chat_id, reply, reply_kb=MAIN_REPLY_KB)
+    res = process_text(text, chat_id=chat_id, source="telegram")
+    if res["intent"] == "chat":
+        tg.send(chat_id, res["reply"], reply_kb=MAIN_REPLY_KB)
         return
-
-    analysis = verdict["analysis"] or {}
-    try:
-        cid = db.add_capture(analysis)
-    except Exception as exc:
-        config.log(f"capture error: {type(exc).__name__}: {exc}")
-        tg.send(chat_id, f"❌ مش قادر أحفظ دلوقتي ({type(exc).__name__}) — "
-                         "ما افترضتش أي نتيجة.", reply_kb=MAIN_REPLY_KB)
+    if not res["ok"]:
+        tg.send(chat_id, res["reply"], reply_kb=MAIN_REPLY_KB)
         return
-    analysis.setdefault("meta", {})
-    if verdict.get("reference"):
-        analysis["meta"]["reference_of"] = verdict["reference"][:200]
-    confirm = ai_router.confirm_message(analysis, cid)
-    persona.remember(chat_id, "assistant", confirm, {"note_id": cid})
-    kb = reminder_kb(cid) if analysis.get("due_at") else CAPTURE_KB
-    tg.send(chat_id, confirm, kb=kb, reply_kb=MAIN_REPLY_KB)
+    tg.send(chat_id, res["reply"], kb=res["kb"], reply_kb=MAIN_REPLY_KB)
 
 
 def _handle_voice(tg: TelegramClient, chat_id: int, msg: Dict[str, Any]) -> None:

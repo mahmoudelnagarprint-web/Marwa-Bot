@@ -101,7 +101,7 @@ def _run(sql: str, params: Optional[Sequence[Any]], *, fetch: str, commit: bool)
         try:
             cur = c.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             try:
-                cur.execute(sql, params or ())
+                cur.execute(sql, params if params is not None else None)
                 if fetch == "all":
                     out: Any = [dict(r) for r in cur.fetchall()]
                 elif fetch == "one":

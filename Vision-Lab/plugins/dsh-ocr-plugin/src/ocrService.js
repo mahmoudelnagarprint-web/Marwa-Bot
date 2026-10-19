@@ -59,10 +59,12 @@ export async function recognize(imageBuffer, { lang = 'ara+eng' } = {}) {
     // Perform OCR recognition
     const result = await worker.recognize(dataURL);
     
-    // Extract confidence score (0-100 scale)
-    const confidence = result.confidence !== undefined 
-      ? Math.round(result.confidence * 100) / 100  // Normalize to 0-100 if needed
-      : 0;
+    // Extract confidence score (Tesseract returns 0-1, convert to 0-100)
+    let confidence = 0;
+    if (result.confidence !== undefined && result.confidence !== null) {
+      // Tesseract confidence is typically 0-100 already, but some versions return 0-1
+      confidence = result.confidence > 1 ? result.confidence : Math.round(result.confidence * 100);
+    }
     
     // Extract text, trimming whitespace
     const text = result.data?.text || '';
