@@ -112,7 +112,16 @@ def log(message: str) -> None:
     line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [{NODE_ID}] {message}"
     try:
         import sys
-        print(line, flush=True)
+        try:
+            print(line, flush=True)
+        except UnicodeEncodeError:
+            # كونسول ويندوز الافتراضي (cp1252) مش بيفهم العربي. قبل كده كان
+            # الاستثناء بيتلقط **بصمت** فسطور الإقلاع العربية كانت بتضيع من
+            # الكونسول تمامًا (الملف كان بيتكتب عادي لأنه UTF-8). هنا بنطبع
+            # تمثيلًا آمنًا بدل ما نضيّع السطر — طباعة بس، مفيش تحويل للملف.
+            enc = getattr(sys.stdout, "encoding", None) or "ascii"
+            print(line.encode(enc, "backslashreplace").decode(enc, "replace"),
+                  flush=True)
     except Exception:
         pass
     try:

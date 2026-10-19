@@ -21,6 +21,25 @@ from nb import config, db, ha, retail  # noqa: E402
 import nb.bot as bot_mod                # noqa: E402
 
 
+def out(*parts, **kw) -> None:
+    """طباعة آمنة على أي كونسول — ويندوز الافتراضي (cp1252) مش بيفهم العربي.
+
+    بدونه `--check` بيرمي `UnicodeEncodeError` وبيموت، يعني **أداة فحص
+    الصحة نفسها مش موجودة عمليًا** عند المالك. لو الترميز الحالي فشل
+    بنسقط لـ`backslashreplace` بدل ما نقع. طباعة بس — مفيش أي تحويل
+    لمحتوى التقرير ولا لملف.
+    """
+    text = " ".join(str(p) for p in parts)
+    stream = kw.get("file", sys.stdout)
+    rest = {k: v for k, v in kw.items() if k != "file"}
+    try:
+        print(text, file=stream, **rest)
+    except UnicodeEncodeError:
+        enc = getattr(stream, "encoding", None) or "ascii"
+        print(text.encode(enc, "backslashreplace").decode(enc, "replace"),
+              file=stream, **rest)
+
+
 def report() -> str:
     lines = [f"【فحص النوتبوك v2】{datetime.now():%Y-%m-%d %H:%M}"]
     try:
@@ -74,10 +93,10 @@ def main(argv=None) -> int:
     if args.pull_retail:
         try:
             snap = retail.pull_pos_snapshot()
-            print(f"✔ لقطة #{snap['id']} — منتجات: {snap['products']} | أخطاء أقسام: {snap['errors']}")
+            out(f"✔ لقطة #{snap['id']} — منتجات: {snap['products']} | أخطاء أقسام: {snap['errors']}")
             return 0
         except Exception as exc:
-            print(f"✖ فشل السحب: {type(exc).__name__}: {exc}")
+            out(f"✖ فشل السحب: {type(exc).__name__}: {exc}")
             return 2
 
     if args.once_cron:
@@ -85,15 +104,15 @@ def main(argv=None) -> int:
         from nb import proactive
         tg = bot_mod.TelegramClient(config.TELEGRAM_AFKARY_TOKEN)
         count = proactive.run_cycle(tg.send)
-        print(f"✔ دورة واحدة: {count}")
+        out(f"✔ دورة واحدة: {count}")
         return 0
 
     if args.check:
         text = report()
-        print(text)
+        out(text)
         if args.notify and config.OWNER_TELEGRAM_ID:
             ok = bot_mod.TelegramClient(config.TELEGRAM_AFKARY_TOKEN).send(config.OWNER_TELEGRAM_ID, text)
-            print(f"→ أُرسل للمالك: {ok}")
+            out(f"→ أُرسل للمالك: {ok}")
         return 0
 
     ap.print_help()

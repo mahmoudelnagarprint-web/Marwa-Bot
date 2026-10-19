@@ -117,14 +117,29 @@ def run_one(text, outage: bool) -> dict:
             intent.ai_router.providers.chat = saved["intent_ar"]
     dt = round(time.time() - t0, 2)
 
-    after = count()
-    written = after - before
-    row = None
-    if written:
-        row = db.q("SELECT id, kind, title FROM captures WHERE id > %s ORDER BY id", (before,)) or []
-        for r in row:
-            db.x("DELETE FROM capture_events WHERE capture_id=%s", (r["id"],))
-            db.x("DELETE FROM captures WHERE id=%s", (r["id"],))
+    after = watermark()
+    # ⚠️ فخ ثالث اتكشف: `after - before` على معرّفات = **مدى أرقام** مش عدد صفوف.
+    # القاعدة فيها فجوات (2,3,…,16) فـ16-3=13 رغم إن النداء كتب صف واحد.
+    # العدّ الصح = صفوف فعلية بمعرّف > خط الأساس.
+    row = db.q("SELECT id, kind, title FROM captures WHERE id > %s ORDER BY id", (before,)) or []
+    written = len(row)
+
+    # ⛔️ شرط أمان مزدوج: الطالب **لسه موجود فعلًا**، ومعرّفه > خط الأساس.
+    # الشرط الأول لوحده اللي ضربني — `id > before` ممكن يطابق صفوف قديمة لو
+    # الأرقام مش متتالية. فالفحص التاني: الصف لازم يكون من إنشاء **هذا النداء**.
+    # ولو أي صف مش مطابق، **مابنمسحش حاجة** وبنسجّل الخطر بدل ما ندمّر بيانات.
+    purged, refused = [], []
+    for r in (row or []):
+        still_there = db.scalar("SELECT title FROM captures WHERE id=%s", (r["id"],))
+        if still_there is None:
+            refused.append({"id": r["id"], "why": "الصف مختفي فعلًا (اتمسح من مكان تاني)"})
+            continue
+        if int(r["id"]) <= before:
+            refused.append({"id": r["id"], "why": "معرّف ≤ خط الأساس — مش صف اختبار"})
+            continue
+        db.x("DELETE FROM capture_events WHERE capture_id=%s", (r["id"],))
+        db.x("DELETE FROM captures WHERE id=%s", (r["id"],))
+        purged.append(r["id"])
 
     return {
         "text": text,
@@ -137,11 +152,19 @@ def run_one(text, outage: bool) -> dict:
         "reply_kb": [s["reply_kb"] for s in tg.sent if s["reply_kb"]],
         "error": err,
         "new_rows": [{"kind": r["kind"], "title": str(r["title"])[:70]} for r in (row or [])],
+        "purged_ids": purged,
+        "refused_deletes": refused,
     }
 
 
 def main() -> int:
-    out = {"start_count": count(), "results": []}
+    start_rows = db.q("SELECT id, kind, title FROM captures ORDER BY id") or []
+    out = {
+        "start_count": len(start_rows),
+        "start_rows": [{"id": r["id"], "kind": r["kind"], "title": str(r["title"])[:60]} for r in start_rows],
+        "start_watermark": watermark(),
+        "results": [],
+    }
 
     # 1) سحابة شغالة: خط الأساس
     out["results"].append(run_one("فكرني بكرة الساعة 5 أسلم الطلب", outage=False))
@@ -153,6 +176,7 @@ def main() -> int:
     out["results"].append(run_one("ايه أخبار الشغل النهاردة؟", outage=True))
 
     out["end_count"] = count()
+    out["end_watermark"] = watermark()
 
     # الخلاصة الحاسمة
     healthy = out["results"][0]
@@ -162,6 +186,11 @@ def main() -> int:
         "capture_works_without_cloud": outage_cap["rows_written"] == 1,
         "owner_gets_a_reply_without_cloud": outage_cap["telegram_sent"] >= 1,
         "count_restored": out["end_count"] == out["start_count"],
+        # ⛔️ الشرط الحاكم: كل صف كتبه الاختبار اتمسح، وولا صف حقيقي اتفقد
+        "no_real_row_deleted": all(not r["refused_deletes"] for r in out["results"]),
+        "all_test_rows_purged": sum(len(r["purged_ids"]) for r in out["results"]) == sum(
+            r["rows_written"] for r in out["results"]
+        ),
     }
     with open(OUT, "w", encoding="utf-8") as fh:
         json.dump(out, fh, ensure_ascii=False, indent=1, default=str)

@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}النوتبوك v2 — مركز القيادة{% endblock %}</title>
+  <title>{% block title %}أفكاري — مركز القيادة{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">💡 النوتبوك v2 <span>مركز القيادة الموحد</span></div>
+  <div class="brand">💡 أفكاري <span>مركز القيادة الموحد</span></div>
   <nav>
     <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' }}">🏠 الرئيسية</a>
     <a href="{{ url_for('providers_page') }}" class="{{ 'active' if request.endpoint == 'providers_page' }}">☁️ مزودو الـAI</a>
@@ -23,7 +23,7 @@
 </main>
 
 <footer>
-  النوتبوك v2 — تحت إدارة مروة 💙 | العقل المشترك على PostgreSQL + pgvector | بوت المالك: @Afkary22Bot
+  أفكاري — تحت إدارة مروة 💙 | العقل المشترك على PostgreSQL + pgvector | بوت المالك: @Afkary22Bot
 </footer>
 </body>
 </html>

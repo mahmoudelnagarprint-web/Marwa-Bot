@@ -1,14 +1,27 @@
 {
- "start_count": 4,
+ "start_count": 2,
+ "start_rows": [
+  {
+   "id": 2,
+   "kind": "task",
+   "title": "فكرنى اعمل موامنه الساعه 1 ص"
+  },
+  {
+   "id": 3,
+   "kind": "reminder",
+   "title": "لا حطها فى ملف باسم فكرنى"
+  }
+ ],
+ "start_watermark": 3,
  "results": [
   {
    "text": "فكرني بكرة الساعة 5 أسلم الطلب",
    "outage": false,
-   "seconds": 4.16,
+   "seconds": 2.71,
    "rows_written": 1,
    "telegram_sent": 1,
    "replies": [
-    "⏰ تذكير — سجّلت (#14): بكرة الساعة 5 أسلم الطلب\n• التصنيف: عملاء | الأولوية: مهمة\n• الميعاد: 2026-10-20 09:00\n• التصنيف بواسطة: llm:Dahl (بوابة DAHL):"
+    "⏰ تذكير — سجّلت (#18): بكرة الساعة 5 أسلم الطلب\n• التصنيف: عملاء | الأولوية: مهمة\n• الميعاد: 2026-10-20 09:00\n• التصنيف بواسطة: llm:Dahl (بوابة DAHL):"
    ],
    "inline_kb": [
     [
@@ -39,24 +52,24 @@
    ],
    "error": null,
    "new_rows": [
-    {
-     "kind": "task",
-     "title": "ليزر   اعمل بوكس"
-    },
     {
      "kind": "reminder",
      "title": "بكرة الساعة 5 أسلم الطلب"
     }
-   ]
+   ],
+   "purged_ids": [
+    18
+   ],
+   "refused_deletes": []
   },
   {
    "text": "فكرني بكرة الساعة 5 أسلم الطلب",
    "outage": true,
-   "seconds": 1.04,
+   "seconds": 1.07,
    "rows_written": 1,
    "telegram_sent": 1,
    "replies": [
-    "✅ مهمة — سجّلت (#15): بكرة الساعة 5 أسلم الطلب\n• التصنيف: عملاء | الأولوية: عادية\n• الميعاد: 2026-10-20 17:00\n• التصنيف بواسطة: rules"
+    "✅ مهمة — سجّلت (#19): بكرة الساعة 5 أسلم الطلب\n• التصنيف: عملاء | الأولوية: عادية\n• الميعاد: 2026-10-20 17:00\n• التصنيف بواسطة: rules"
    ],
    "inline_kb": [
     [
@@ -88,19 +101,19 @@
    "error": null,
    "new_rows": [
     {
-     "kind": "note",
-     "title": "هاي"
-    },
-    {
      "kind": "task",
      "title": "بكرة الساعة 5 أسلم الطلب"
     }
-   ]
+   ],
+   "purged_ids": [
+    19
+   ],
+   "refused_deletes": []
   },
   {
    "text": "هاي",
    "outage": true,
-   "seconds": 0.63,
+   "seconds": 0.66,
    "rows_written": 0,
    "telegram_sent": 1,
    "replies": [
@@ -120,12 +133,14 @@
     ]
    ],
    "error": null,
-   "new_rows": []
+   "new_rows": [],
+   "purged_ids": [],
+   "refused_deletes": []
   },
   {
    "text": "ايه أخبار الشغل النهاردة؟",
    "outage": true,
-   "seconds": 0.84,
+   "seconds": 0.82,
    "rows_written": 0,
    "telegram_sent": 1,
    "replies": [
@@ -145,14 +160,19 @@
     ]
    ],
    "error": null,
-   "new_rows": []
+   "new_rows": [],
+   "purged_ids": [],
+   "refused_deletes": []
   }
  ],
  "end_count": 2,
+ "end_watermark": 3,
  "VERDICT": {
   "capture_works_when_healthy": true,
   "capture_works_without_cloud": true,
   "owner_gets_a_reply_without_cloud": true,
-  "count_restored": false
+  "count_restored": true,
+  "no_real_row_deleted": true,
+  "all_test_rows_purged": true
  }
 }

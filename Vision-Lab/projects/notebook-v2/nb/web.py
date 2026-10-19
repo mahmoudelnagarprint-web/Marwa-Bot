@@ -16,7 +16,8 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 import psycopg2.extras
 
-from nb import ai_router, config, db, ha, proactive, providers, prompt_vault, retail, workshop
+from nb import (ai_router, cache, config, db, ha, proactive, providers, prompt_vault,
+                retail, workshop)
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
@@ -25,6 +26,22 @@ app.config["JSON_AS_ASCII"] = False
 # ------------------------------------------------------------------ helpers
 def _ok(**kw) -> Any:
     return jsonify({"ok": True, **kw})
+
+
+def _bust() -> int:
+    """يُلغي كاش اللوحة بعد أي كتابة من الويب.
+
+    ليه محتاجينها هنا بالتحديد: `/` بقى مخدوم من `db.dashboard()` بعمر 45
+    ثانية، والكتابات اللي بتعدّي من `db.x()` على طول (حذف/تصنيف/ميعاد)
+    **مش** بتنادي `db._invalidate_dashboard()` — فبلا النداء ده، حذف نوتة
+    من الويب يخلّي الصفحة تعرضها لحد 45 ثانية كإنها لسه موجودة.
+    `cache.invalidate("dash:")` هي الواجهة المجمّدة في العقد (بادئة).
+    """
+    try:
+        return cache.invalidate("dash:")
+    except Exception as exc:                       # الكاش مايوقفش أي كتابة
+        config.log(f"cache bust error: {type(exc).__name__}: {exc}")
+        return 0
 
 
 def _err(msg: str, code: int = 400) -> Any:
@@ -52,32 +69,39 @@ def _inject_globals() -> Dict[str, Any]:
 # ------------------------------------------------------------------ pages
 @app.route("/")
 def index():
-    stats = db.stats()
+    """لوحة القيادة من **كاش واحد** بدل ~10 استعلامات لكل زيارة.
+
+    قبل: `db.stats()` + 9 استعلامات منفصلة (كل واحد ~0.6s مصافحة TLS/صلاحيات
+    على الـpooler) = **16.2 ثانية** على السيرفر الحيّ. بعد: `db.dashboard()`
+    — رحلة واحدة، و**سخن 0.0ms**.
+
+    التصفية (`kind`/`status`/`q`): مفتاح الكاش `dash:{ttl}` **بلا فلتر**،
+    فالقائمة المفلترة بتتجاب باستعلام واحد بمفردها — عشان مينفعش نقدّم
+    بيانات غير مفلترة كأنها مفلترة. باقي المفاتيح (الإحصاءات/المستحق/المتأخر/
+    المشاريع/الحركات/الورشة/المحل) مش بتتأثر بالفلتر أصلًا.
+    """
+    dash = db.dashboard()
+    stats = dash.get("stats") or {}
     kind = request.args.get("kind") or None
     status = request.args.get("status") or "open"
     q = request.args.get("q") or None
-    captures = db.list_captures(status=status if status != "all" else None,
-                                kind=kind, search=q, limit=150)
-    due = db.due_reminders()
-    late = db.overdue_captures()
-    need_help = db.q("""SELECT * FROM captures
-                        WHERE status='open' AND needs_clarification = TRUE
-                        ORDER BY id DESC LIMIT 10""")
-    projects = db.q("""SELECT *, (last_activity_at < now() - make_interval(days => stagnant_after_days)) AS stagnant
-                       FROM projects WHERE status='active' ORDER BY stagnant DESC, id DESC LIMIT 10""")
-    radar = [p for p in projects if p.get("stagnant")]
-    try:
-        retail_digest = retail.digest()
-    except Exception:
-        retail_digest = "🏪 اللقطة غير متاحة الآن."
+    if status == "all" and not kind and not q:
+        # نفس استعلام اللوحة بالحرف (نفس الترتيب ونفس الحد) → بلا رحلة إضافية
+        captures = dash.get("captures") or []
+    else:
+        captures = db.list_captures(status=status if status != "all" else None,
+                                    kind=kind, search=q, limit=150)
     return render_template(
         "index.html",
-        stats=stats, captures=captures, due=due, late=late, need_help=need_help,
-        projects=projects, radar=radar, retail_digest=retail_digest,
-        agent_reports=retail.latest_agent_reports(6),
-        events=db.q("SELECT capture_id, at, type, detail FROM capture_events ORDER BY id DESC LIMIT 15"),
+        stats=stats, captures=captures,
+        due=dash.get("due") or [], late=dash.get("late") or [],
+        need_help=dash.get("need_help") or [],
+        projects=dash.get("projects") or [], radar=dash.get("radar") or [],
+        retail_digest=dash.get("retail_digest") or "🏪 اللقطة غير متاحة الآن.",
+        agent_reports=dash.get("agent_reports") or [],
+        events=dash.get("events") or [],
         filters={"kind": kind or "", "status": status, "q": q or ""},
-        ws_stats=workshop.stats(),
+        ws_stats=dash.get("ws_stats") or {},
         now=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M"),
     )
 
@@ -109,6 +133,7 @@ def done(cid: int):
 @app.route("/reopen/<int:cid>", methods=["POST", "GET"])
 def reopen(cid: int):
     db.x("UPDATE captures SET status='open', updated_at=now() WHERE id=%s", (cid,))
+    _bust()
     return redirect(request.referrer or url_for("index"))
 
 
@@ -122,6 +147,7 @@ def snooze(cid: int):
 @app.route("/delete/<int:cid>", methods=["POST"])
 def delete(cid: int):
     db.x("DELETE FROM captures WHERE id=%s", (cid,))
+    _bust()
     return redirect(request.referrer or url_for("index"))
 
 
@@ -131,6 +157,7 @@ def categorize(cid: int):
     if name:
         db.x("UPDATE captures SET category=%s, needs_clarification=FALSE, question=NULL, updated_at=now() WHERE id=%s",
              (name, cid))
+        _bust()
     return redirect(request.referrer or url_for("index"))
 
 
@@ -143,6 +170,7 @@ def setwhen(cid: int):
                 needs_clarification=FALSE, question=NULL, updated_at=now()
             WHERE id=%s""",
          (when.get("due_at"), when.get("remind_at"), when.get("remind_every") or "none", cid))
+    _bust()
     return redirect(request.referrer or url_for("index"))
 
 
@@ -167,6 +195,95 @@ def api_notes():
         search=request.args.get("q"),
         limit=int(request.args.get("limit") or 200),
     ))
+
+
+# ------------------------------------------------------------------ chat + dashboard API
+@app.route("/api/chat", methods=["GET", "POST"])
+def api_chat():
+    """نفس بوابة النوايا — من غير تليجرام.
+
+    واجهة رقيقة على `bot.process_text`: **صفر منطق هنا** (لا حفظ ولا تفنيد
+    نوايا)، عشان الويب والتليجرام والبريدج يعدّوا من نفس الشبكة بالحرف:
+    «نفس الجملة تتحفظ من التليجرام وما تتحفظش من الويب» ممنوعة بالعقد.
+    `process_text` **مابتبعتش حاجة لأي حد** — الإرسال مسؤولية اللي بينادي،
+    وهنا محدش بينده تليجرام أصلًا.
+
+    استيراد `bot` جوه الدالة مقصود: `bot` بيستورد شبكة كاملة (polling،
+    squad، workshop) و`web` محتاجه في **راوت واحد** بس — الاستيراد الجوّاني
+    بيخلّي بدء الويب ما يدفعش تمنه، وبيقطع أي احتمال لدورة استيراد لو
+    حد ضاف `from nb import web` جوه `bot` بعدين.
+    """
+    from nb import bot
+
+    data = request.get_json(silent=True) or {}
+    if request.method == "POST":
+        text = (data.get("text") or request.form.get("text") or "").strip()
+    else:
+        text = (request.args.get("text") or "").strip()
+    if not text:
+        return _err("ابعت نص في text", 400)
+
+    # نفس هوية محادثة المالك → نفس الذاكرة ونفس سياق فوفا حرفيًا
+    raw_chat = data.get("chat_id") if request.method == "POST" else request.args.get("chat_id")
+    try:
+        chat_id = (int(raw_chat) if raw_chat not in (None, "")
+                   else int(config.OWNER_TELEGRAM_ID or 0))
+    except (TypeError, ValueError):
+        chat_id = int(config.OWNER_TELEGRAM_ID or 0)
+    res = bot.process_text(text, chat_id=chat_id, source="web")
+    return jsonify({**res, "ok": bool(res.get("ok")), "source": "web"})
+
+
+@app.route("/api/dashboard")
+def api_dashboard():
+    """اللوحة كاملة JSON من كاش واحد — نفس مفاتيح `db.dashboard()`."""
+    try:
+        ttl = int(request.args.get("ttl") if request.args.get("ttl") is not None
+                  else config.DASHBOARD_TTL_SECONDS)
+    except (TypeError, ValueError):
+        ttl = config.DASHBOARD_TTL_SECONDS
+    try:
+        return jsonify(db.dashboard(ttl=ttl))
+    except Exception as exc:
+        return _err(f"{type(exc).__name__}: {exc}", 500)
+
+
+@app.route("/api/capture/<int:cid>/action", methods=["POST"])
+def api_capture_action(cid: int):
+    """أفعال النوتة من الويب/البريدج: done | snooze | category | delete.
+
+    نفس الأفعال الموجودة كروت في `/done/<id>` … إلخ — بس بترجّع JSON بدل
+    redirect عشان الـAJAX والـbridge يستخدموها. كلها بتعدّي على دوال `db`
+    المجمّدة، وبعدها `_bust()` عشان اللوحة تعكس التغيير فورًا.
+    """
+    d = request.get_json(silent=True) or {}
+    action = (d.get("action") or request.form.get("action") or "").strip().lower()
+    value = d.get("value", request.form.get("value"))
+
+    if action == "done":
+        ok = db.set_capture_status(cid, "done")
+    elif action == "reopen":
+        ok = db.x("UPDATE captures SET status='open', updated_at=now() WHERE id=%s", (cid,)) > 0
+    elif action == "snooze":
+        try:
+            minutes = int(value if value not in (None, "") else 60)
+        except (TypeError, ValueError):
+            return _err("value لازم يكون عدد دقايق", 400)
+        ok = db.snooze_capture(cid, minutes)
+    elif action == "category":
+        name = (str(value) if value is not None else "").strip()
+        if not name:
+            return _err("value لازم يكون اسم التصنيف", 400)
+        ok = db.x("""UPDATE captures SET category=%s, needs_clarification=FALSE,
+                     question=NULL, updated_at=now() WHERE id=%s""", (name, cid)) > 0
+    elif action == "delete":
+        ok = db.x("DELETE FROM captures WHERE id=%s", (cid,)) > 0
+    else:
+        return _err("action لازم تكون واحدة من: done | reopen | snooze | category | delete", 400)
+
+    _bust()
+    return _ok(id=cid, action=action, changed=bool(ok),
+               message="تم" if ok else "مفيش صف بالمعرف ده")
 
 
 @app.route("/api/due")
