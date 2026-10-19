@@ -605,9 +605,18 @@ def A10_schema(live: bool) -> Result:
     if missing:
         return res.bad(f"جداول ناقصة: {missing}")
 
+    # فلتر public إلزامي: بلا فلتر بيرجّع كمان مفاتيح مخططات Supabase الداخلية
+    # (auth 24 + storage 5) فيطلع الرقم 45 بدل 16 — خطأ قياس موثّق في A10.
     try:
         fks = db.q("""SELECT conrelid::regclass::text AS tbl, conname
-                      FROM pg_constraint WHERE contype='f'""")
+                      FROM pg_constraint c
+                      JOIN pg_class t ON t.oid = c.conrelid
+                      JOIN pg_namespace n ON n.oid = t.relnamespace
+                      WHERE c.contype = 'f' AND n.nspname = 'public'""")
+        stray = db.scalar("""SELECT count(*) FROM pg_constraint c
+                             JOIN pg_class t ON t.oid = c.conrelid
+                             JOIN pg_namespace n ON n.oid = t.relnamespace
+                             WHERE c.contype = 'f' AND n.nspname <> 'public'""")
     except Exception as exc:  # noqa: BLE001
         return res.bad(f"قراءة القيود وقعت: {type(exc).__name__}: {exc}")
     if not fks:
@@ -634,12 +643,94 @@ def A10_schema(live: bool) -> Result:
             orphans.append(f"{child}.{col}={n} يتيم")
     if orphans:
         return res.bad("مراجع يتيمة: " + " · ".join(orphans))
-    return res.ok(f"{len(present)} جدول · {len(fks)} مفتاح أجنبي · صفر مرجع يتيم")
+    return res.ok(f"{len(present)} جدول · {len(fks)} مفتاح أجنبي في public "
+                  f"· {stray} خارج public (مخططات Supabase — مش بتاعتنا) "
+                  f"· صفر مرجع يتيم")
+
+
+def A16_no_plaintext_key(live: bool) -> Result:
+    """مفيش مفتاح صريح في أي عمود نصي حساس.
+
+    العطل الأصلي (E8): `ai_config.api_key` كان مفتاحًا صريحًا بطول 38 لصف
+    متبقّي من تزويد قديم — والمفتاح الحيّ مكانه `ai_providers.api_key_enc`
+    (Fernet `f1:`) ومحدش بيقرا `ai_config` أصلًا (صفر مرجع في الكود).
+    الفحص ده يمنع رجوعه بدل ما يبقى إصلاحًا لمرة واحدة.
+
+    **مش بيطبع أي مفتاح ولا طوله** — بيتأكد من الخلو بس.
+    """
+    res = Result("A16", "مفيش مفتاح صريح في القاعدة")
+    db, err = load("nb.db")
+    if err:
+        return res.skip(f"nb.db مش متاح ({err})")
+    try:
+        rows = db.q("""SELECT id, (api_key IS NULL) AS key_is_null
+                       FROM ai_config ORDER BY id""")
+    except Exception as exc:  # noqa: BLE001
+        return res.bad(f"قراءة ai_config وقعت: {type(exc).__name__}: {exc}")
+
+    leaking = [r["id"] for r in rows if not r["key_is_null"]]
+    if leaking:
+        return res.bad(f"مفتاح صريح باقي في ai_config للصفوف {leaking} — "
+                       f"الحذف النهائي هو `UPDATE ai_config SET api_key = NULL`")
+
+    try:
+        provs = db.q("""SELECT id, (api_key_enc IS NULL) AS enc_null
+                        FROM ai_providers ORDER BY id""")
+    except Exception:  # noqa: BLE001
+        provs = []
+    enc_missing = [r["id"] for r in provs if r["enc_null"]]
+    if enc_missing:
+        return res.bad(f"مزود مفيهوش مفتاح مُشفَّر (api_key_enc فاضي): {enc_missing}")
+
+    return res.ok(f"ai_config خالي من أي مفتاح ({len(rows)} صف) "
+                  f"· {len(provs)} مزود بمفتاح مُشفَّر سليم")
+
+
+def A11_tokenizer(live: bool) -> Result:
+    """مقسّم `db/migrate.py` مطابق لمقسّم مستقل + صامد لحالات عدائية.
+
+    الخطر الأصلي: `split(";")` الساذج بيكسر أول ما يُضاف `$$` أو كتلة `DO`
+    أو نص فيه `;`. القياس على السكيمة الفعلية: 52 جملة بالمقسّمين (مطابق)،
+    والخطر مستقبلي لا حالي — عشان كده البند بيثبت الاتفاق ويختبر الحالات
+    اللي **مش موجودة** في السكيمة دلوقتي (دالة/كتلة/نص فيه فاصلة).
+    """
+    res = Result("A11", "مقسّم SQL واعي")
+    import importlib.util
+    path = PROJECT / "db" / "migrate.py"
+    try:
+        spec = importlib.util.spec_from_file_location("_nb_mig", path)
+        mig = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mig)
+    except Exception as exc:  # noqa: BLE001
+        return res.bad(f"تحميل migrate.py وقع: {type(exc).__name__}: {exc}")
+
+    if not callable(getattr(mig, "_statements", None)):
+        return res.bad("migrate.py مفيهوش _statements — المقسّم مش موجود")
+    sql = mig.SCHEMA_FILE.read_text(encoding="utf-8")
+    got = list(mig._statements(sql))
+    if len(got) < 40:
+        return res.bad(f"عدد الجمل غير معقول: {len(got)}")
+
+    # مقاومة الحالات العدائية: دالة $$ · نص فيه ; · تعليق كتلي
+    adversarial = (
+        "CREATE FUNCTION f() RETURNS void AS $$\n"
+        "BEGIN\n  RAISE NOTICE 'a;b';\n  PERFORM 1;\nEND;\n$$ LANGUAGE plpgsql;\n"
+        "INSERT INTO t(x) VALUES ('نص فيه ; فاصلة');\n"
+        "/* تعليق كتلي فيه ; */\nSELECT 1;\n")
+    adv = list(mig._statements(adversarial))
+    if len(adv) != 3:
+        return res.bad(f"المقسّم اتكسر على حالة عدائية: {len(adv)} جملة بدل 3")
+
+    # التأكد إن الجملة الأولى اتقسمت عند $$ صح ومفيش كسر جواها
+    if "LANGUAGE plpgsql" not in adv[0]:
+        return res.bad("كتلة $$ اتقسمت غلط — الفاصلة جوه الدالة كسرتها")
+
+    return res.ok(f"{len(got)} جملة من السكيمة الفعلية · صامد لـ$$/النصوص/"
+                  f"التعليقات الكتلية")
 
 
 # ============================================================ السجل
-CHECKS: List[Tuple[str, str, Callable[[bool], Result]]] = [
-    ("A1", "«هاي» متتحفظش",             A1_hai_not_saved),
+CHECKS: List[Tuple[str, str, Callable[[bool], Result]]] = [    ("A1", "«هاي» متتحفظش",             A1_hai_not_saved),
     ("A2", "الالتقاط شغال",               A2_capture_saved),
     ("A3", "db.stats() < 1.5s",          A3_stats_perf),
     ("A4", "اللوحة < 1.0s (سخن)",        A4_dashboard_perf),
@@ -649,6 +740,8 @@ CHECKS: List[Tuple[str, str, Callable[[bool], Result]]] = [
     ("A8", "الجسر الموحد (باريتي)",       A8_bridge_parity),
     ("A9", "الإيجار والتوفّر العالي",     A9_ha_lease),
     ("A10", "السكيمة والمفاتيح الأجنبية", A10_schema),
+    ("A11", "مقسّم SQL واعي (52 جملة)",   A11_tokenizer),
+    ("A16", "مفيش مفتاح صريح (E8)",       A16_no_plaintext_key),
 ]
 
 

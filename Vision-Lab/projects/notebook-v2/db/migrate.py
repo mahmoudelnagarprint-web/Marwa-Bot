@@ -23,6 +23,32 @@ from nb import config, db  # noqa: E402
 SCHEMA_FILE = PROJECT_ROOT / "db" / "schema_pgvector.sql"
 
 
+def out(*parts, **kw) -> None:
+    """طباعة عربية آمنة على أي كونسول (ويندوز cp1252 مش بيفهم العربي).
+
+    من غير الدالة دي `print` بيرمي `UnicodeEncodeError` على كونسول
+    ويندوز الافتراضي وبيوقّف السكربت كله — يعني **أداة الميجراسيون
+    مش موجودة عمليًا** عند المالك. هنا بنحاول الترميز الحالي، ولو فشل
+    بنسقط لـ`backslashreplace` (بنطبع التمثيل الآمن بدل ما نقع).
+
+    ملاحظة: دي **طباعة بس** — قراءة السكيمة وتنفيذها بـUTF-8 زي ما هما،
+    ومفيش أي تحويل لملف السكيمة نفسه.
+    """
+    text = " ".join(str(p) for p in parts)
+    stream = kw.get("file", sys.stdout)
+    try:
+        print(text, file=stream, **{k: v for k, v in kw.items() if k != "file"})
+    except UnicodeEncodeError:
+        enc = getattr(stream, "encoding", None) or "ascii"
+        safe = text.encode(enc, "backslashreplace").decode(enc, "replace")
+        print(safe, file=stream, **{k: v for k, v in kw.items() if k != "file"})
+
+
+def schema_statements() -> List[str]:
+    """جمل السكيمة كما بيطلعها المقسّم (للاستخدام في `check` و`apply`)."""
+    return list(_statements(SCHEMA_FILE.read_text(encoding="utf-8")))
+
+
 def _statements(sql_text: str):
     """تفكيك السكيمة لجُمل — **بمحلّل حالات مش بتقسيم أعمى على `;`**.
 
@@ -132,22 +158,71 @@ def _head(stmt: str, width: int = 70) -> str:
     return " ".join(stmt.split())[:width]
 
 
+def _created_tables(stmts) -> List[str]:
+    """أسماء الجداول اللي السكيمة بتنشئها (للمقارنة بالواقع)."""
+    names: List[str] = []
+    for s in stmts:
+        m = re.search(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"
+                      r'(?:"?public"?\s*\.\s*)?"?([A-Za-z_][A-Za-z0-9_]*)"?',
+                      s, flags=re.I)
+        if m:
+            names.append(m.group(1))
+    return names
+
+
 def check() -> int:
-    tables = db.q(
-        """SELECT table_name FROM information_schema.tables
-           WHERE table_schema = 'public' ORDER BY table_name"""
-    )
-    names = [t["table_name"] for t in tables]
-    print(f"الجداول الموجودة في {config.DB_DSN_HOST}: {len(names)}")
-    for n in names:
-        print(f"  • {n}")
-    return 0
+    """فحص: عدد جمل السكيمة ↔ عدد جداول القاعدة، مع تحذير ظاهر عند الاختلاف."""
+    sql_text = SCHEMA_FILE.read_text(encoding="utf-8")
+    stmts = list(_statements(sql_text))
+    created = _created_tables(stmts)
+
+    try:
+        tables = db.q(
+            """SELECT table_name FROM information_schema.tables
+               WHERE table_schema = 'public' ORDER BY table_name"""
+        )
+    except Exception as exc:  # noqa: BLE001
+        out(f"✖ مش قادر أقرأ الجداول: {type(exc).__name__}: {exc}")
+        return 1
+    present = [t["table_name"] for t in tables]
+
+    out("=" * 66)
+    out(f"  فحص السكيمة على {config.DB_DSN_HOST}")
+    out("=" * 66)
+    out(f"  جمل السكيمة (المقسّم) : {len(stmts)}")
+    out(f"  جداول في السكيمة      : {len(created)}")
+    out(f"  جداول في القاعدة      : {len(present)}")
+
+    # --- الاتفاق بين السكيمة والقاعدة (تحذير ظاهر، مش دفن) ---
+    missing = sorted(set(created) - set(present))   # في السكيمة ومش في القاعدة
+    extra = sorted(set(present) - set(created))     # في القاعدة ومش في السكيمة
+
+    out("")
+    if missing:
+        out(f"  ⚠ تحذير: {len(missing)} جدول في السكيمة ومش موجود في القاعدة:")
+        for n in missing:
+            out(f"      • {n}    ← نفّذ: python db\\migrate.py")
+    else:
+        out("  ✔ كل جداول السكيمة موجودة في القاعدة")
+
+    if extra:
+        out(f"  ℹ ملاحظة: {len(extra)} جدول في القاعدة مش من السكيمة "
+            f"(بيوته مشروع تاني على نفس القاعدة):")
+        for n in sorted(extra):
+            out(f"      • {n}")
+
+    out("")
+    out(f"  الحصيلة: {'سكيمة متطابقة' if not missing else 'ناقصة — محتاجة تطبيق'}")
+    out("=" * 66)
+    for n in present:
+        out(f"  • {n}")
+    return 0 if not missing else 1
 
 
 def apply() -> int:
     sql_text = SCHEMA_FILE.read_text(encoding="utf-8")
     stmts = list(_statements(sql_text))
-    print(f"تطبيق {len(stmts)} جملة على {config.DB_DSN_HOST} ...")
+    out(f"تطبيق {len(stmts)} جملة على {config.DB_DSN_HOST} ...")
     done, failed = 0, 0
     conn = db.connect()
     try:
@@ -157,14 +232,14 @@ def apply() -> int:
             try:
                 cur.execute(stmt)
                 done += 1
-                print(f"  ✔ {head}")
+                out(f"  ✔ {head}")
             except Exception as exc:
                 failed += 1
-                print(f"  ✖ {head}\n      ↳ {type(exc).__name__}: {exc}")
+                out(f"  ✖ {head}\n      ↳ {type(exc).__name__}: {exc}")
                 raise
         conn.commit()
-        print(f"تم: {done} جملة نُفذت بنجاح.")
-        print("تلميح: لو فشل CREATE EXTENSION فنفّذ السكيمة من Supabase SQL Editor بصلاحية postgres.")
+        out(f"تم: {done} جملة نُفذت بنجاح.")
+        out("تلميح: لو فشل CREATE EXTENSION فنفّذ السكيمة من Supabase SQL Editor بصلاحية postgres.")
         return 0
     finally:
         conn.close()
@@ -173,7 +248,8 @@ def apply() -> int:
 def main(argv=None) -> int:
     args = set(sys.argv[1:] if argv is None else argv)
     if "--print" in args:
-        print(SCHEMA_FILE.read_text(encoding="utf-8"))
+        # نطبع خام بلا أي تحويل — محتوى السكيمة لازم يوصل بايت-بايت
+        sys.stdout.write(SCHEMA_FILE.read_text(encoding="utf-8"))
         return 0
     if "--check" in args:
         return check()
