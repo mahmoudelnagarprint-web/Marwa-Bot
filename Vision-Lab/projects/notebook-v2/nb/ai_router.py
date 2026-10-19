@@ -32,6 +32,12 @@ def normalize(text: str) -> str:
 
 # ------------------------------------------------------------------ مفردات
 KINDS = ("note", "task", "idea", "reminder", "program_idea", "home_item", "workshop_need")
+# أنواع الرد المحاور — **مش التقاط**. الموديل بيرجّعها من نفسه لما النص مجرد
+# كلام/تحية/سؤال (شوفناه بيقول kind:"greeting" على «هاي») — فبوابة النوايا
+# بتعتمد عليها كدليل إضافي: أي kind مش من CAPTURE_KINDS = محادثة، مش نوت.
+CHAT_KINDS = ("chat", "greeting", "message", "question", "smalltalk", "thanks",
+              "ack", "other", "none")
+CAPTURE_KINDS = KINDS
 KIND_LABELS = {
     "note": "📝 نوت", "task": "✅ مهمة", "reminder": "⏰ تذكير", "idea": "💡 فكرة",
     "program_idea": "🚀 فكرة برنامج", "home_item": "🏠 قائمة بيت", "workshop_need": "🔧 احتياج ورشة",
@@ -306,28 +312,55 @@ due_hint: لو في موعد بالنص أعد صياغته واضحة (مثل: 
 """
 
 
-def _extract_json(text: str) -> Optional[Dict[str, Any]]:
-    text = re.sub(r"```(json)?", "", text or "").strip()
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group(0))
-    except Exception:
-        return None
+def extract_json(text: str) -> Optional[Dict[str, Any]]:
+    """استخراج كائن JSON من رد حر — **غير جشع** ويتحمّل التفكير حواليه.
+
+    القواعد القديمة `re.search(r"\\{.*\\}", DOTALL)` كانت **جشعة**: الموديل
+    بيرجّع `{"kind":…}` وبعده كلام، فالـregex بيمسك من أول `{` لآخر `}` ويعمل
+    `json.loads` على نص مش JSON → None → سقوط صامت للقواعد. هنا بنمشي على كل
+    `{` ونجرّب `raw_decode` (فك متوازن) لحد ما نلاقي كائن سليم.
+    """
+    raw = text or ""
+    cleaned = providers.strip_reasoning(raw)
+    for candidate in (cleaned, raw):
+        cand = re.sub(r"```(?:json)?", "", candidate or "")
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", cand):
+            try:
+                obj, _ = decoder.raw_decode(cand[match.start():])
+            except Exception:
+                continue
+            if isinstance(obj, dict):
+                return obj
+    return None
+
+
+_extract_json = extract_json      # توافق خلفي للاسم القديم
 
 
 def cloud_refine(analysis: Dict[str, Any], text: str) -> Dict[str, Any]:
-    """تحسين التصنيف بمزود سحابي — الفشل يعود للقواعد بصمت."""
+    """تحسين التصنيف بمزود سحابي — الفشل يعود للقواعد **مع تسجيل السبب الحقيقي**.
+
+    السبب بيتسجّل بنوع الاستثناء ونصه (مش «ProviderError» مبهمة)، وكمان سبب
+    فشل استخراج الـJSON لو النداء نجح والرد مكانش JSON — عشان العطل يبان
+    بعد كده من السجل على طول.
+    """
     try:
         raw_answer, meta = providers.chat(
             [{"role": "user", "content": _CLOUD_PROMPT + text}],
-            max_tokens=200, temperature=0.0, json_mode=True)
+            max_tokens=200, temperature=0.0, json_mode=True, timeout=25)
     except Exception as exc:
-        config.log(f"ai_router: السحابة غير متاحة — قواعد محلية فقط ({type(exc).__name__})")
+        config.log(f"ai_router: السحابة غير متاحة — قواعد محلية فقط "
+                   f"[{type(exc).__name__}: {str(exc)[:300]}]")
+        analysis["cloud_error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
         return analysis
-    data = _extract_json(raw_answer)
+    data = extract_json(raw_answer)
     if not isinstance(data, dict):
+        config.log("ai_router: رد سحابي بلا JSON صالح — قواعد محلية فقط "
+                   f"(finish={meta.get('finish_reason')}, "
+                   f"ctok={meta.get('completion_tokens')}, "
+                   f"أول 120 حرف: {str(raw_answer)[:120]!r})")
+        analysis["cloud_error"] = "رد بلا JSON صالح"
         return analysis
     if data.get("kind") in KINDS:
         analysis["kind"] = data["kind"]
@@ -344,7 +377,7 @@ def cloud_refine(analysis: Dict[str, Any], text: str) -> Dict[str, Any]:
             analysis["remind_at"] = when["remind_at"]
             if when.get("remind_every"):
                 analysis["remind_every"] = when["remind_every"]
-    analysis["routed_by"] = f"llm:{meta.get('provider')}:{meta.get('model')}"
+    analysis["routed_by"] = f"llm:{meta.get('provider') or 'cloud'}:{meta.get('model') or 'default'}"
     analysis["confidence"] = 0.9
     return analysis
 
@@ -357,6 +390,25 @@ def route(text: str, source: str = "telegram", use_cloud: bool = True) -> Dict[s
     if use_cloud:
         analysis = cloud_refine(analysis, text)
     return analysis
+
+
+def classify_kind_cloud(text: str, timeout: int = 25) -> Tuple[Optional[str], Optional[str]]:
+    """(النوع من الموديل، سبب الفشل) — بلا تخمين وبلا إنشاء.
+
+    دي أدق إشارة عندنا للتفريق بين «كلام» و«حاجة تتحفظ» لمّا القواعد المحلية
+    تكون غير حاسمة. بترجّع `None` مع **سبب حقيقي** عند الفشل عشان السبب يتسجّل.
+    """
+    try:
+        raw_answer, _meta = providers.chat(
+            [{"role": "user", "content": _CLOUD_PROMPT + text}],
+            max_tokens=200, temperature=0.0, json_mode=True, timeout=timeout)
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {str(exc)[:300]}"
+    data = extract_json(raw_answer)
+    if not isinstance(data, dict):
+        return None, "رد بلا JSON صالح"
+    kind = (data.get("kind") or "").strip().lower() if isinstance(data.get("kind"), str) else None
+    return kind, None
 
 
 def confirm_message(note: Dict[str, Any], note_id: int) -> str:

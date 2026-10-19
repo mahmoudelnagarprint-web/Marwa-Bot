@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -22,6 +23,47 @@ from nb import config, db, secrets
 
 class ProviderError(RuntimeError):
     pass
+
+
+# ------------------------------------------------------------------ التفكير
+# نماذج التفكير (reasoning) على بوابة DAHL بترجّع **كتلة تفكير مكتوبة جوه
+# `content` نفسه** بوسم <think>…</think>، وبعدها الرد الفعلي. ومن غير تنضيف،
+# الرد بيبان للمستخدم كتفكير خام، ولو الرد اتقطع (finish_reason=length) بيبقى
+# تفكير ناقص بلا أي JSON → سقوط صامت للقواعد المحلية.
+#
+# **قياس حيّ (2026-10-19) على الموديل الافتراضي:** `reasoning_effort=none`
+# و`thinking.disabled` **مابيوقفوش** التفكير على البوابة دي (الاتنين رجّعوا
+# كتلة <think>) — فالتنضيف هنا مش تحسين شكلي، ده المسار الوحيد الموثوق.
+_THINK_PATTERNS = (
+    re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.DOTALL | re.IGNORECASE),
+    re.compile(r"<reasoning>.*?</reasoning>", re.DOTALL | re.IGNORECASE),
+    re.compile(r"```(?:think|thinking|reasoning)[^\n]*\n.*?```", re.DOTALL | re.IGNORECASE),
+)
+# وسم مفتوح بلا إغلاق = الرد اتقطع وسط التفكير: اقطع من أول وسم لآخره.
+_UNCLOSED = (
+    re.compile(r"<think(?:ing)?>.*\Z", re.DOTALL | re.IGNORECASE),
+    re.compile(r"<reasoning>.*\Z", re.DOTALL | re.IGNORECASE),
+)
+
+
+def strip_reasoning(text: str) -> str:
+    """يشيل كتل التفكير من رد الموديل.
+
+    لو التنضيف خلّى النص فاضي (الرد كله تفكير) نرجّع النص الأصلي بصدق —
+    عشان مستخرج الـJSON (غير الجشع) يقدر يلقط أي كائن جوه التفكير.
+    """
+    original = text or ""
+    out = original
+    for pat in _THINK_PATTERNS:
+        out = pat.sub("", out)
+    for pat in _UNCLOSED:
+        out = pat.sub("", out)
+    cleaned = out.strip()
+    return cleaned or original.strip()
+
+
+def _has_json_object(text: str) -> bool:
+    return "{" in (text or "") and "}" in (text or "")
 
 
 # ------------------------------------------------------------------ presets
@@ -206,14 +248,48 @@ def _fallback_providers() -> List[Tuple[Dict[str, Any], str]]:
 
 
 # ------------------------------------------------------------------ chat
+def _post_chat(row: Dict[str, Any], key: str, payload: Dict[str, Any],
+               timeout: float) -> Tuple[int, Any]:
+    return _http_json("POST", f"{row['base_url']}/chat/completions", key, payload, timeout)
+
+
+def _adjust_payload(payload: Dict[str, Any], status: int, body: Any) -> bool:
+    """يشيل المفاتيح التجريبية عند رفض المزود لها. True = اتغيّر payload.
+
+    مزودات OpenAI-compatible الصارمة بترفض أي باراميتر مش معروف — فبنشيلها
+    بالتدريج بدل ما النداء يفشل كله.
+    """
+    low = str(body).lower()
+    generic = any(w in low for w in ("unknown", "unsupported", "unrecognized",
+                                    "invalid", "extra", "valid"))
+    for field in ("thinking", "reasoning_effort"):
+        if field in payload and (field in low or "reasoning" in low or generic):
+            payload.pop(field, None)
+            return True
+    if status == 400 and "response_format" in payload and (
+            "response_format" in low or "json" in low or generic):
+        payload.pop("response_format", None)
+        return True
+    return False
+
+
 def chat(messages: List[Dict[str, str]], model_id: Optional[str] = None,
          provider_id: Optional[int] = None, max_tokens: int = 600,
          temperature: float = 0.3, json_mode: bool = False,
-         timeout: int = 90) -> Tuple[str, Dict[str, Any]]:
+         timeout: int = 45, reasoning_off: bool = True, retries: int = 1,
+         min_tokens: int = 700, total_timeout: float = 0) -> Tuple[str, Dict[str, Any]]:
     """نداء دردشة عبر المزود المحدد ثم الافتراضي ثم أي بديل نشط.
 
-    يرجع (النص، meta{provider_id, provider, model}).
+    يرجع (النص بعد تنضيف التفكير، meta{provider_id, provider, model,
+    finish_reason, completion_tokens, attempts, elapsed_ms, reasoning_stripped}).
+
+    `reasoning_off`: يمنع التفكير بالباراميترات المعروفة **وبيرفع سقف التوكن
+    كشبكة أمان** — نماذج التفكير بتاكل السقف كله جوه التفكير وترجّع محتوى مقطوع.
+    ولو رجع 200 بمحتوى فاضي/مقطوع/بلا JSON، بيعيد المحاولة بسقف أكبر.
     """
+    cap = max(int(max_tokens), int(min_tokens)) if reasoning_off else int(max_tokens)
+    deadline = time.monotonic() + (total_timeout or max(20.0, timeout * 2.0))
+
     tried: List[Tuple[Dict[str, Any], str]] = []
     if provider_id:
         row = get_provider(provider_id)
@@ -227,31 +303,73 @@ def chat(messages: List[Dict[str, str]], model_id: Optional[str] = None,
             tried.append(({**drow, "api_key_enc": key_row["api_key_enc"]}, model_id or dmodel or "default"))
     tried += _fallback_providers()
 
-    errors = []
+    errors: List[str] = []
     seen = set()
+    attempts_total = 0
     for row, mdl in tried:
         if row["id"] in seen:
             continue
         seen.add(row["id"])
         key = secrets.decrypt_secret(row["api_key_enc"])
-        payload: Dict[str, Any] = {"messages": messages, "max_tokens": max_tokens,
-                                   "temperature": temperature}
-        if mdl and mdl != "default":
-            payload["model"] = mdl
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
-        status, body = _http_json("POST", f"{row['base_url']}/chat/completions", key, payload, timeout)
-        if status == 400 and json_mode and "response_format" in str(body):
-            payload.pop("response_format", None)
-            status, body = _http_json("POST", f"{row['base_url']}/chat/completions", key, payload, timeout)
-        if status == 200 and isinstance(body, dict):
-            text = (body.get("choices") or [{}])[0].get("message", {}).get("content", "")
-            if text:
-                return text.strip(), {"provider_id": row["id"], "provider": row["name"], "model": mdl}
-            errors.append(f"{row['name']}: رد بلا محتوى")
-        else:
-            errors.append(f"{row['name']}: HTTP {status} {str(body)[:160]}")
-    raise ProviderError("كل المحاولات فشلت — " + " | ".join(errors[:3]))
+        cap_here = cap
+        for attempt in range(1 + max(0, int(retries))):
+            remaining = deadline - time.monotonic()
+            if remaining <= 1.0:
+                errors.append(f"{row['name']}: انتهت الميزانية الزمنية قبل المحاولة {attempt}")
+                break
+            payload: Dict[str, Any] = {"messages": messages, "max_tokens": cap_here,
+                                       "temperature": temperature}
+            if mdl and mdl != "default":
+                payload["model"] = mdl
+            if reasoning_off:
+                payload["reasoning_effort"] = "none"
+                payload["thinking"] = {"type": "disabled"}
+            if json_mode:
+                payload["response_format"] = {"type": "json_object"}
+
+            status, body = _post_chat(row, key, payload, min(timeout, remaining))
+            for _ in range(3):
+                if status != 400 or not _adjust_payload(payload, status, body):
+                    break
+                signals = [k for k in ("reasoning_effort", "thinking", "response_format")
+                           if k in payload]
+                config.log(f"providers: المزود «{row['name']}» رفض باراميترات "
+                           f"(HTTP 400) — إعادة بدون {signals}")
+                status, body = _post_chat(row, key, payload, min(timeout, remaining))
+            attempts_total += 1
+
+            if status == 200 and isinstance(body, dict):
+                choice = (body.get("choices") or [{}])[0]
+                message = choice.get("message") or {}
+                raw = message.get("content") or ""
+                finish = choice.get("finish_reason")
+                usage = body.get("usage") or {}
+                ctok = usage.get("completion_tokens")
+                clean = strip_reasoning(raw)
+                stripped = bool(raw) and clean != raw.strip()
+                usable = bool(clean)
+                if json_mode:
+                    usable = _has_json_object(clean) or _has_json_object(raw)
+                if usable and clean:
+                    if stripped or (finish == "length" and attempt):
+                        config.log(f"providers: {row['name']} رد في المحاولة {attempt + 1} "
+                                   f"(finish={finish}, ctok={ctok}, "
+                                   f"اتشال تفكير={'نعم' if stripped else 'لا'})")
+                    return clean.strip(), {
+                        "provider_id": row["id"], "provider": row["name"], "model": mdl,
+                        "finish_reason": finish, "completion_tokens": ctok,
+                        "attempts": attempts_total, "reasoning_stripped": stripped,
+                    }
+                detail = ("رد فاضي" if not raw else
+                          ("رد بلا JSON" if json_mode else "رد غير صالح"))
+                errors.append(f"{row['name']}: {detail} (finish={finish}, ctok={ctok}, "
+                              f"max_tokens={cap_here}, محاولة {attempt + 1})")
+                cap_here = max(cap_here * 2, 1400)
+                config.log(f"providers: {errors[-1]} — إعادة بسقف {cap_here}")
+            else:
+                errors.append(f"{row['name']}: HTTP {status} {str(body)[:160]}")
+                break
+    raise ProviderError("كل المحاولات فشلت — " + " | ".join(errors[:4]))
 
 
 def test_provider(pid: int) -> Tuple[bool, str, str]:

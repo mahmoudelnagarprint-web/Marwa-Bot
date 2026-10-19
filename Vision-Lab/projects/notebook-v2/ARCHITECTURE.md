@@ -199,21 +199,25 @@ every 15s on each node:
 
 ```
 projects/notebook-v2/
-├─ ARCHITECTURE.md  README.md  .env.example  requirements.txt  .gitignore
+├─ ARCHITECTURE.md  README.md  DEPLOY_LAPTOP.md  UPGRADE_CONTRACT.md
+├─ .env.example  requirements.txt  .gitignore  run.bat  install_services.ps1
 ├─ db/schema_pgvector.sql  db/migrate.py
 ├─ nb/ (الحزمة)
-│  ├─ config.py db.py secrets.py providers.py ai_router.py prompt_vault.py
-│  ├─ workshop.py retail.py proactive.py ha.py prayer.py
+│  ├─ config.py db.py cache.py secrets.py providers.py ai_router.py
+│  ├─ persona.py intent.py bridge.py          ← شخصية فوفا + بوابة النوايا + الجسر
+│  ├─ prompt_vault.py workshop.py retail.py proactive.py ha.py prayer.py
 │  ├─ bot.py web.py
 │  ├─ templates/ base.html index.html providers.html workshop.html vault.html
 │  └─ static/style.css
-└─ scripts/start_node.py  scripts/health_sync.py   (+ run.bat, install_services.ps1)
+└─ scripts/start_node.py  scripts/health_sync.py  scripts/dsh_bridge.py
 ```
 
 ## 12. Deployment & Migration Plan
 
-- **P0 (منجز في هذا التسليم)**: المخطط كامل + العقدة الواحدة تعمل (ويب/بوت/HA/استباقية) + صفحة المزودين + موديول الورشة والفولت.
-- **P1 (تجربة المالك)**: تشغيل على السيرفس برو أولًا؛ اعتماد المزودين بمفاتيح حقيقية من صفحة `/providers`؛ إضافة مشروعين حقيقيين ورصدهم.
+- **P0 (منجز)**: المخطط كامل + العقدة الواحدة تعمل (ويب/بوت/HA/استباقية) + صفحة المزودين + موديول الورشة والفولت.
+- **P0.5 (منجز 2026-10-19 — «أفكاري»)**: فصل المحادثة عن الالتقاط (بوابة النوايا) + شخصية فوفا + ذاكرة محادثة + إصلاح المزود السحابي الجذري + كاش/أداء + جسر DSH الموحد + واجهة RTL محدّثة + حراسة المفاتيح الأجنبية. تفاصيل §14.
+- **P1 (تجربة المالك)**: اعتماد المزودين بمفاتيح حقيقية من صفحة `/providers`؛ إضافة مشروعين حقيقيين ورصدهم.
+- **P1.5 (نشر اللابتوب — أمر المالك)**: «حدّث النوت ع الاب توب» — سحبة `git pull` واحدة تكفي (كل ملفات المشروع متتبّعة) + `migrate.py --check` + التأكد من `AI_VAULT_MASTER_KEY` نسخة واحدة. الدليل الكامل: **`DEPLOY_LAPTOP.md`**. التحقق = ظهور صف `LAPTOP` في `nodes` بـ`age < 20s`.
 - **P2 (عقدتان + Retail)**: تشغيل على جهاز الورشة + ضبط `NB2_POS_DB_PATH` → سحب اللقطات من هناك؛ اختبار قتل القائد والتقاط القيادة؛ تفعيل تفريغ الصوت (Whisper محلي على جهاز الورشة).
 - **P3 (cutover v1)**: تحويل الخدمات المجدولة إلى v2، إيقاف جسر v1 أو إبقاء @Marwty_bot كقناة احتياطية، أرشفة notebook.db بعد تصدير/ترحيل النوتات المفتوحة (سكربت ترحيل بسيط: SQLite → PG).
 - **P4 (توسّع)**: أوتوميشن الوكلاء عبر CrewAI داخل المعمل يبلّغ تقاريره مباشرة إلى `/api/agents/report`؛ WebApp تليجرام مصغّر للواجهة؛ مزامنة انتقالية عند غياب الإنترنت (outbox محلي).
@@ -225,3 +229,105 @@ projects/notebook-v2/
 3. **urllib بدل python-telegram-bot** — عقل v1: صفر تبعيات تشغيلية للبوت؛ القوائم والردود المرقمة تُبنى يدويًا (تم في `nb/bot.py`).
 4. **Fernet بدل نص صريح** — توازن أمان/بساطة بمكتبة واحدة `cryptography` موجودة في requirements.
 5. **vector(1536)** — الأبعاد الأشهر لمزودي embeddings؛ عمود واحد + `embed_model` اسم يسمح بالترحيل لاحقًا (إعادة تضمين دفعة عند تغيير الموديل).
+
+---
+
+## 14. ترقية «أفكاري» (2026-10-19) — فصل المحادثة عن الالتقاط
+
+> **السبب:** باج حي مكتشف في الإنتاج. صف في `captures` نصه **«هاي»** بـ`kind=note`.
+> البوت كان بيحوّل **كل** رسالة واردة لمهمة/نوت، لأن `_handle_command` ترجّع `None`
+> لما مفيش أمر مطابق، و`_handle_message` بتكمل على طول لـ`ai_router.route()` + `db.add_capture()`.
+> وكل الصفوف الأربعة الحيّة كانت `routed_by=rules` — يعني الطبقة السحابية **عمرها ما نجحت**.
+
+### 14.1 الأسماء
+
+| البُعد | القيمة |
+|---|---|
+| اسم النظام | **أفكاري (Afkary)** |
+| اللقب/النداء | **فوفا (Fofa)** · «يا أفكار» |
+| المصدر | `settings.persona_name` + `settings.persona_nick` |
+
+### 14.2 طبقات المعالجة (بعد الترقية)
+
+```
+رسالة واردة (نص/صوت)
+        │
+        ▼
+  ┌───────────────┐   command   ┌──────────────────────────┐
+  │ أمر مباشر؟     │────────────▶│ /المهام، /اليوم … بلا   │
+  │ (_handle_cmd) │             │ أي صف في القاعدة         │
+  └───────┬───────┘             └──────────────────────────┘
+          │ لا
+          ▼
+  ┌───────────────────────────────────────────────┐
+  │  بوابة النوايا — nb/intent.py::gate()          │
+  │  (المزود السحابي المُعدّ هو الحاكم)             │
+  │   ▸ chat    → رد ودود من فوفا — **صفر صف**    │
+  │   ▸ capture → ai_router.route() + add_capture │
+  │   ▸ command → تنفيذ                           │
+  └───────┬───────────────────────────────────────┘
+          │ (سقوط آمن: أي شك أو فشل ⇒ chat)
+          ▼
+    ┌─────────────────────┐
+    │  ذاكرة المحادثة      │  conversations
+    │  آخر 12 رسالة        │  (chat_id, role, content, meta)
+    └─────────────────────┘
+```
+
+**مبدأ التصميم الحاكم:** بوابة النوايا **تفشل في اتجاه `chat`** — يعني لو حصل أي
+شك أو خطأ، البوت يرد ويتكلم ومش يسجّل. التسجيل لازم يبقى **قرار واعي**، مش السلوك
+الافتراضي لما مفيش حاجة مطابقة. عكس ده هو اللي أنتج صف «هاي».
+
+### 14.3 السبب الجذري لعطل المزود السحابي (مقيس، مكرر 4/4)
+
+الموديل الافتراضي `DeepSeek-V4-Flash-0731` **موديل تفكير (reasoning)**. مع
+`max_tokens=200` (اللي `cloud_refine` كانت بتبعته بالظبط) الموديل يستهلك الـ200
+توكن كلها جوه `reasoning_content` ويرجّع `content` **فاضي** و`finish_reason="length"`.
+فـ`providers.chat` بترمي `ProviderError("رد بلا محتوى")`، و`cloud_refine` كانت
+**بتبتلع الاستثناء** وتكتب سطر مبهم من غير نص الرسالة ولا اسم الموديل.
+النتيجة: الطبقة السحابية كانت ساقطة **بصمت تام** من أول يوم.
+
+| الشكل | النتيجة | الزمن |
+|---|---|---|
+| `max_tokens=200` (الأصلي) | ❌ content=0، `finish_reason=length` | 3.7ث |
+| **`reasoning_effort: "none"`** | ✅ **content سليم** | **1.1ث** |
+| `thinking: {"type":"disabled"}` | ✅ content سليم | 3.9ث |
+| `max_tokens≥700` | ✅ متكرر وثابت | 1.3ث ثم 0.3ث |
+| `enable_thinking=false` | ✅ لكن بطيء | 10.2ث |
+
+**القرار المعماري:** `reasoning_effort: "none"` لكل مهمة تصنيفية + سقف
+`max_tokens ≥ 700` كشبكة أمان + إعادة محاولة عند `content` فاضي أو
+`finish_reason=length` (مش عند `HTTP 400` بس) + تسجيل `finish_reason` وعدد
+توكنات الإكمال في اللوج عشان السبب يبان لو رجع تاني.
+
+### 14.4 الأداء — سبب البطء الحقيقي
+
+`db.stats()` كانت **6.5 ثانية**. السبب **مش** بطء الـpooler: السبب **التكرار** —
+10 استعلامات COUNT، **كل واحدة بفتح اتصال `psycopg2` جديد** على Supavisor
+السحابي (~0.6ث للاتصال). و`web.py::index()` بتضيف ~8 استعلامات كمان.
+ورحلة واحدة `route("هاي")` كانت **16.9 ثانية** (منها ~5ث نداء سحابي فاشل).
+
+**العلاج:** استعلام واحد / CTE واحد للوحة القيادة + كاش داخلي TTL 45ث
+(`nb/cache.py`) + إعادة استخدام اتصال thread-local.
+
+### 14.5 مصدر الحقيقة الواحد — الجسر الموحد
+
+البوت والواجهة وجلسة الـDSH **كلهم على نفس الجداول الحيّة** (`captures`,
+`projects`, `vault_prompts`, `ws_jobs`). الوصول الموحّد عبر `nb/bridge.py`،
+وسطح CLI للـDSH في `scripts/dsh_bridge.py`:
+
+```powershell
+python scripts\dsh_bridge.py list --json      # نفس صفوف البوت بالظبط
+python scripts\dsh_bridge.py add "..." --json
+python scripts\dsh_bridge.py chat "هاي"       # بوابة النوايا بترد «chat»
+```
+
+**لا مصدر موازي** — ده نفس مبدأ الميثاق الموحد (`AGENT.md` §3).
+
+### 14.6 العقدتان بعد الترقية
+
+اللابتوب بياخد الترقية بـ**سحبة git واحدة** (كل ملفات `notebook-v2/` متتبّعة).
+التفاصيل في **`DEPLOY_LAPTOP.md`**.
+
+> `AI_VAULT_MASTER_KEY` **لازم تكون نسخة واحدة على الجهازين** — لو اختلفت، الجهاز
+> التاني يفشل يفك تشفير مفاتيح المزودين ويرجع للقواعد المحلية **بصمت**.
