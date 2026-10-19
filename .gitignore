@@ -87,3 +87,7 @@ Thumbs.db
 desktop.ini
 # Aider session artifacts (مؤقتة - لا تُرفع)
 .aider*
+
+# ---------- LEAD/VISION SCRATCH (اختبارات مؤقّتة — مرجع تشخيص، لا تُرفع) ----------
+Vision-Lab/projects/notebook-v2/tmp_lead/
+Vision-Lab/tmp_vision/
