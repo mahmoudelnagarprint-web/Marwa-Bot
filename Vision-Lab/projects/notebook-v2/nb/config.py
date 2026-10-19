@@ -107,21 +107,31 @@ RECONNECT_RETRIES = get_int("NB2_DB_RETRIES", 1)
 
 
 def log(message: str) -> None:
-    """تسجيل موحد: كونسول UTF-8 + ملف logs/notebook_v2.log — بنفس عرف v1."""
+    """تسجيل موحد: كونسول + ملف logs/notebook_v2.log — بنفس عرف v1.
+
+    **اللوج على `stderr` مش `stdout`** — وده مقصود ومهم:
+    أي أداة سطر أوامر عندها عرف واحد: **البيانات على `stdout`، واللوجات
+    على `stderr`**. لو `log()` كتبت على `stdout`، أي عميل آلي بيقرا مخرَج
+    الأداة بـ`json.loads` بيفشل لأن سطر لوج بيتلخبط مع الـJSON — وده حصل
+    فعلًا مع `scripts/dsh_bridge.py` في أوامر `add`/`chat`. الصف كان
+    بيتكتب صح؛ المخرَج بس اللي كان ملوّث. الفصل هنا بيصلّح **كل** الأدوات
+    مرة واحدة (البريدج و`migrate.py` و`health_sync.py`) مش البريدج بس.
+    """
     from datetime import datetime
     line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [{NODE_ID}] {message}"
     try:
         import sys
+        stream = sys.stderr
         try:
-            print(line, flush=True)
+            print(line, file=stream, flush=True)
         except UnicodeEncodeError:
             # كونسول ويندوز الافتراضي (cp1252) مش بيفهم العربي. قبل كده كان
             # الاستثناء بيتلقط **بصمت** فسطور الإقلاع العربية كانت بتضيع من
             # الكونسول تمامًا (الملف كان بيتكتب عادي لأنه UTF-8). هنا بنطبع
             # تمثيلًا آمنًا بدل ما نضيّع السطر — طباعة بس، مفيش تحويل للملف.
-            enc = getattr(sys.stdout, "encoding", None) or "ascii"
+            enc = getattr(stream, "encoding", None) or "ascii"
             print(line.encode(enc, "backslashreplace").decode(enc, "replace"),
-                  flush=True)
+                  file=stream, flush=True)
     except Exception:
         pass
     try:

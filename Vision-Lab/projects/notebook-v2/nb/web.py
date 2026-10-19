@@ -52,18 +52,73 @@ def _token_ok() -> bool:
     return bool(config.NB2_INGEST_TOKEN and request.headers.get("X-NB2-Token") == config.NB2_INGEST_TOKEN)
 
 
-@app.context_processor
-def _inject_globals() -> Dict[str, Any]:
-    try:
+# عمر كاش شارة العقدة بالثواني. قصير عن قصد: الشارة بتقول مين القائد،
+# والإيجار 45s، فسكوت 5 ثواني مقبول تمامًا مقابل 420ms في كل صفحة.
+_NODE_BADGE_TTL = 5
+
+
+def _node_badge() -> Dict[str, Any]:
+    """شارة العقدة — مقيسة: `ha.status()` بتكلّف **~420ms** كل نداء.
+
+    السبب إنها بتنادي `ha.status()` جوّه context processor، يعني بتتنفّذ مع
+    **كل** رندر — بما فيه الرندرات الداخلية — فالـ420ms دي كانت بتتحمّل على
+    كل صفحة في الموقع مهما كانت خفيفة. `db.dashboard()` نفسها بقت 1.5ms
+    ساخن، فالمكسب الأكبر المتبقي كان هنا.
+
+    بنخزّنها 5 ثواني بس (الإيجار 45s، فالشارة مش هتكدب أكتر من لمسة عين)،
+    وبنرجع للنداء المباشر لو الكاش نفسه وقع. **`/health` و`/api/ha/status`
+    مابيستخدموش الدالة دي** — دول تشخيص، ولازم يفضلوا حيّين بالظبط: لو
+    كاشناهم، فحص القيادة هيقرا قيمة قديمة.
+    """
+    def build() -> Dict[str, Any]:
         st = ha.status()
-        node = {"id": st["node_id"], "device": st["device_name"], "leader": st["i_am_leader"]}
-    except Exception:
-        node = {"id": config.NODE_ID, "device": config.DEVICE_NAME, "leader": False}
+        return {"id": st["node_id"], "device": st["device_name"],
+                "leader": st["i_am_leader"]}
+
+    try:
+        node = cache.get_or_set("badge:node", _NODE_BADGE_TTL, build)
+    except Exception as exc:
+        config.log(f"badge cache error: {type(exc).__name__}: {exc}")
+        try:
+            node = build()
+        except Exception:
+            node = {"id": config.NODE_ID, "device": config.DEVICE_NAME, "leader": False}
     return {
         "node_badge": f"{node['device']} ({node['id']}) — " + ("⚡ قائد" if node["leader"] else "🛡️ غطاء"),
         "kind_labels": ai_router.KIND_LABELS,
         "priority_labels": ai_router.PRIORITY_LABELS,
     }
+
+
+@app.context_processor
+def _inject_globals() -> Dict[str, Any]:
+    return _node_badge()
+
+
+# حد اللوحة نفسه المستخدم في `db._dashboard_build` و`db.list_captures`
+_DASH_LIMIT = 150
+
+
+def _dash_open(dash: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """صفوف اللوحة **لو كانت بالظبط** هي المفتوحة — ساعتها بلا رحلة إضافية.
+
+    الشرط لازم يتحقق بالكامل، وإلا بنرجع `None` والراوت يستعلم عادي:
+
+    * مفيش قص: العدد أقل من حد اللوحة (لو = الحد يبقى ممكن مقطوع).
+    * كل صف حالته `open` **بالحرف** (مش `IS DISTINCT FROM 'done'`).
+    * عدّاد `stats['open']` يساوي نفس العدد — يعني مفيش صف مفتوح سقط
+      بره اللوحة.
+
+    التلاتة مع بعض معناها إن اللوحة شايلة كل المفتوحة بالترتيب نفسه
+    (`COALESCE(due_at, created_at) ASC, id DESC` في الاتنين) فمفيش فرق
+    بينها وبين `db.list_captures(status='open', limit=150)`.
+    """
+    rows = dash.get("captures") or []
+    openn = (dash.get("stats") or {}).get("open")
+    if (isinstance(openn, int) and len(rows) == openn and len(rows) < _DASH_LIMIT
+            and all((r or {}).get("status") == "open" for r in rows)):
+        return rows
+    return None
 
 
 # ------------------------------------------------------------------ pages
@@ -75,22 +130,26 @@ def index():
     على الـpooler) = **16.2 ثانية** على السيرفر الحيّ. بعد: `db.dashboard()`
     — رحلة واحدة، و**سخن 0.0ms**.
 
-    التصفية (`kind`/`status`/`q`): مفتاح الكاش `dash:{ttl}` **بلا فلتر**،
-    فالقائمة المفلترة بتتجاب باستعلام واحد بمفردها — عشان مينفعش نقدّم
-    بيانات غير مفلترة كأنها مفلترة. باقي المفاتيح (الإحصاءات/المستحق/المتأخر/
-    المشاريع/الحركات/الورشة/المحل) مش بتتأثر بالفلتر أصلًا.
+    القائمة: مفتاح الكاش `dash:{ttl}` **بلا فلتر**، فمينفعش نقدّم بيانات
+    غير مفلترة كأنها مفلترة. الحالتين الآمنتين بس هما اللي بيستخدموا
+    اللوحة: `status=all` بلا فلتر (نفس الاستعلام بالحرف)، و`status=open`
+    لما `_dash_open` تثبت إن اللوحة هي المفتوحة بالظبط. أي تصفية تانية
+    (`kind`/`q`/حالة مختلفة) → استعلام واحد بمفرده.
     """
     dash = db.dashboard()
     stats = dash.get("stats") or {}
     kind = request.args.get("kind") or None
     status = request.args.get("status") or "open"
     q = request.args.get("q") or None
-    if status == "all" and not kind and not q:
-        # نفس استعلام اللوحة بالحرف (نفس الترتيب ونفس الحد) → بلا رحلة إضافية
+
+    captures: List[Dict[str, Any]]
+    if kind or q or status not in ("open", "all"):
+        captures = db.list_captures(status=None if status == "all" else status,
+                                    kind=kind, search=q, limit=_DASH_LIMIT)
+    elif status == "all":
         captures = dash.get("captures") or []
-    else:
-        captures = db.list_captures(status=status if status != "all" else None,
-                                    kind=kind, search=q, limit=150)
+    else:                                    # status == 'open' — نفس الحد والترتيب
+        captures = _dash_open(dash) or db.list_captures(status="open", limit=_DASH_LIMIT)
     return render_template(
         "index.html",
         stats=stats, captures=captures,

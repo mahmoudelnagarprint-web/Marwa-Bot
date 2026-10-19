@@ -68,6 +68,20 @@ def _owner_chat(chat_id: Optional[int]) -> int:
     return int(chat_id or config.OWNER_TELEGRAM_ID or 0)
 
 
+def _exists(cid: int) -> bool:
+    """هل الصف موجود فعلًا قبل أي فعل؟
+
+    ليه: `db.set_capture_status` و`snooze_capture` بيسجّلوا حدث في
+    `capture_events` بعد التحديث — فلو المعرف مش موجود، الـFK بيرمي
+    `ForeignKeyViolation` بدل ما يرجّعوا «مفيش حاجة اتغيرت». الفحص
+    (قراءة بس) بيخلّي الجسر يرد بصدق وأدب بدل traceback على معرف غلط.
+    """
+    try:
+        return bool(db.scalar("SELECT 1 FROM captures WHERE id=%s", (int(cid),)))
+    except Exception:                                     # noqa: BLE001
+        return True                                       # مانمنعش المحاولة لو الفحص نفسه وقع
+
+
 # ------------------------------------------------------------------ reads
 def list_captures(status: str = "open", kind: Optional[str] = None,
                   search: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
@@ -162,6 +176,9 @@ def chat(text: str, chat_id: Optional[int] = None,
 
 # ------------------------------------------------------------------ actions
 def done(cid: int) -> Dict[str, Any]:
+    if not _exists(cid):
+        return {"ok": False, "id": int(cid), "action": "done", "changed": False,
+                "error": "مفيش نوتة بالمعرف ده"}
     changed = bool(db.set_capture_status(int(cid), "done"))
     _bust()
     return {"ok": True, "id": int(cid), "action": "done", "changed": changed}
@@ -175,6 +192,9 @@ def reopen(cid: int) -> Dict[str, Any]:
 
 
 def snooze(cid: int, minutes: int = 60) -> Dict[str, Any]:
+    if not _exists(cid):
+        return {"ok": False, "id": int(cid), "action": "snooze", "value": int(minutes),
+                "changed": False, "error": "مفيش نوتة بالمعرف ده"}
     changed = bool(db.snooze_capture(int(cid), int(minutes)))
     _bust()
     return {"ok": True, "id": int(cid), "action": "snooze",
@@ -185,6 +205,9 @@ def category(cid: int, name: str) -> Dict[str, Any]:
     name = (name or "").strip()
     if not name:
         return {"ok": False, "error": "لازم اسم تصنيف", "id": int(cid)}
+    if not _exists(cid):
+        return {"ok": False, "id": int(cid), "action": "category", "value": name,
+                "changed": False, "error": "مفيش نوتة بالمعرف ده"}
     changed = db.x("""UPDATE captures SET category=%s, needs_clarification=FALSE,
                       question=NULL, updated_at=now() WHERE id=%s""",
                    (name, int(cid))) > 0
