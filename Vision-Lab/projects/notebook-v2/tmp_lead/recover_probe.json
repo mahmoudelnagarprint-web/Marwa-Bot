@@ -1,0 +1,72 @@
+{
+ "captures_now": [
+  {
+   "id": 2,
+   "kind": "task",
+   "title": "فكرنى اعمل موامنه الساعه 1 ص",
+   "status": "open",
+   "source": "telegram",
+   "created_at": "2026-10-18 21:25:05.399590+00:00"
+  },
+  {
+   "id": 3,
+   "kind": "reminder",
+   "title": "لا حطها فى ملف باسم فكرنى",
+   "status": "open",
+   "source": "telegram",
+   "created_at": "2026-10-18 21:25:39.799902+00:00"
+  }
+ ],
+ "max_id": 3,
+ "events_err": "UndefinedColumn: column \"kind\" does not exist\nLINE 1: SELECT id,capture_id,kind,created_at FROM capture_events ORD...\n                             ^\nHINT:  Perhaps you meant to reference the column \"capture_events.id\".\n",
+ "tables": [
+  "agent_reports",
+  "ai_config",
+  "ai_models",
+  "ai_providers",
+  "applied_ops",
+  "bot_state",
+  "capture_events",
+  "captures",
+  "clients",
+  "commands",
+  "conversations",
+  "cron_runs",
+  "home_items",
+  "home_lists",
+  "leader_lease",
+  "nodes",
+  "order_items",
+  "orders",
+  "outbox",
+  "pomodoros",
+  "product_recipes",
+  "products",
+  "project_log",
+  "projects",
+  "raw_materials",
+  "retail_inventory",
+  "retail_snapshots",
+  "schema_migrations",
+  "settings",
+  "sync_events",
+  "sync_log",
+  "sync_state",
+  "system_brain_sync",
+  "transactions",
+  "vault_prompts",
+  "ws_customers",
+  "ws_job_events",
+  "ws_job_materials",
+  "ws_jobs",
+  "ws_material_logs",
+  "ws_materials"
+ ],
+ "counts": {
+  "outbox": 4,
+  "cloud_sync_queue": "مش موجود",
+  "system_command": "مش موجود",
+  "sqlite_mirror": "مش موجود",
+  "captures_archive": "مش موجود"
+ }
+}

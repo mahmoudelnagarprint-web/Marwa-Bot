@@ -1,0 +1,197 @@
+{
+ "G:\\ai\\Naggar Print POS Agent\\notebook\\data\\notebook.db": {
+  "has_captures": false,
+  "tables": [
+   "categories",
+   "sqlite_sequence",
+   "notes",
+   "events"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\notebook_2026-10-18_0517.db": {
+  "has_captures": false,
+  "tables": [
+   "categories",
+   "sqlite_sequence",
+   "notes",
+   "events"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\notebook_2026-10-18_0600.db": {
+  "has_captures": false,
+  "tables": [
+   "categories",
+   "sqlite_sequence",
+   "notes",
+   "events"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\pos_data_2026-10-10_1106.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\pos_data_2026-10-10_1128.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\pos_data_2026-10-10_1248.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\pos_data_2026-10-11_0600.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\pos_data_2026-10-18_0517.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\pos_data_2026-10-18_0600.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\backup\\stale_isolated_2026-10-18\\pos_data.db": {
+  "has_captures": false,
+  "tables": [
+   "clients",
+   "products",
+   "orders",
+   "order_items",
+   "transactions",
+   "raw_materials",
+   "product_recipes",
+   "daily_shifts",
+   "settings",
+   "inventory_counts",
+   "sqlite_sequence"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\_sandbox_pos_writer\\pos_data.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ },
+ "G:\\ai\\Naggar Print POS Agent\\_sandbox_pos_writer\\pulse_sandbox.db": {
+  "has_captures": false,
+  "tables": [
+   "settings",
+   "clients",
+   "sqlite_sequence",
+   "products",
+   "orders",
+   "transactions",
+   "order_items",
+   "purchase_invoices",
+   "purchase_items",
+   "file_movement_logs",
+   "categories",
+   "staff",
+   "attendance",
+   "payroll_transactions"
+  ]
+ }
+}

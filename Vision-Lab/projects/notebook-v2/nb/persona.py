@@ -53,11 +53,33 @@ def local_reply(text: str) -> str:
     """رد محلي قصير بلا شبكة — للتحيات والشكر والوداع."""
     from nb import ai_router
     n = ai_router.normalize(text)
-    hour = __import__("datetime").datetime.now().hour
-    if any(w in n for w in (ai_router.normalize(x) for x in THANKS_WORDS)):
+    # مطابقة على **الكلمات** مش على أي جزء من النص: «السلام عليكم» فيها «سلام»،
+    # وكانت بتتصنّف وداع فترد «مستنياك ترجع» على تحية. وكمان الترتيب: التحية
+    # الصريحة قبل الوداع، لأن «السلام عليكم [..] ازيك» تحية مركّبة.
+    toks = [t for t in __import__("re").split(r"[^\w\u0600-\u06FF]+", n) if t]
+    tset = set(toks)
+
+    def _hit(words) -> bool:
+        for w in words:
+            wn = ai_router.normalize(w)
+            if not wn:
+                continue
+            if " " in wn:                     # عبارة: لازم تبدأ ببها
+                if n.startswith(wn):
+                    return True
+            elif wn in tset:                  # كلمة: مطابقة كاملة
+                return True
+        return False
+
+    if _hit(THANKS_WORDS):
         return "العفو يا أفكار 💙 تحت أمرك على طول."
-    if any(w in n for w in (ai_router.normalize(x) for x in FAREWELL_WORDS)):
+    # الترتيب زي الأصل: شكر ← وداع ← تحية على الساعة. «تصبح على خير» في قايمة
+    # التحية و«تصبح» في قايمة الوداع، والصح إنها وداع — فلو قدّمنا التحية كانت
+    # هترد «صباح الخير» على «تصبح على خير». والمطابقة بالكلمات خلاص حلّت
+    # «السلام عليكم» (جواها «سلام») بلا أي حاجة لإعادة الترتيب.
+    if _hit(FAREWELL_WORDS):
         return "سلام يا أفكار 👋 مستنياك ترجع."
+    hour = __import__("datetime").datetime.now().hour
     if hour < 12:
         return "صباح الخير يا أفكار ☀️ إيه أخبارك النهاردة؟"
     if hour < 18:
@@ -69,6 +91,57 @@ def unavailable_reply() -> str:
     """رد صادق لما المزود السحابي يفشل — صوت فوفا، مش رسالة خطأ تقنية."""
     return ("أنا سامعاك يا أفكار، بس دماغي السحابية مش متاحة دلوقتي 🤍\n"
             "ابعت النص تاني وأنا أحفظه، أو اكتب «حالة» تشوف الوضع.")
+
+
+# كلمات بسيطة بتتخلط بالتحية وبتحافظ عليها «كلام صافي»:
+# «صباح الخير يا أفكار» أو «ازيك يا محمود» تفضل تحية عادية.
+_SMALL_TALK_EXTRA = ("يا", "افكار", "محمود", "فوفا", "ازيك", "عامل", "عامله",
+                     "ايه", "اخبارك", "النهارده", "كويس", "كويسه", "الحمد", "لله",
+                     "خير", "صباح", "مساء", "الفل", "بخير", "تمام", "زي", "العفو",
+                     "شكرا", "على", "من", "في", "و", "مسائك", "صباحك")
+
+
+def _is_small_talk(text: str) -> bool:
+    """تحية/شكر/وداع **صافية** — بلا أي import من `intent` (حلقة دائرية).
+
+    `intent.py` بيعمل `from nb import persona`، فاستيراد `intent` هنا هيلف
+    على نفسه. عشان كده الفحص هنا بالقوائم المحلية بتاعة الملف ده (سطور 45–49)
+    بدل ما نستدعي `intent.looks_like_greeting`.
+
+    الفحص **صارم عن قصد**: كل كلمة في النص لازم تكون من مفردات التحية أو من
+    الحشو المسموح. مفيش أي مطابقة جزئية (substring) بتعدّي لوحدها — لأن
+    «هي» جزء من كلمات كتير في العربي، ومن غير الشرط ده «اقترح أفكار للورشة»
+    كانت هتعدّي كتحية.
+    """
+    import re as _re
+    from nb import ai_router
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    # علامة استفهام = سؤال حقيقي، والسؤال محتاج إجابة مش ترحيب جاهز
+    if "؟" in raw or "?" in raw:
+        return False
+    n = ai_router.normalize(raw)
+    if not n or len(n) > 40:
+        return False
+    phrases = [ai_router.normalize(w) for w in
+               (GREETING_WORDS + THANKS_WORDS + FAREWELL_WORDS)]
+    # المفردات: العبارة كاملة + كل كلمة جوّاها («صباح الخير» = صباح + الخير)،
+    # لأن التقسيم بيشتغل على الكلمات مش على العبارات.
+    vocab: set = set()
+    for p in phrases:
+        vocab.add(p)
+        vocab.update(t for t in _re.split(r"\s+", p) if t)
+    vocab.update(ai_router.normalize(w) for w in _SMALL_TALK_EXTRA)
+    vocab.discard("")
+    tokens = [t for t in _re.split(r"[^\w\u0600-\u06FF]+", n) if t]
+    if not tokens:
+        return False
+    # لازم **تبدأ** بعبارة تحية/شكر/وداع: كلمة «هي» موجودة في القائمة لكن
+    # «هي الورشة خلصت الشغلانة» جملة عادية، والشرط ده هو اللي بيفرّق.
+    if not any(n == p or n.startswith(p + " ") for p in phrases if p):
+        return False
+    return all(t in vocab for t in tokens)
 
 
 # ------------------------------------------------------------------ ذاكرة المحادثة
@@ -201,6 +274,15 @@ def reply(text: str, chat_id: Optional[int] = None, history_limit: int = 12,
         meta["fallback"] = False
         return answer, meta
     except Exception as exc:
-        config.log(f"persona: الرد السحابي فشل — رد محلي "
+        config.log(f"persona: الرد السحابي فشل — "
                    f"[{type(exc).__name__}: {str(exc)[:220]}]")
-        return local_reply(text), {"fallback": True, "error": f"{type(exc).__name__}: {str(exc)[:220]}"}
+        # `local_reply` بتختار على **الساعة بس** — تصلح للتحيات/الشكر/الوداع
+        # فقط. لو المالك سأل سؤالًا حقيقيًا وقت انقطاع، «صباح الخير إيه أخبارك
+        # النهاردة؟» بتبان إنه مش سامع، مش إن السحابة واقعة. فبنرد الرد الصادق.
+        try:
+            small_talk = _is_small_talk(text)
+        except Exception:
+            small_talk = True  # أسوأ حالة: رد محلي مهذّب بدل نص صريح
+        body = local_reply(text) if small_talk else unavailable_reply()
+        return body, {"fallback": True, "small_talk": small_talk,
+                      "error": f"{type(exc).__name__}: {str(exc)[:220]}"}

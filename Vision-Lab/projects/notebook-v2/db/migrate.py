@@ -61,6 +61,13 @@ def _statements(sql_text: str):
       • تعليقات `--` و`/* … */` المتداخلة.
     النص **ما بيتشالش** من الجملة المنفذة — التعليقات بتتشال من **العنوان
     المعروض** بس، فمفيش أي احتمال نحذف محتوى حقيقي بالغلط.
+
+    ملاحظة مهمة (مقيسة، مش مفترضة): السكيمة الحالية `schema_pgvector.sql`
+    فيها **صفر** `$$` · **صفر** كتل `DO` · **صفر** دوال · **صفر** فاصلة
+    منقوطة داخل نص · **صفر** تعليقات كتلية — فالمقسّم الساذج القديم كان
+    بيطلع **نفس الـ52 جملة** بالظبط. يعني الفايدة هنا **مستقبلية ودفاعية**:
+    أول ما يُضاف تريجر أو دالة أو نص فيه `;` المقسّم القديم كان هيكسر
+    بصمت، والجديد بيمنع ده من أصله. مش إصلاح لعطل حاضر.
     """
     stmts: List[str] = []
     buf: List[str] = []
@@ -245,11 +252,33 @@ def apply() -> int:
         conn.close()
 
 
+def _emit_schema() -> None:
+    """يطبع السكيمة خام **بايت-بايت** بغضّ النظر عن ترميز الكونسول.
+
+    ليه من `print`: السكيمة فيها تعليقات عربية كتير، وأي طباعة بتمر على
+    ترميز الكونسول (cp1252 على ويندوز) بترمي `UnicodeEncodeError`. ولأن
+    الغرض من `--print` هو اللصق في Supabase SQL Editor، لازم المخرج يطلع
+    **UTF-8 سليم بالكامل** — فبنكتب في `stdout.buffer` مباشرة، وبنلفّ
+    stdout نفسه لـUTF-8 كاحتياط لو الـbuffer مش متاح.
+    """
+    data = SCHEMA_FILE.read_bytes()
+    buf = getattr(sys.stdout, "buffer", None)
+    if buf is not None:
+        buf.write(data)
+        buf.flush()
+        return
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        pass
+    sys.stdout.write(data.decode("utf-8"))
+    sys.stdout.flush()
+
+
 def main(argv=None) -> int:
     args = set(sys.argv[1:] if argv is None else argv)
     if "--print" in args:
-        # نطبع خام بلا أي تحويل — محتوى السكيمة لازم يوصل بايت-بايت
-        sys.stdout.write(SCHEMA_FILE.read_text(encoding="utf-8"))
+        _emit_schema()
         return 0
     if "--check" in args:
         return check()
