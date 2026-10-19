@@ -686,6 +686,105 @@ def A16_no_plaintext_key(live: bool) -> Result:
                   f"· {len(provs)} مزود بمفتاح مُشفَّر سليم")
 
 
+def A17_gate_all_doors(live: bool) -> Result:
+    """**كل** أبواب الكتابة بتعدّي بوابة النوايا — مش البوت بس.
+
+    العطل اللي وُلد منه البند (اتلقى بالمراجعة، مش بالمصنع): باب الويب
+    `/api/capture` كان بينادي `ai_router.route` **مباشرة** وبيحفظ «هاي»
+    كنوت — يعني نفس عيب E3/A1 رجع من باب تاني، و`A1` ما شافوش لأنه
+    بيقيس `intent.gate` مش الباب. حزمة القبول كانت **عمياء** عن الباب ده.
+
+    القاعدة اللي البند بيحميها: **مصدر حقيقة واحد**. أي باب (بوت/ويب/جسر)
+    لازم يعدّي على نفس البوابة، وإلا يبقى عندنا سلوكين لنفس الرسالة حسب
+    الباب — وده بالظبط اللي الترقية بتشيله.
+
+    القياس **بلا أي كتابة على القاعدة**: بنستبدل `db.add_capture` بـspy
+    وبنعدّ النداءات. صفر نداء =. صفر صف. فالبند آمن بلا `--live`.
+    """
+    res = Result("A17", "بوابة النوايا على كل الأبواب")
+    bot, err = load("nb.bot")
+    if bot is None:
+        return res.skip(f"nb/bot.py مش متاح ({err})")
+
+    process_text = getattr(bot, "process_text", None)
+    if not callable(process_text):
+        fx = getattr(bot, "_handle_message", None)
+        if not callable(fx):
+            return res.skip("مفيش process_text ولا _handle_message — "
+                            "مش قادرين نقيس البوابة")
+        process_text = fx
+
+    db, _ = load("nb.db")
+    if db is None:
+        return res.skip("nb.db مش متاح — مقدرناش نحرس التسجيل")
+
+    # ---- spy: بنعدّ أي محاولة تسجيل بدل ما نكتب فعلاً
+    calls: List[str] = []
+    real_add = getattr(db, "add_capture", None)
+    if not callable(real_add):
+        return res.skip("db.add_capture مش موجود — مش قادرين نحرس التسجيل")
+
+    def spy_add(text, *a, **kw):
+        calls.append(str(text))
+        return 999999  # id وهمي — مفيش كتابة
+
+    # بنحرّس المصدرين مع بعض: add_capture مباشرة، وأي مسار جوة bot بيستعمل db
+    guarded, restore = [], []
+    for mod, attr in ((db, "add_capture"), (bot, "db")):
+        if mod is None or not hasattr(mod, attr):
+            continue
+        if attr == "db":  # bot.db ممكن يكون نفس الوحدة
+            continue
+        restore.append((mod, attr, getattr(mod, attr)))
+        setattr(mod, attr, spy_add)
+        guarded.append(f"{getattr(mod, '__name__', '?')}.{attr}")
+
+    # كمان لو bot بيستورد add_capture بالاسم
+    if hasattr(bot, "add_capture"):
+        restore.append((bot, "add_capture", getattr(bot, "add_capture")))
+        setattr(bot, "add_capture", spy_add)
+        guarded.append("nb.bot.add_capture")
+
+    if not guarded:
+        return res.skip("مش لاقيين نقطة حراسة للتسجيل (add_capture)")
+
+    chat_id = int(os.environ.get("NB2_TEST_CHAT", "561770354"))
+    cases = [
+        ("هاي", "chat"),
+        ("صباح الخير", "chat"),
+        ("ايه اخبار الشغل النهاردة؟", "chat"),
+    ]
+    outcomes: List[str] = []
+    bad_cases: List[str] = []
+    try:
+        for text, want in cases:
+            calls.clear()
+            try:
+                got = process_text(text, chat_id=chat_id, source="test")
+            except TypeError:
+                got = process_text(text, chat_id=chat_id)
+            except Exception as exc:  # noqa: BLE001
+                return res.bad(f"«{text}» وقعت: {type(exc).__name__}: {exc}")
+            intent_val = None
+            if isinstance(got, dict):
+                intent_val = got.get("intent")
+            saved = len(calls) > 0
+            outcomes.append(f"{jdump(text)}→intent={intent_val or '?'}"
+                            f"{'/سجّل!' if saved else '/نضيف'}")
+            if want == "chat" and saved:
+                bad_cases.append(f"«{text}» عدّى وسجّل {len(calls)} صف — البوابة اتخطّت")
+    finally:
+        for mod, attr, old in restore:
+            setattr(mod, attr, old)
+
+    if bad_cases:
+        return res.bad("كلام اتسجّل كنوت من باب المفروض يرفضه · "
+                       + " · ".join(bad_cases))
+
+    return res.ok(f"{len(cases)} رسالة كلام مرّت على البوابة و**صفر تسجيل** "
+                  f"· محروس: {'+'.join(guarded)} · {' · '.join(outcomes)}")
+
+
 def A11_tokenizer(live: bool) -> Result:
     """مقسّم `db/migrate.py` مطابق لمقسّم مستقل + صامد لحالات عدائية.
 
@@ -730,7 +829,8 @@ def A11_tokenizer(live: bool) -> Result:
 
 
 # ============================================================ السجل
-CHECKS: List[Tuple[str, str, Callable[[bool], Result]]] = [    ("A1", "«هاي» متتحفظش",             A1_hai_not_saved),
+CHECKS: List[Tuple[str, str, Callable[[bool], Result]]] = [
+    ("A1", "«هاي» متتحفظش",             A1_hai_not_saved),
     ("A2", "الالتقاط شغال",               A2_capture_saved),
     ("A3", "db.stats() < 1.5s",          A3_stats_perf),
     ("A4", "اللوحة < 1.0s (سخن)",        A4_dashboard_perf),
@@ -742,6 +842,7 @@ CHECKS: List[Tuple[str, str, Callable[[bool], Result]]] = [    ("A1", "«هاي�
     ("A10", "السكيمة والمفاتيح الأجنبية", A10_schema),
     ("A11", "مقسّم SQL واعي (52 جملة)",   A11_tokenizer),
     ("A16", "مفيش مفتاح صريح (E8)",       A16_no_plaintext_key),
+    ("A17", "البوابة على كل الأبواب",     A17_gate_all_doors),
 ]
 
 

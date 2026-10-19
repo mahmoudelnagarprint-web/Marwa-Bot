@@ -236,14 +236,48 @@ def setwhen(cid: int):
 # ------------------------------------------------------------------ capture API
 @app.route("/api/capture", methods=["POST"])
 def api_capture():
+    """**اسم بديل (alias) لـ`/api/chat` — مش مسار تاني.**
+
+    كان فيه هنا عيب حقيقي اتقاس: الراوت ده كان بينادي `ai_router.route`
+    **مباشرة** و`db.add_capture`، يعني **بوابة النوايا (`intent.gate`) كانت
+    بتتعدّى بالكامل من باب الويب**. النتيجة: «هاي» و«ايه اخبار الشغل؟»
+    كانوا بيتحفظوا نوتات من صندوق الويب، بينما `/api/chat` بيرفضهم صح —
+    يعني نفس الرسالة كان ليها سلوكين حسب الباب. ده هو عيب E3/A1 راجع من
+    باب تاني، وبيكسر قاعدة «المصدر الواحد» اللي المالك طلبها صراحةً:
+    **رسالة → بوابة النوايا تقرر: كلام = رد بلا صف، أمر/فكرة/تذكير = صف.**
+
+    فالمسار ده بقى بيمر من `bot.process_text` **نفسه** بالحرف (صفر منطق
+    هنا، صفر فلترة محلية، ومناداة واحدة زي `/api/chat` وزي التليجرام
+    والبريدج). سايبينه موجود للتوافق مع أي عميل قديم بينده عليه.
+
+    مفاتيح الرد: `id` و`message` متسايبين بنفس أسماء زمان عشان العملاء
+    القديمة تفضل شغالة، وزيادة عليهم مفاتيح البوابة (`intent`/`reply`/
+    `note_id`/`saved`). **`note` (تحليل النوايا الخام) اتشال عن قصد**: مفيش
+    تحليل بيرجع من البوابة لما تكون كلام، وأي بديل كنت هألفه هيبقى كذب.
+    """
+    from nb import bot
+
     data = request.get_json(silent=True) or {}
-    text = data.get("text") or request.form.get("text") or ""
+    text = (data.get("text") or request.form.get("text") or "").strip()
+    if not text:
+        return _err("ابعت نص في text", 400)
+
+    raw_chat = data.get("chat_id")
+    try:
+        chat_id = (int(raw_chat) if raw_chat not in (None, "")
+                   else int(config.OWNER_TELEGRAM_ID or 0))
+    except (TypeError, ValueError):
+        chat_id = int(config.OWNER_TELEGRAM_ID or 0)
+
     source = data.get("source") or "api"
-    analysis = ai_router.route(text, source=source)
-    if not analysis.get("ok"):
-        return _err(analysis.get("error") or "نص غير صالح")
-    cid = db.add_capture(analysis)
-    return _ok(id=cid, note=analysis, message=ai_router.confirm_message(analysis, cid))
+    res = bot.process_text(text, chat_id=chat_id, source=source)
+    if not res.get("ok"):
+        return _err(res.get("error") or "نص غير صالح", 400)
+    return _ok(**{**res,
+                  "id": res.get("note_id"),
+                  "message": res.get("reply"),
+                  "saved": bool(res.get("note_id")),
+                  "source": source})
 
 
 @app.route("/api/notes")

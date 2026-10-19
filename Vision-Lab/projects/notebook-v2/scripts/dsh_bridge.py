@@ -31,8 +31,6 @@ from typing import Any, Dict, List, Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from nb import bridge  # noqa: E402
-
 
 def _stdout_utf8() -> None:
     """كونسول ويندوز (cp1252) بيرمي `UnicodeEncodeError` على العربي.
@@ -47,9 +45,25 @@ def _stdout_utf8() -> None:
             pass
 
 
-# الـstdout الحقيقي، بيتحفظ في `main` قبل ما نحوّل الباقي لـstderr.
+def _split_streams() -> None:
+    """يحفظ `stdout` الحقيقي ويسيب `sys.stdout` = stderr.
+
+    **قبل أي استيراد من `nb`** عن قصد، عشان `config.log` (اللي بيكتب على
+    `sys.stdout`) ميعملش ضجيج لو حصل لوج وقت الاستيراد نفسه — مش بس وقت
+    تنفيذ الأمر. العقد مع العميل الآلي: `stdout` = JSON وبس.
+    """
+    global _OUT
+    _stdout_utf8()
+    _OUT = sys.stdout
+    sys.stdout = sys.stderr
+
+
+# الـstdout الحقيقي، بيتحفظ في `_split_streams` **قبل** الاستيراد.
 # `None` = لسه مااتحفظش (يعني `_emit` اتنادى من بره `main`، زي اختبار).
 _OUT = None
+_split_streams()
+
+from nb import bridge  # noqa: E402
 
 
 def _emit(data: Any, as_json: bool = True, human: Optional[str] = None) -> None:
@@ -58,8 +72,7 @@ def _emit(data: Any, as_json: bool = True, human: Optional[str] = None) -> None:
     العقد مع العميل الآلي: `stdout` = JSON وبس. أي سطر لوج بيتخلط معاه
     بيكسّر `json.loads` عند العميل (وده اتقاس فعليًا: `config.log` بيكتب
     على stdout). فبنكتب على الستريم الحقيقي المحفوظ، وبنسيب `sys.stdout`
-    متحوّل لـstderr جوّه `main` — يعني حتى لو مكتبة تانية طلعت لوج، مش
-    هيلخبط المخرَج.
+    متحوّل لـstderr — يعني حتى لو مكتبة تانية طلعت لوج، مش هيلخبط المخرَج.
     """
     stream = _OUT if _OUT is not None else sys.stdout
     if as_json:
@@ -235,13 +248,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    global _OUT
-    _stdout_utf8()
-    _OUT = sys.stdout                       # نحفظه قبل التحويل
-    # كل لوج (من `config.log` أو غيره) لازم يروح stderr — العقد بيقول
-    # stdout = JSON وبس. الاستيراد فوق بيحصل قبل ده، فبنحرّك الستريم هنا
-    # كمان عشان أي استيراد جوّه الأمر يطلع على stderr برضه.
-    sys.stdout = sys.stderr
     args = build_parser().parse_args(argv)
     try:
         return int(args.func(args))

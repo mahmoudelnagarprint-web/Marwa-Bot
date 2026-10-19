@@ -3470,6 +3470,23 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-19T02:54:59.834469+00:00",
+      "agent_id": "cfo",
+      "input_text": "الخزينة والديون",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة",
+        "ديون"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [

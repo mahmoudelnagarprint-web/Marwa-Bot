@@ -50,10 +50,10 @@
 </div>
 
 <div class="card">
-  <h2>✍️ اكتب نوت / مهمة / احتياج ورشة / قائمة بيت</h2>
-  <textarea id="capture-text" rows="2" placeholder="مثال: فكرني بكرة الساعة 5 أسلّم طلب جهاد&#10;مثال: لازم خامات ليزر MDF #ورشة&#10;مثال: اشتري من السوق خبز ولبن #بيت"></textarea>
+  <h2>✍️ اكتب مهمة أو اسأل فوفا…</h2>
+  <textarea id="capture-text" rows="2" placeholder="مثال: فكرني بكرة الساعة 5 أسلّم طلب جهاد&#10;مثال: لازم خامات ليزر MDF #ورشة&#10;مثال: اشتري من السوق خبز ولبن #بيت&#10;أو اسأل بحرية: ايه أخبار الشغل النهاردة؟"></textarea>
   <div class="row" style="margin-top:8px">
-    <button class="btn" onclick="capture()">سجّل الآن</button>
+    <button class="btn" onclick="capture()">ابعت لفوفا</button>
     <span class="hint">التصنيف آلي (قواعد + سحابة إن توفرت) — بلا إنترنت يعمل أيضًا</span>
   </div>
   <div id="result"></div>
@@ -155,27 +155,44 @@
 </div>
 
 <script>
+// بنهرب أي نص جاي من السيرفر قبل ما نحطه في innerHTML. رد فوفا ممكن يجي من
+// موديل سحابي، و`<` في نص حر = صفحة مكسورة أو أسوأ. العرض بالـtextContent
+// لكل جزء بدل تركيب HTML من نص خارجي.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function show(cls, text) {
+  document.getElementById('result').innerHTML =
+    '<div class="' + cls + '">' + esc(text).replace(/\n/g, '<br>') + '</div>';
+}
+
+// صندوق واحد: بيمر على `/api/chat` = نفس بوابة النوايا بتاعة التليجرام
+// والبريدج. فوفا تقرر: كلام = رد بلا صف، مهمة/فكرة/تذكير = صف + تأكيد.
+// مفيش فلترة محلية هنا عن قصد — البوابة واحدة، ومناداة واحدة.
 async function capture() {
   const box = document.getElementById('capture-text');
-  const out = document.getElementById('result');
   const text = (box.value || '').trim();
-  if (!text) { out.innerHTML = '<div class="err-box">اكتب حاجة الأول 🙂</div>'; return; }
-  out.innerHTML = '<div class="hint">بفهم وأصنّف...</div>';
+  if (!text) { show('err-box', 'اكتب حاجة الأول 🙂'); return; }
+  show('hint', 'بفهم…');
   try {
-    const r = await fetch('/api/capture', {
+    const r = await fetch('/api/chat', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: text, source: 'ui'})
+      body: JSON.stringify({text: text})
     });
     const d = await r.json();
-    if (d.ok) {
-      out.innerHTML = '<div class="ok-box">' + (d.message || '').replace(/\n/g, '<br>') + '</div>';
-      box.value = '';
-      setTimeout(() => location.reload(), 1600);
-    } else {
-      out.innerHTML = '<div class="err-box">' + (d.error || 'مشكلة') + '</div>';
-    }
+    if (!d.ok) { show('err-box', d.error || 'مشكلة'); return; }
+    const saved = d.note_id != null;
+    // اللوحة بتبقى متكاشفة 45 ثانية، وقاعدة البيانات بتنضّف الكاش جوّه
+    // `db.add_capture` — بس الصفحة نفسها محتاجة تحديث عشان الصف يظهر في
+    // القائمة، فبنعيد التحميل بس لما يكون فيه صف اتكتب فعلًا. في حالة
+    // الكلام مفيش حاجة اتغيرت، فمفيش داعي نرجّع الصفحة من الأول.
+    show('ok-box', d.reply || (saved ? 'اتحفظت ✅' : 'تمام'));
+    box.value = '';
+    if (saved) setTimeout(() => location.reload(), 1600);
   } catch (e) {
-    out.innerHTML = '<div class="err-box">فشل الاتصال: ' + e + '</div>';
+    show('err-box', 'فشل الاتصال: ' + e);
   }
 }
 document.addEventListener('keydown', (e) => {
