@@ -191,9 +191,10 @@ def A2_capture_saved(live: bool) -> Result:
     if db is None:
         return res.skip("nb.db مش متاح")
     text = "فكرني بكرة الساعة 5 أسلم الطلب"
+    chat = int(os.environ.get("NB2_TEST_CHAT", "561770354"))
     try:
         before = int(db.scalar("SELECT count(*) FROM captures") or 0)
-        result = intent.gate(text, chat_id=int(os.environ.get("NB2_TEST_CHAT", "561770354")))
+        result = intent.gate(text, chat_id=chat)
     except Exception as exc:  # noqa: BLE001
         res.error = traceback.format_exc(limit=3)
         return res.bad(f"النداء وقع: {type(exc).__name__}: {exc}")
@@ -202,29 +203,52 @@ def A2_capture_saved(live: bool) -> Result:
         return res.bad(f"gate() رجّعت {type(result).__name__} مش dict")
     if result.get("intent") != "capture":
         return res.bad(f"النية={result.get('intent')} — المفروض capture")
+
+    # التدفق الحقيقي (bot.py:_handle_message): البوابة بتصنّف، والكتابة في
+    # db.add_capture(verdict["analysis"]) — البوابة نفسها مش بتكتب، وده صح
+    # (تصنيف منفصل عن تنفيذ). فبنحاكي خطوة التنفيذ بنفس اللي البوت بيعمله.
+    analysis = result.get("analysis") or {}
+    if not analysis.get("title") and not analysis.get("body"):
+        return res.bad("النية capture بس التحليل فاضي — مش هيتكتب صف")
+    try:
+        cid = db.add_capture(analysis)
+    except Exception as exc:  # noqa: BLE001
+        res.error = traceback.format_exc(limit=3)
+        return res.bad(f"الكتابة وقعت: {type(exc).__name__}: {exc}")
+
     after = int(db.scalar("SELECT count(*) FROM captures") or 0)
     if after <= before:
-        return res.bad("النية capture بس مفيش صف اتكتب — التنفيذ مش مكتمل")
+        return res.bad("add_capture اتنادى بس مفيش صف اتكتب")
 
     # نتحقق من الصف نفسه وننضّفه
+    # ملاحظة: عمود النص اسمه title/body مش text، وقبول الفشل الصامت كان بيخلي
+    # العيب يبان كأنه «kind=None» — فبنبلّغ عن خطأ القراءة صراحةً مش نسيبه.
+    row, read_err = None, None
     try:
-        row = db.q("SELECT id, kind, due_at, text FROM captures ORDER BY id DESC LIMIT 1",
-                   one=True)
-    except Exception:  # noqa: BLE001
-        row = None
+        row = db.q("SELECT id, kind, due_at, remind_at, title, body FROM captures WHERE id=%s",
+                   (cid,), one=True)
+    except Exception as exc:  # noqa: BLE001
+        read_err = f"{type(exc).__name__}: {exc}"
     kind = (row or {}).get("kind")
     due = (row or {}).get("due_at")
+    title = (row or {}).get("title") or ""
     try:
-        db.x("DELETE FROM captures WHERE id=%s", ((row or {}).get("id"),))
+        db.x("DELETE FROM captures WHERE id=%s", (cid,))
         cleaned = " (اتنضّف)"
     except Exception:  # noqa: BLE001
         cleaned = " (⚠ صف الاختبار اتساب — امسحه يدويًا)"
 
-    if kind != "task":
-        return res.bad(f"kind={kind} (المطلوب task) · due={jdump(str(due))}{cleaned}")
+    if read_err:
+        return res.bad(f"الصف اتكتب (id={cid}) بس قراءته وقعت: {read_err}{cleaned}")
+    # «فكرني بكرة…» = تذكير؛ الموديل بيرجّع task أو reminder وكلاهما مقبول
+    # (الاتنين مسموحين في قيد captures، والتمييز بينهم اجتهاد دلالي مش عطل).
+    if kind not in ("task", "reminder"):
+        return res.bad(f"kind={kind} (المطلوب task أو reminder) · due={jdump(str(due))}{cleaned}")
     if not due:
-        return res.bad(f"kind=task بس due_at فاضي{cleaned}")
-    return res.ok(f"kind=task · due={jdump(str(due)[:19])}{cleaned}")
+        return res.bad(f"kind={kind} بس due_at فاضي{cleaned}")
+    if not title.strip():
+        return res.bad(f"kind={kind} بس title فاضي{cleaned}")
+    return res.ok(f"kind={kind} · due={jdump(str(due)[:19])} · title={jdump(title[:30])}{cleaned}")
 
 
 def A3_stats_perf(live: bool) -> Result:

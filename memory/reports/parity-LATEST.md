@@ -1,10 +1,10 @@
-# تقرير التطابق — 2026-10-19 03:26:05
+# تقرير التطابق — 2026-10-19 04:26:35
 
 - ✅ clients: مطابق
-- ❌ products: count={'local': 105, 'cloud': 108, 'delta': 3}
+- ❌ products: count={'local': 105, 'cloud': 107, 'delta': 2}
 - ✅ orders: مطابق
 - ✅ order_items: مطابق
-- ❌ transactions: count={'local': 45, 'cloud': 99, 'delta': 54}; sum_amount={'local': 20875.0, 'cloud': 37538.5, 'delta': 16663.5}
+- ❌ transactions: count={'local': 45, 'cloud': 48, 'delta': 3}; sum_amount={'local': 20875.0, 'cloud': 22305, 'delta': 1430.0}
 
 ## ملخص الأرقام
 - clients: {"count": 56, "sum_balance": 790.0} (local)

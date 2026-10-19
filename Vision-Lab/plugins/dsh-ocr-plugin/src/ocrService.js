@@ -23,13 +23,11 @@ let ocrWorker = null;
 async function initializeWorker(lang = 'ara+eng', cachePath = './assets/tessdata') {
   if (!ocrWorker) {
     try {
-      ocrWorker = new Tesseract.Worker(lang, {
+      ocrWorker = await Tesseract.createWorker(lang, {
         cachePath: cachePath,
-        // Tesseract 5+ supports worker init without immediately loading languages
-        // We'll load languages as needed
+        // Tesseract 5+ supports worker init with cachePath for offline language data
+        // Languages will be loaded from the local tessdata directory
       });
-      await ocrWorker.init();
-      await ocrWorker.setParameters({ tessedit_char_whitelist: '' });
       console.log(`[OCR Service] Worker initialized with languages: ${lang}, cachePath: ${cachePath}`);
     } catch (error) {
       throw new Error(`Failed to initialize Tesseract worker: ${error.message}`);
@@ -43,10 +41,9 @@ async function initializeWorker(lang = 'ara+eng', cachePath = './assets/tessdata
  * @param {Buffer} imageBuffer - Processed image buffer
  * @param {Object} [options] - Recognition options
  * @param {string} [options.lang='ara+eng'] - Language codes (default: Arabic + English)
- * @param {boolean} [options.enhance=true] - Whether preprocessing was already applied
  * @returns {Promise<Object>} - Recognition results with text, confidence, and lines
  */
-export async function recognize(imageBuffer, { lang = 'ara+eng', enhance = true } = {}) {
+export async function recognize(imageBuffer, { lang = 'ara+eng' } = {}) {
   if (!imageBuffer || imageBuffer.length === 0) {
     throw new Error('Invalid image buffer: empty or null buffer provided');
   }
@@ -55,17 +52,16 @@ export async function recognize(imageBuffer, { lang = 'ara+eng', enhance = true 
   const worker = await initializeWorker(lang);
 
   try {
-    // Create a temporary file for Tesseract to process
-    // Tesseract.js can work with base64 data URLs or file paths
+    // Create a data URL from the buffer for Tesseract to process
     const base64 = imageBuffer.toString('base64');
     const dataURL = `data:image/png;base64,${base64}`;
     
     // Perform OCR recognition
     const result = await worker.recognize(dataURL);
     
-    // Extract confidence score (average of all recognitions)
+    // Extract confidence score (0-100 scale)
     const confidence = result.confidence !== undefined 
-      ? Math.round(result.confidence) 
+      ? Math.round(result.confidence * 100) / 100  // Normalize to 0-100 if needed
       : 0;
     
     // Extract text, trimming whitespace

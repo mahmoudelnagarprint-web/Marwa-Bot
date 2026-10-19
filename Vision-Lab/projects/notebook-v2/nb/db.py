@@ -321,6 +321,137 @@ def clear_messages(chat_id: int) -> int:
 
 
 # ============================================================ لوحة القيادة
+# كل أعمدة التاريخ/الوقت في المخطط العام (28 عمودًا) — بتستخدمها `_rehydrate`
+# عشان ترجّع `datetime` مكان النص بعد دمج اللوحة في JSONB واحد.
+_TS_FIELDS = frozenset({
+    "acked_at", "acquired_at", "added_at", "applied_at", "at", "captured_at",
+    "closed_at", "created_at", "date", "delivered_at", "discovered_at",
+    "done_at", "due_at", "due_date", "ends_at", "expires_at", "last_activity_at",
+    "last_check_at", "last_seen", "last_sync", "last_used_at", "received_at",
+    "remind_at", "run_date", "sent_at", "started_at", "updated_at", "used_at",
+})
+# أعمدة من نوع `date` (مش timestamptz) — ترجع `date` مش `datetime`
+_DATE_FIELDS = frozenset({"due_date", "run_date", "date"})
+
+
+def _rehydrate(obj: Any) -> Any:
+    """يرجّع `datetime` مكان النص للتواريخ المعروفة — في أي شكل متداخل.
+
+    ليه ده إلزامي: استعلام اللوحة المدموج بيرجّع `timestamptz` جوّه JSONB
+    **كنص ISO**. من غير الخطوة دي، شكل الإرجاع يتغيّر من `datetime` لـ`str`
+    والقوالب (`{{ n.due_at }}`) تعرض صيغة مختلفة — يعني «مقايضة» مش تحسين.
+    بعد `_rehydrate` الأنواع **مطابقة للأصل بالحرف**: `datetime` زي الأول،
+    فمفيش قالب يتكسر ومفيش مقايضة أصلًا.
+
+    ملاحظة أنواع: عمودان في المخطط من نوع `date` مش `timestamptz`
+    (`due_date`, `run_date`) — بنرجّعهم `date` مش `datetime` عشان النوع ما
+    يتغيّرش لو ظهروا في أي استعلام مستقبلي. (مفيش تقاطع أسماء: التحقق
+    طلع `ambiguous_name_columns = []`، فمحكومين بجدولهم.)
+
+    كمان بنشيل أي مفتاح مبدوء بـ`__` (زي `__o` اللي بيحكم ترتيب `jsonb_agg`).
+    """
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if isinstance(k, str) and k.startswith("__"):
+                continue
+            if k in _TS_FIELDS and isinstance(v, str):
+                out[k] = date.fromisoformat(v) if k in _DATE_FIELDS \
+                    else datetime.fromisoformat(v)
+            else:
+                out[k] = _rehydrate(v)
+        return out
+    if isinstance(obj, list):
+        return [_rehydrate(v) for v in obj]
+    return obj
+
+
+# استعلام اللوحة المدموج: **رحلة شبكة واحدة** بدل 9.
+# كل جزء محافظ على نفس ترتيب الاستعلام الأصلي بالحرف، والترتيب مضمون صراحة
+# بـ`jsonb_agg(... ORDER BY t.__o)` — مش معتمد على «الترتيب بيحصل بالغلط».
+_DASH_AGG = """COALESCE(jsonb_agg(to_jsonb(t) - '__o' ORDER BY t.__o), '[]'::jsonb)"""
+
+
+def _dashboard_db_bundle(status: Optional[str], kind: Optional[str],
+                         search: Optional[str], limit: int) -> Dict[str, Any]:
+    """مفاتيح اللوحة الجاية من القاعدة — في **جملة واحدة**.
+
+    6 أجزاء (stats/captures/due/late/need_help/projects/events) في رحلة
+    واحدة. كل جملة كانت ~220ms شبكة، فدمجهم بينزّل البارد من ~3.2s
+    لـ~0.5s. وفي حالة أي استثناء بنرجع للمسار القديم (استدعاءات منفصلة)
+    عشان اللوحة ما تقعش — الأرقام الصح أهم من السرعة.
+    """
+    where, cparams = "WHERE 1=1", []
+    if status:
+        where += " AND status = %s"
+        cparams.append(status)
+    if kind:
+        where += " AND kind = %s"
+        cparams.append(kind)
+    if search:
+        where += " AND (title ILIKE %s OR body ILIKE %s)"
+        cparams += [f"%{search}%", f"%{search}%"]
+    cparams.append(int(limit))
+
+    sql = f"""
+    SELECT jsonb_build_object(
+      'stats', (SELECT jsonb_build_object(
+          'open',           (SELECT COUNT(*) FROM captures WHERE status='open'),
+          'done',           (SELECT COUNT(*) FROM captures WHERE status='done'),
+          'tasks',          (SELECT COUNT(*) FROM captures WHERE status='open' AND kind='task'),
+          'ideas',          (SELECT COUNT(*) FROM captures WHERE kind IN ('idea','program_idea')
+                                                              AND status!='archived'),
+          'overdue',        (SELECT COUNT(*) FROM captures WHERE status='open' AND due_at < now()),
+          'due_today',      (SELECT COUNT(*) FROM captures WHERE status='open' AND due_at::date = %s),
+          'need_help',      (SELECT COUNT(*) FROM captures WHERE status='open' AND needs_clarification),
+          'projects_active',(SELECT COUNT(*) FROM projects WHERE status='active'),
+          'ws_open_jobs',   (SELECT COUNT(*) FROM ws_jobs WHERE status NOT IN ('delivered','cancelled')),
+          'vault_prompts',  (SELECT COUNT(*) FROM vault_prompts))),
+      'captures', (SELECT {_DASH_AGG} FROM (
+          SELECT c.*, row_number() OVER (ORDER BY COALESCE(c.due_at, c.created_at) ASC, c.id DESC) AS __o
+          FROM captures c {where} LIMIT %s) t),
+      'due', (SELECT {_DASH_AGG} FROM (
+          SELECT c.*, row_number() OVER (ORDER BY c.remind_at ASC) AS __o
+          FROM captures c WHERE c.status='open' AND c.remind_at IS NOT NULL
+            AND c.remind_at <= now() LIMIT 20) t),
+      'late', (SELECT {_DASH_AGG} FROM (
+          SELECT c.*, row_number() OVER (ORDER BY c.due_at ASC) AS __o
+          FROM captures c WHERE c.status='open' AND c.due_at IS NOT NULL
+            AND c.due_at < now() LIMIT 20) t),
+      'need_help', (SELECT {_DASH_AGG} FROM (
+          SELECT c.*, row_number() OVER (ORDER BY COALESCE(c.due_at, c.created_at) ASC, c.id DESC) AS __o
+          FROM captures c WHERE c.status='open' AND c.needs_clarification LIMIT 15) t),
+      'projects', (SELECT {_DASH_AGG} FROM (
+          SELECT p.*, (p.last_activity_at < now() - make_interval(days => p.stagnant_after_days)) AS stagnant,
+                 row_number() OVER (ORDER BY (p.last_activity_at < now() - make_interval(days => p.stagnant_after_days)) DESC NULLS LAST, p.id DESC) AS __o
+          FROM projects p WHERE p.status='active' LIMIT 10) t),
+      'events', (SELECT {_DASH_AGG} FROM (
+          SELECT e.capture_id, e.at, e.type, e.detail,
+                 row_number() OVER (ORDER BY e.id DESC) AS __o
+          FROM capture_events e LIMIT 15) t)
+    ) AS payload"""
+    row = q(sql, [now_local_date()] + cparams, one=True)
+    return _rehydrate(row["payload"]) if row and row.get("payload") else {}
+
+
+def _dashboard_db_bundle_slow(status: Optional[str], kind: Optional[str],
+                              search: Optional[str], limit: int) -> Dict[str, Any]:
+    """المسار القديم (استدعاءات منفصلة) — احتياطي لو الدمج فشل."""
+    return {
+        "stats": stats(),
+        "captures": list_captures(status=status if status != "all" else None,
+                                  kind=kind, search=search, limit=limit),
+        "due": due_reminders(),
+        "late": overdue_captures(),
+        "need_help": q("""SELECT * FROM captures
+                          WHERE status='open' AND needs_clarification
+                          ORDER BY COALESCE(due_at, created_at) ASC, id DESC LIMIT 15"""),
+        "projects": q("""SELECT *, (last_activity_at < now() - make_interval(days => stagnant_after_days)) AS stagnant
+                         FROM projects WHERE status='active' ORDER BY stagnant DESC, id DESC LIMIT 10"""),
+        "events": q("SELECT capture_id, at, type, detail FROM capture_events ORDER BY id DESC LIMIT 15"),
+    }
+
+
 def _dashboard_build(status: Optional[str] = None, kind: Optional[str] = None,
                      search: Optional[str] = None, limit: int = 150) -> Dict[str, Any]:
     """يبني كل مفاتيح اللوحة — `web.py` بينده ده مباشرة عبر `dashboard()`.
@@ -331,18 +462,21 @@ def _dashboard_build(status: Optional[str] = None, kind: Optional[str] = None,
     """
     from nb import retail, workshop          # استيراد داخلي: يمنع دورة استيراد
 
-    stats_v = stats()
-    captures = list_captures(status=status if status != "all" else None,
-                             kind=kind, search=search, limit=limit)
-    due = due_reminders()
-    late = overdue_captures()
-    need_help = q("""SELECT * FROM captures
-                     WHERE status='open' AND needs_clarification
-                     ORDER BY COALESCE(due_at, created_at) ASC, id DESC LIMIT 15""")
-    projects = q("""SELECT *, (last_activity_at < now() - make_interval(days => stagnant_after_days)) AS stagnant
-                    FROM projects WHERE status='active' ORDER BY stagnant DESC, id DESC LIMIT 10""")
+    try:
+        bundle = _dashboard_db_bundle(status, kind, search, limit)
+        if not bundle or "stats" not in bundle:
+            raise DBError("دفعة اللوحة رجعت فاضية")
+    except Exception:
+        bundle = _dashboard_db_bundle_slow(status, kind, search, limit)
+
+    stats_v = bundle.get("stats") or {}
+    captures = bundle.get("captures") or []
+    due = bundle.get("due") or []
+    late = bundle.get("late") or []
+    need_help = bundle.get("need_help") or []
+    projects = bundle.get("projects") or []
     radar = [p for p in projects if p.get("stagnant")]
-    events = q("SELECT capture_id, at, type, detail FROM capture_events ORDER BY id DESC LIMIT 15")
+    events = bundle.get("events") or []
 
     out: Dict[str, Any] = {
         "stats": stats_v, "captures": captures, "due": due, "late": late,

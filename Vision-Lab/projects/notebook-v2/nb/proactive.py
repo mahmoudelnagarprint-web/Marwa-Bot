@@ -6,32 +6,128 @@
 """
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from nb import config, db, prayer, retail, squad
 
+KbSpec = List[List[Tuple[str, str]]]
+
+
+# ------------------------------------------------------------------ الكيبوردات
+# المصدر الوحيد للحقيقة للكيبوردات: البوت (الرسائل الفورية) والصندوق
+# (الرسائل الاستباقية) الاتنين بياخدوا من هنا — عشان مايحصلش تباعد بين
+# اللي المستخدم شايفه لحظيًا واللي بيوصل له بعدين.
+def capture_kb(note_id: int) -> KbSpec:
+    """أزرار النوت/المهمة — نفس الخمسة اللي البوت بيبعتها فورًا (A7)."""
+    return [
+        [("✅ تم", f"cap:done:{note_id}"), ("⏰ أجّل ساعة", f"cap:snooze:{note_id}")],
+        [("📅 الميعاد", f"cap:due:{note_id}"), ("🗂️ صنّف", f"cap:cat:{note_id}")],
+        [("🗑️ امسح", f"cap:del:{note_id}")],
+    ]
+
+
+BRIEFING_KB: KbSpec = [
+    [("📋 مهام اليوم", "brain:today"), ("⏰ المستحق", "brain:due")],
+    [("🧠 أفكاري", "brain:list")],
+]
+SQUAD_KB: KbSpec = [[("🗣️ نادِ الفريق", "brain:squad")]]
+POMODORO_KB: KbSpec = [[("🍅 جلسة 25", "brain:pomo25"), ("🍅 جلسة 50", "brain:pomo50")]]
+
+
+def keyboard_for(kind: str, note_id: Optional[int] = None,
+                 project_id: Optional[int] = None) -> Optional[KbSpec]:
+    """كيبورد مناسب لنوع الرسالة — None يعني رسالة نصية عادية."""
+    kind = (kind or "plain").strip()
+    if kind in ("reminder", "task") and note_id is not None:
+        return capture_kb(note_id)
+    if kind == "briefing":
+        return BRIEFING_KB
+    if kind == "squad":
+        return SQUAD_KB
+    if kind == "pomodoro":
+        return POMODORO_KB
+    if kind == "radar" and project_id is not None:
+        return [[("✅ خلص المشروع", f"proj:done:{project_id}")]]
+    return None
+
+
+def _decode_kb(raw: Any) -> Optional[KbSpec]:
+    """كيبورد مخزّن في jsonb → الشكل اللي `tg.send` بيقبله (list of tuples)."""
+    if not raw:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+    if not isinstance(raw, list):
+        return None
+    out: KbSpec = []
+    for row in raw:
+        if not isinstance(row, list):
+            continue
+        pairs = [(str(p[0]), str(p[1])) for p in row
+                 if isinstance(p, (list, tuple)) and len(p) >= 2]
+        if pairs:
+            out.append(pairs)
+    return out or None
+
 
 def enqueue(chat_id: int, body: str, kind: str = "plain",
-            dedupe_key: Optional[str] = None) -> bool:
+            dedupe_key: Optional[str] = None,
+            keyboard: Optional[KbSpec] = None) -> bool:
     """إضافة رسالة للصندوق — dedupe_key يمنع التكرار (تعارض = تجاهل صامت)."""
-    row = db.q("""INSERT INTO outbox(chat_id, body, kind, dedupe_key)
-                  VALUES (%s,%s,%s,%s)
+    row = db.q("""INSERT INTO outbox(chat_id, body, kind, dedupe_key, keyboard)
+                  VALUES (%s,%s,%s,%s,%s)
                   ON CONFLICT DO NOTHING RETURNING id""",
-               (chat_id, body[:4000], kind, dedupe_key), one=True)
+               (chat_id, body[:4000], kind, dedupe_key,
+                json.dumps(keyboard, ensure_ascii=False) if keyboard else None),
+               one=True)
     return bool(row)
 
 
+# الصندوق بيُنادي `sender(chat_id, body)` زي العقد. وأي sender بيقبل `kb=`
+# (زي `TelegramClient.send`) بياخد الكيبورد معاه. أول TypeError بنتعلّمه مرة
+# واحدة وبعدها بنبعت النص لوحده — بلا حلقات خطأ في السجل.
+_SENDER_TAKES_KB: Optional[bool] = None
+
+
+def _send(sender: Callable[..., bool], chat_id: int, body: str,
+          kb: Optional[KbSpec]) -> bool:
+    global _SENDER_TAKES_KB
+    if not kb:
+        return bool(sender(chat_id, body))
+    if _SENDER_TAKES_KB is False:
+        return bool(sender(chat_id, body))
+    try:
+        ok = bool(sender(chat_id, body, kb=kb))
+        _SENDER_TAKES_KB = True
+        return ok
+    except TypeError:
+        if _SENDER_TAKES_KB is None:
+            config.log("proactive: الـsender مابيقبلش kb= — الإرسال نصي من هنا "
+                       "(الرسايل الاستباقية هتوصل بلا أزرار)")
+        _SENDER_TAKES_KB = False
+        return bool(sender(chat_id, body))
+
+
 def flush(sender: Callable[[int, str], bool], limit: int = 8) -> int:
-    """إرسال الرسائل المستحقة — يرجع عدد المرسل فعليًا."""
+    """إرسال الرسائل المستحقة — يرجع عدد المرسل فعليًا.
+
+    العقد محفوظ: `sender(chat_id, body)`. لو الـsender بيقبل `kb=` بنبعت
+    الكيبورد المخزّن مع الصف من غير ما نكسر أي sender قديم.
+    """
     rows = db.q("""SELECT * FROM outbox
                    WHERE sent_at IS NULL AND due_at <= now() AND attempts < 5
                    ORDER BY id LIMIT %s""", (limit,))
     sent = 0
     for r in rows:
+        kb = _decode_kb(r.get("keyboard"))
         try:
-            ok = sender(int(r["chat_id"]), r["body"])
+            ok = _send(sender, int(r["chat_id"]), r["body"], kb)
         except Exception as exc:
             config.log(f"outbox send error #{r['id']}: {type(exc).__name__}: {exc}")
             ok = False
@@ -56,7 +152,8 @@ def process_reminders() -> int:
             lines.append(f"• الميعاد: {due_s}")
         lines.append(f"• للتنفيذ: «تم {n['id']}» — للتأجيل: «أجّل {n['id']}»")
         enqueue(config.OWNER_TELEGRAM_ID, "\n".join(lines), "reminder",
-                dedupe_key=f"rem-{n['id']}-{n['remind_at'].isoformat()}")
+                dedupe_key=f"rem-{n['id']}-{n['remind_at'].isoformat()}",
+                keyboard=capture_kb(n["id"]))
         every = n.get("remind_every") or "none"
         if every in ("daily", "weekly", "monthly"):
             step = {"daily": "1 day", "weekly": "1 week", "monthly": "30 days"}[every]
@@ -149,7 +246,7 @@ def morning_briefing_if_due() -> bool:
     if not _claim_daily("morning"):
         return False
     enqueue(config.OWNER_TELEGRAM_ID, briefing_text(), "briefing",
-            dedupe_key=f"brief-{now:%Y-%m-%d}")
+            dedupe_key=f"brief-{now:%Y-%m-%d}", keyboard=keyboard_for("briefing"))
     return True
 
 
@@ -166,7 +263,8 @@ def radar_scan_if_due() -> bool:
         enqueue(config.OWNER_TELEGRAM_ID,
                 f"⚠️ مشروع واقف: «{p['name']}» — آخر حركة من {days} يوم.\n"
                 f"لو خلص، ابعت «مشروع {p['id']} تم» — لو لسه شغال ابعت تحديث.",
-                "radar", dedupe_key=f"radar-{p['id']}-{now:%Y-%m-%d}")
+                "radar", dedupe_key=f"radar-{p['id']}-{now:%Y-%m-%d}",
+                keyboard=keyboard_for("radar", project_id=p["id"]))
     return True
 
 
@@ -193,7 +291,8 @@ def pomodoro_endings() -> int:
         enqueue(config.OWNER_TELEGRAM_ID,
                 f"⏰ انتهى البومودورو «{p['label']}» ({p['minutes']} دقيقة).\n"
                 f"🌿 خد بريك 5 دقايق — أو ابعت «بومودورو» لجلسة جديدة.",
-                "pomodoro", dedupe_key=f"pomo-end-{p['id']}")
+                "pomodoro", dedupe_key=f"pomo-end-{p['id']}",
+                keyboard=keyboard_for("pomodoro"))
         db.x("UPDATE pomodoros SET status='done' WHERE id=%s", (p["id"],))
     return len(rows)
 

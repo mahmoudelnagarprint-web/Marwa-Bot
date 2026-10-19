@@ -527,12 +527,37 @@ def _norm_set(*variants: str) -> tuple:
     return tuple(ai_router.normalize(v) for v in variants)
 
 
+# الإيموجي اللي في أزرار الكيبورد السفلي بيتشال قبل المطابقة — التليجرام
+# بيبعت نص الزر كامل بالإيموجي، فـ«📋 مهام اليوم» ما كانتش بتساوي «مهام اليوم».
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF"
+    "\U00002190-\U000021FF\U00002B00-\U00002BFF\uFE0F\u200d]+")
+
+
+def _bare(text: str) -> str:
+    """نص من غير إيموجي ومسافات زيادة — للمطابقة مع نصوص أزرار الكيبورد."""
+    return re.sub(r"\s+", " ", _EMOJI_RE.sub(" ", ai_router.normalize(text or ""))).strip()
+
+
 # ------------------------------------------------------------------ أوامر نصية
 def _handle_command(tg: TelegramClient, chat_id: int, text: str) -> Optional[str]:
     t = (text or "").strip()
     if not t:
         return "ابعتلي النص 🙂"
     low = ai_router.normalize(t)
+    bare = _bare(t)   # من غير إيموجي — عشان أزرار الكيبورد السفلي (A7)
+
+    # --- أزرار الكيبورد السفلي الأربعة: التليجرام بيبعت نص الزر كامل بالإيموجي ---
+    # من غير السطور دي، «📋 مهام اليوم» كان بيقع على النص الحر ويروح للموديل!
+    if bare in _norm_set("افكاري", "/brain", "الذاكره", "ذاكرتي"):
+        return _brain_list(), BACK
+    if bare in _norm_set("مهام اليوم", "مهام النهارده", "/today", "اليوم"):
+        return _brain_today(), BACK
+    if bare in _norm_set("الورشه", "/workshop", "شغلاناتي", "الورشه والمخزون"):
+        return _ws_list(), BACK
+    m = re.match(r"^\s*(?:بومودورو|بمو?دورو)\s*(\d{1,3})?\s*$", bare)
+    if m:
+        return _do_pomodoro(tg, chat_id, int(m.group(1)) if m.group(1) else 25), None
 
     if low in _norm_set("/start", "بداية", "ابدأ"):
         return WELCOME, MAIN_KB
