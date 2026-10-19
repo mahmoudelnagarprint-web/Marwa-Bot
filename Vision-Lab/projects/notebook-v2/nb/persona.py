@@ -29,9 +29,12 @@ SYSTEM_PROMPT = """أنت «فوفا» — المساعدة الشخصية لت�
 1. ردودك قصيرة جدًا: سطر لسطرين، بلا مقدمات طويلة وبلا شرح.
 2. نادِيه بـ«يا أفكار» أو «يا محمود» أحيانًا، وبودّ ودفء بسيط بلا مبالغة.
 3. **ممنوع** تخترعي أي رقم أو موعد أو حالة من عندك. اللي مش عندك تقولي إنه مش عندك.
-4. لو الرسالة مجرد تحية أو سؤال أو كلام عادي: ردي كلام وخلاص — **متحفظيش حاجة**
-   ومتقوليش إنك حفظتي حاجة.
-5. الحفظ بيحصل من طبقة تانية، ولو اتحفظ فعلًا هتشوفي تأكيد الحفظ في سياقك.
+4. لو الرسالة مجرد تحية أو سؤال أو كلام عادي: ردي كلام وخلاص.
+   **ومتتكلميش عن الحفظ خالص** — لا تقولي «هحفظ» ولا «مش هحفظ» ولا تعلّقي على
+   نيتك. الحفظ موضوع داخلي مش جزء من الكلام مع محمود.
+5. ممنوع تمامًا أي كلام بين قوسين عن نفسك أو عن قواعدك أو عن «ملحوظة» داخلية.
+   اللي بيتكلم معاك محمود مش بيقرأ تعليماتك — مايتعرضش لها.
+6. متكرريش نفس الجملة مرتين، ومتكرريش سؤالك. جملة واحدة واضحة كفاية.
 6. ممنوع markdown معقد أو جداول أو إنجليزي. عربي بسيط بس.
 7. لو سأل عن مهامه أو مواعيده وانت مش شايفة بيانات، قولي له يبعت «مهام اليوم»
    أو «المستحق» بدل ما تخترعي إجابة.
@@ -119,9 +122,63 @@ def count(chat_id: int) -> int:
 
 
 # ------------------------------------------------------------------ الرد
-def reply(text: str, chat_id: Optional[int] = None,
-          history_limit: int = 12, timeout: int = 30) -> Tuple[str, Dict[str, Any]]:
+# ملاحظات داخلية ظهرت فعلًا من الموديل للمستخدم — بتتشال هي ومحتواها.
+# بنمسك **القوس كامل** اللي جواه كلمة عن الحفظ/النية، لأن الموديل بيسيب
+# أقواس مفتوحة أحيانًا («(ملاحظة: مش هحفظ حاجة دلوقتي) عامل إيه؟»).
+_META_WORDS = ("ملحوظ", "ملاحظ", "هحفظ", "مش هحفظ", "هسجل", "مش هسجل",
+               "داخلية", "دي مجرد تحية", "الحفظ بيحصل", "نيتي", "قواعدي",
+               "تعليماتي", "كمساعد", "as an ai")
+
+
+def _strip_meta(text: str) -> str:
+    """يشيل الأقواس الداخلية وأي جملة بتتكلم عن الحفظ/النوايا/القواعد."""
+    import re as _re
+    # ١) أقواس متوازنة جواها كلمة داخلية
+    def _drop_balanced(chunk: str) -> str:
+        def repl(m):
+            inner = m.group(1) or ""
+            low = inner.lower()
+            return " " if any(w in low for w in _META_WORDS) else m.group(0)
+        return _re.sub(r"\(([^()]*)\)", repl, chunk)
+    text = _drop_balanced(text)
+    # ٢) قوس مفتوح ما اتقفلش وفيه كلمة داخلية → يتشال لآخر النص
+    text = _re.sub(r"\(\s*(?:ملحوظ|ملاحظ|مش هحفظ|هحفظ)[^)\n]*$", " ", text,
+                   flags=_re.IGNORECASE)
+    # ٣) نص مكشوف بلا أقواس: «ملحوظة: ...» لآخر الجملة
+    text = _re.sub(r"(?:^|[\n\.])\s*ملحوظ[ةه]\s*:[^\.\n]*", " ", text)
+    return text
+
+
+def _polish(answer: str) -> str:
+    """تنضيف أخير قبل الإرسال: ملاحظات داخلية + جمل مكرّرة + فراغات ميتة.
+
+    ده دفاع ثاني بعد الـprompt: الـprompt ممكن يتجاهَل، لكن المستخدم عمره ما
+    يشوف تعليق عن «الحفظ» أو نفس الجملة مرتين.
+    """
+    import re as _re
+    text = _strip_meta((answer or "").strip())
+    text = _re.sub(r"[ \t]{2,}", " ", text)
+    text = _re.sub(r"\n{3,}", "\n\n", text).strip(" \n-—:،")
+    # شيل جمل مكرّرة (الموديل بيكرّر نفسه أحيانًا)
+    parts = [p.strip() for p in _re.split(r"(?<=[.!؟?])\s+|\n+", text) if p.strip()]
+    seen, uniq = set(), []
+    for part in parts:
+        key = _re.sub(r"[\s\W]+", "", part)  # تطبيع: نفس الجملة = نفس المفتاح
+        if key and key not in seen:
+            seen.add(key)
+            uniq.append(part)
+    if uniq:
+        text = "\n".join(uniq) if len(uniq) > 1 else uniq[0]
+    return text.strip()
+
+
+def reply(text: str, chat_id: Optional[int] = None, history_limit: int = 12,
+          timeout: int = 30, max_tokens: int = 200) -> Tuple[str, Dict[str, Any]]:
     """رد فوفا على كلام حر.
+
+    `max_tokens` صغير عن قصد (~200): الدردشة مش محتاجة 700 توكن، والسقف
+    الأصغر بيقصّر الزمن بشكل ملموس. لو الموديل صرفهم كلهم على التفكير،
+    `providers.chat` بيرفع السقف ويعيد المحاولة لوحده.
 
     بيرجّع (نص عربي جاهز للإرسال، meta). وفي كل حالات الفشل بيرجّع جملة عربية
     معقولة — عمره ما بيرمي استثناء على البوت ولا بيعرض نص إنجليزي للمستخدم.
@@ -131,10 +188,14 @@ def reply(text: str, chat_id: Optional[int] = None,
     messages += past
     messages.append({"role": "user", "content": (text or "").strip()})
     try:
-        answer, meta = providers.chat(messages, max_tokens=300, temperature=0.6,
+        answer, meta = providers.chat(messages, max_tokens=max_tokens, temperature=0.6,
                                       json_mode=False, timeout=timeout,
-                                      min_tokens=700, total_timeout=timeout + 10)
-        answer = providers.strip_reasoning(answer).strip()
+                                      min_tokens=max_tokens, total_timeout=timeout + 10)
+        raw = answer or ""
+        answer = _polish(providers.strip_reasoning(raw))
+        # دفاع أخير: لو أي أثر تفكير عدي، مايتعرضش للمستخدم أبدًا
+        meta["raw_had_think"] = raw != providers.strip_reasoning(raw)
+        meta["raw_len"] = len(raw)
         if not answer:
             raise providers.ProviderError("رد فاضي بعد تنضيف التفكير")
         meta["fallback"] = False

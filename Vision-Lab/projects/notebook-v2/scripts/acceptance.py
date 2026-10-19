@@ -21,6 +21,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import statistics
 import sys
 import time
@@ -49,7 +50,13 @@ def out(text: str = "") -> None:
 
 
 def jdump(obj: Any) -> str:
+    """JSON ASCII-safe — للطباعة والتقارير."""
     return json.dumps(obj, ensure_ascii=True, default=str)
+
+
+def jraw(obj: Any) -> str:
+    """JSON بنص عربي حقيقي — للبحث والمطابقة، مش للطباعة."""
+    return json.dumps(obj, ensure_ascii=False, default=str)
 
 
 # ---------------------------------------------------------------- أدوات
@@ -427,7 +434,7 @@ def A7_telegram_buttons(live: bool) -> Result:
     for name, obj in bottom_names:
         if obj is None:
             continue
-        body = jdump(obj)
+        body = jraw(obj)                     # نص عربي حقيقي للبحث
         found = [label for label, alts in label_alts
                  if any(alt in body for alt in alts)]
         plain = "callback_data" not in body          # أزرار الرد = نصوص خام
@@ -445,27 +452,34 @@ def A7_telegram_buttons(live: bool) -> Result:
                        f"{', '.join(missing)} ({len(best_found)}/4)")
 
     # ---------- 2) أزرار الالتقاط ----------
+    # الشكل المعتمد: list of rows of (label, callback) tuples — وبيتحوّل
+    # لـinline_keyboard وقت الإرسال. فبندوّر على الأزواج بـcap: نفسها، مش
+    # على مفتاح callback_data اللي مش بيظهر غير عند التحويل.
     inline_names = gather("reminder_kb", "capture_kb", "task_kb", "inline")
     best_inline, best_n, best_body = None, 0, ""
     for name, obj in inline_names:
         if obj is None:
             continue
-        body = jdump(obj)
+        body = jraw(obj)
         if "cap:" not in body:
             continue
-        n = body.count("cap:")
+        pairs = len(re.findall(r'"cap:[a-z]+:', body))
+        n = pairs or body.count("cap:")
         if n > best_n:
             best_inline, best_n, best_body = name, n, body
     if best_inline is None:
         return res.bad(f"الكيبورد السفلي {len(best_found)}/4 سليم · "
                        f"بس مفيش أزرار التقاط بـcap: "
                        f"(جرّبت {jdump([n for n, _ in inline_names][:4])})")
-    if "callback_data" not in best_body:
-        return res.bad(f"{best_inline}: أزرار بلا callback_data")
+    # كل زر لازم يكون (تسمية، cap:فعل:معرّف) — نتأكد إن الأزواج مكتملة
+    if not re.search(r'"cap:[a-z]+:\d+"', best_body) and \
+       not re.search(r'"cap:[a-z]+:"', best_body):
+        return res.bad(f"{best_inline}: أزرار cap: مش بصيغة (تسمية، cap:فعل:معرّف)")
     if best_n < 5:
         return res.bad(f"{best_inline}: {best_n} أزرار — المطلوب 5")
+    actions = sorted(set(re.findall(r'cap:([a-z]+):', best_body)))
     return res.ok(f"السفلي {len(best_found)}/4 ({best_back}) · "
-                  f"الالتقاط {best_n} أزرار ({best_inline})")
+                  f"الالتقاط {best_n} أزرار ({best_inline}) · أفعال: {jdump(actions)}")
 
 
 def A8_bridge_parity(live: bool) -> Result:

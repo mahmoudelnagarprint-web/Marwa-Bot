@@ -13,6 +13,7 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
 [Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
 [Windows.Storage.StorageFile, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
+[Windows.Globalization.Language, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
 
 # await bridge for WinRT async calls from PowerShell 5.1
 $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
@@ -31,7 +32,7 @@ $stream = Await ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Wind
 $decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
 $bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
 
-$language = New-Object Windows.Globalization.Language($Lang)
+$language = [Windows.Globalization.Language]::new($Lang)
 $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($language)
 if ($null -eq $engine) { $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages() }
 if ($null -eq $engine) { Write-Error "no OCR engine available for language $Lang"; exit 3 }
@@ -40,9 +41,14 @@ $result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult]
 
 Write-Output ("=== OCR engine=" + $engine.RecognizerLanguage.LanguageTag + " size=" + $bitmap.PixelWidth + "x" + $bitmap.PixelHeight + " ===")
 foreach ($line in $result.Lines) {
-    $r = $line.Words[0].BoundingRect
-    $x = [int]$r.X
-    $y = [int]$r.Y
+    $x = -1
+    $y = -1
+    foreach ($w in $line.Words) {
+        $r = $w.BoundingRect
+        $x = [int][math]::Round([double]$r.X)
+        $y = [int][math]::Round([double]$r.Y)
+        break
+    }
     Write-Output ("[" + $x + "," + $y + "] " + $line.Text)
 }
 Write-Output ("=== end lines=" + $result.Lines.Count + " ===")

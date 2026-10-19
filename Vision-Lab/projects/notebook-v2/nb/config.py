@@ -95,6 +95,16 @@ LEASE_TTL_SECONDS = 45
 HEARTBEAT_SECONDS = 15
 ALIVE_AFTER_SECONDS = 90
 
+# ------------------------------------------------------------- الكاش (الأداء)
+# CACHE_TTL_SECONDS: عمر كاش اللوحة. DASHBOARD_TTL_SECONDS اسم مقروء لنفس الرقم
+#   (العقد بينص على dashboard(ttl=45)).
+# CACHE_ENABLED=0 أو NB2_CACHE=0: تعطيل كامل — عشان نقدر نقيس الأداء
+#   **بارد** بلا كاش ولا نقع في «نجاح كذاب» من الكاش.
+CACHE_TTL_SECONDS = get_int("NB2_CACHE_TTL", 45)
+CACHE_ENABLED = (get("NB2_CACHE", "1").strip().lower() not in ("0", "false", "no", "off"))
+DASHBOARD_TTL_SECONDS = CACHE_TTL_SECONDS
+RECONNECT_RETRIES = get_int("NB2_DB_RETRIES", 1)
+
 
 def log(message: str) -> None:
     """تسجيل موحد: كونسول UTF-8 + ملف logs/notebook_v2.log — بنفس عرف v1."""

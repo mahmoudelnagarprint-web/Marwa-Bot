@@ -64,6 +64,12 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# ---------- NODE (تبعيات بتحمّل ثاني، مش بتتخزن في git) ----------
+node_modules/
+*.tsbuildinfo
+.npm/
+
+
 # ---------- HEAVY LOCAL-ONLY TREES (نسخ اختبار وصور وأرشيفات) ----------
 _sandbox_pos_writer/
 pos_images/

@@ -1,0 +1,29 @@
+cordis.patch.yml
+name: dsh-ocr-plugin
+version: "1.0.0"
+description: DSH (Cordis-based) plugin for Optical Character Recognition (OCR) with Arabic and English support
+entryPoint: src/index.js
+tools:
+  - name: ocr_read_image
+    description: Perform OCR on an image file with optional preprocessing
+    schema:
+      type: object
+      properties:
+        file_path:
+          type: string
+          description: Absolute or relative image path
+        langs:
+          type: string
+          description: OCR language codes (default: "ara+eng")
+          default: "ara+eng"
+        enhance:
+          type: boolean
+          description: Whether to apply Sharp pre-processing
+          default: true
+    required: ["file_path"]
+    additionalProperties: false
+hostDependencies: []
+metadata:
+  author: "Automated Implementation"
+  created: "${date}"
+  tags: ["ocr", "tesseract", "sharp", "arabic", "english"]
