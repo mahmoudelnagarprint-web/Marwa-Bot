@@ -89,7 +89,12 @@ def insert_update(env: dict, payload: dict) -> tuple[bool, str]:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.status in (200, 201), "HTTP %s" % resp.status
     except urllib.error.HTTPError as exc:
-        return False, "HTTP %s: %s" % (exc.code, exc.reason)
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", "replace")[:220]
+        except OSError:
+            pass
+        return False, "HTTP %s: %s" % (exc.code, body)
     except Exception as exc:
         return False, "%s: %s" % (type(exc).__name__, str(exc)[:120])
 
@@ -155,7 +160,6 @@ def main() -> int:
                 "title": "💰 تحصيل نقدي جديد — زينب (240 ج متبقية)",
                 "body": "حركة دخل #%s بمبلغ %s ج بتاريخ %s — رصيد زينب الآن %s ج. متابعة التحصيل وإغلاق الحساب."
                 % (r["id"], r["amount"], str(r["date"])[:16], zbal),
-                "source": "proactive_alerts",
             }
             titles = recent_titles(env, "salma")
             if payload["title"] not in titles:
@@ -198,7 +202,6 @@ def main() -> int:
                 "severity": "متوسط",
                 "title": "📈 حركة دخل جديدة #%s — %s ج" % (r["id"], r["amount"]),
                 "body": "بتاريخ %s — تُحتسب ضمن نافذة أكتوبر (من 2026-10-01)." % str(r["date"])[:16],
-                "source": "proactive_alerts",
             }
             titles = recent_titles(env, "fares")
             if payload["title"] not in titles:
