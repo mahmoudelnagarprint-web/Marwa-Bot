@@ -7,7 +7,8 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, ArrowRight, FileText, Lightbulb, ListTodo, Newspaper, UserPlus, Zap } from 'lucide-react'
+import { AlertTriangle, ArrowRight, FileText, LayoutDashboard, Lightbulb, ListTodo, Newspaper, UserPlus, Zap } from 'lucide-react'
+import { SalmaDashboard } from './salma-dashboard'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
@@ -18,7 +19,7 @@ import { FaresLiveCards } from './fares-live-cards'
 import { AgentTasksPanel } from './agent-tasks-panel'
 import { AgentUpdatesList } from './agent-updates-list'
 
-type TabId = 'news' | 'reports' | 'suggestions' | 'complaints' | 'tasks'
+type TabId = 'news' | 'reports' | 'suggestions' | 'complaints' | 'tasks' | 'dashboard'
 
 const severityStyle = {
   عالي: 'border-rose-400/20 bg-rose-400/10 text-rose-300',
@@ -53,7 +54,7 @@ export function AgentRoom({
   onToggleActive: () => void
   onEscalate: (text: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>('news')
+  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' ? 'dashboard' : 'news')
   const [approved, setApproved] = useState<string[]>([])
 
   // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
@@ -61,7 +62,8 @@ export function AgentRoom({
     const q = new URLSearchParams(window.location.search).get('tab')
     if (!q) return
     if (q === 'tasks' && agent.id !== 'fares') return
-    if ((['news', 'reports', 'suggestions', 'complaints', 'tasks'] as const).includes(q as TabId)) {
+    if (q === 'dashboard' && agent.id !== 'salma') return
+    if ((['news', 'reports', 'suggestions', 'complaints', 'tasks', 'dashboard'] as const).includes(q as TabId)) {
       setTab(q as TabId)
     }
   }, [agent.id])
@@ -106,9 +108,13 @@ export function AgentRoom({
   if (agent.id === 'fares') {
     tabs.push({ id: 'tasks', label: 'المهام الجارية', icon: ListTodo, count: 0, preview: 'Supabase agent_tasks — حي' })
   }
+  // لوحة سلمى ERP — الأوبريت الأول لتطوير لوحات الوكلاء (أمر المالك 2026-10-20)
+  if (agent.id === 'salma') {
+    tabs.push({ id: 'dashboard', label: 'لوحة سلمى CRM', icon: LayoutDashboard, count: 0, preview: 'KPIs + نواقص الإنتاج + تحصيل — حي من الورشة' })
+  }
 
   const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
-  const isLiveAgent = agent.id === 'fares'
+  const isLiveAgent = agent.id === 'fares' || agent.id === 'salma'
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label={`غرفة ${agent.name}`}>
@@ -188,12 +194,12 @@ export function AgentRoom({
               role="tabpanel"
               className={cn(
                 'mt-2 overflow-y-auto rounded-xl border border-border bg-card p-3 scrollbar-thin',
-                tab === 'tasks' ? 'max-h-[420px]' : 'max-h-60',
+                tab === 'tasks' || tab === 'dashboard' ? 'max-h-[520px]' : 'max-h-60',
               )}
             >
               {tab === 'news' && (
                 <div className="flex flex-col gap-3">
-                  {isLiveAgent ? (
+                  {agent.id === 'fares' ? (
                     <FaresLiveCards />
                   ) : (
                     <p className="py-3 text-center text-xs text-muted-foreground">{EMPTY_STATE}</p>
@@ -215,6 +221,8 @@ export function AgentRoom({
               )}
 
               {tab === 'tasks' && <AgentTasksPanel agentId={agent.id} agentName={agent.name} toneDot={agent.tone.dot} />}
+
+              {tab === 'dashboard' && agent.id === 'salma' && <SalmaDashboard agentId={agent.id} />}
 
               {tab === 'reports' && (
                 <ul className="flex flex-col divide-y divide-border">
