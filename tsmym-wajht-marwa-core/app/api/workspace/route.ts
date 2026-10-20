@@ -10,7 +10,8 @@ import path from 'path'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ROOT = process.env.ROOT_WORKSPACE || 'G:\\Marwa-Bot'
+// الأولوية: WORKSPACE_ROOT (الورشة — مملكة الوكلاء التسعة) ثم ROOT_WORKSPACE (اللابتوب)
+const ROOT = process.env.WORKSPACE_ROOT || process.env.ROOT_WORKSPACE || 'G:\\ai\\Naggar Print POS Agent\\workspaces'
 const MAX_DEPTH = 3
 
 /** مجلدات ثقيلة/غير مفيدة تُستثنى من العرض (قراءة فقط — لا تُحذف ولا تُمس) */

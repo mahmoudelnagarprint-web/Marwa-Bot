@@ -132,6 +132,32 @@ export function MarwaApp() {
 
   function sendMain(text: string) {
     pushMain(make('user', text))
+    // Workspace OS: أمر السلاش من الشات الرئيسي أيضاً يذهب للمحرك الحقيقي
+    if (text.trim().startsWith('/')) {
+      setMainTyping('marwa')
+      void (async () => {
+        let out: { ok?: boolean; executed?: boolean; message?: string; file?: string; push?: string } = {}
+        try {
+          const res = await fetch('/api/slash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          })
+          out = (await res.json()) as typeof out
+        } catch {
+          out = { ok: false, message: 'فشل الاتصال بمحرك التوجيه' }
+        }
+        const parts: string[] = []
+        if (out.executed) {
+          if (out.file) parts.push(`📄 ${out.file.split('\\').pop()}`)
+          if (out.push) parts.push(`☁️ ${out.push === 'OK' ? 'دُفع لـSupabase' : out.push}`)
+        }
+        if (out.message) parts.push(out.message)
+        pushMain(make('system', out.ok ? `⚡ أمر ${text.split(' ')[0]} نُفّذ. ${parts.join(' • ')}` : `⚠️ ${out.message || 'الأمر رُفض'}`))
+      })()
+      setMainTyping(null)
+      return
+    }
     const detected = autoMode
       ? agents.filter((a) => a.keywords.some((k) => text.includes(k))).map((a) => a.id)
       : []
@@ -199,6 +225,47 @@ export function MarwaApp() {
 
   function sendRoom(room: AgentId, text: string) {
     pushRoom(room, make('user', text))
+    // Workspace OS: أمر السلاش يذهب للمحرك الحقيقي (router_daemon) عبر /api/slash
+    if (text.trim().startsWith('/')) {
+      runSequence(
+        [
+          {
+            author: 'marwa' as const,
+            build: () => make('marwa', 'جارٍ تنفيذ أمر السلاش…'),
+          },
+        ],
+        (a) => setRoomTyping((prev) => ({ ...prev, [room]: a })),
+        (m) => pushRoom(room, m),
+      )
+      void (async () => {
+        try {
+          const res = await fetch('/api/slash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          })
+          const out = (await res.json()) as { ok?: boolean; executed?: boolean; message?: string; file?: string; push?: string }
+          const parts: string[] = []
+          if (out.executed) {
+            if (out.file) parts.push(`📄 الملف: ${out.file.split('\\').pop()}`)
+            if (out.push) parts.push(`☁️ السحابة: ${out.push === 'OK' ? 'دُفع لـSupabase بنجاح' : out.push}`)
+          }
+          if (out.message) parts.push(out.message)
+          pushRoom(
+            room,
+            make(
+              'system',
+              out.ok
+                ? `⚡ أمر ${text.split(' ')[0]} نُفّذ. ${parts.join(' • ')}`
+                : `⚠️ ${out.message || 'الأمر رُفض'}`,
+            ),
+          )
+        } catch {
+          pushRoom(room, make('system', '⚠️ فشل الاتصال بمحرك التوجيه — المحرك غير متاح'))
+        }
+      })()
+      return
+    }
     const participants = [room, ...guests[room]]
     runSequence(
       participants.map((id) => ({ author: id, build: () => make(id, nextReply(id)) })),

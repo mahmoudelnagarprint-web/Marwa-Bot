@@ -176,3 +176,10 @@
 ### 📌 بند معلق بسيط (شفافية): واجهة فارس الحية `/api/fares-summary` ترجع 500 على اللابتوب (مسار القاعدة الحية ورشة-حصراً) — الحل الجاهز: متغير بيئة `MARWA_POS_DB_PATH` يجعل المسار يقرأ المرآة الموحدة بدلاً من المسار الثابت (سطران) — بانتظار إذن المالك/فيجن.
 
 *آخر تحديث: 2026-10-20 09:20 — عقدة LAPTOP (مروة المايسترو)*
+
+## 🚀 Workspace OS — التأسيس الشامل (2026-10-20 مساءً)
+- **الملك الـ9**: workspaces/ {marwa_maestro, fares_cfo, salma_crm, bebo_production, sasa_devices, vision_coder, koko_marketing, hakim_advisor, afkar_ideas} — كل وكيل فيه inbox_tasks/active_workspaces/chats/archive + system_engine عام.
+- **المحرك**: workspaces/system_engine/router_daemon.py — محلل السلاش (parse) 8/8 selftest PASS؛ /task يكتب في inbox_tasks + يدفع Supabase agent_tasks (op_id ULID). ملاحظة: قيد agent_tasks_source_check لا يقبل 'slash' → نستعمل 'ui' مع وسم 'slash' بالوصف.
+- **الأوامر الحية التي ثبتت الدورة الكاملة**: /task @fares مراجعة حساب زينب (push OK cloud_id ad363cac…)، /task @salma متابعة طلب العميل أحمد (push OK cloud_id 8aea867a…).
+- **الواجهة**: ChatComposer بمنسدلة السلاش (أوامر + وكلاء، أسهم/Tab/Enter). /api/slash (جديد) يستدعي المحرك. app/api/workspace يقرأ WORKSPACE_ROOT من .env.local. tsc EXIT=0. سيرفر 3000 حي.
+- **الجولة القادمة المقترحة**: مراقبة ملف المهام بـRealtime (أو تحديث القائمة بعد التنفيذ)، دايمون router_daemon watch في الخلفية، وربط Telegram بإشعارات /task.
