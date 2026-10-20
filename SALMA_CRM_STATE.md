@@ -355,3 +355,10 @@
 - **نقطة تحقق 22:12**: نقل #328 لعمود جاهز → الليزر Idle → لافتة العرض اللحظي ظهرت لكوكو ✓ (koko-flash.png)؛ بوست مولد تلقائياً بخصم 15% وCTA ثابت.
 - بحث «خشب/tablout» يعمل على أسماء الملفات؛ عداد 27 VIP: Heba Ahmed جملة، مروه العمده (بلا رقم)، رفيده جملة…
 - نقاط الربط القادمة: (a) سكربت facebook_publisher.py Python+Selenium عندما يجهز؛ (b) CLIP/ChromaDB للبحث الدلالي في الصور؛ (c) إرسال واتساب فعلي عبر سكربت البزنس +201000433420.
+
+## 🔌 حزمة صاصا للعتاد الحقيقي — Sasa Hardware Link (2026-10-20 22:35)
+- **الدايمون** `workspaces/sasa_devices/system_engine/sasa_hardware_link.py` (pywin32 + pyserial مثبتان في .venv): حلقة كل 3 ثوانٍ تكتب `hardware_state.json` (ملك صاصا — صفر كتابة في قاعدة الورشة): Epson L1800 عبر win32print (حالة حقيقية: idle/printing/offline/عدد مهام Spooler)، كاتر بلوتر عبر pyserial COM3 (Prolific USB-to-Serial PID 067b:2303 — متصل فعلاً)، ليزر انتظار تعيين LASER_COM في .env.
+- **مصدر الحقيقة في رادار صاصا**: /api/devices يقرأ hardware_state.json أولاً (simulated:false + hardware_source) — المحاكاة احتياط فقط في غياب الدايمون (simulated:true موسومة).
+- **التوجيه المباشر للملفات**: [إرسال للماكينة] مع file_rel من متصفح التصميمات → نسخ الملف إلى Laser_HotFolder (ليزر: LightBurn/RDWorks يسحب فوراً) أو Cutter_HotFolder (كاتر). نقطة تحقق: tarah-30x40.dxf (26 بايت) وصل Laser_HotFolder مع تنبيه بيبو+مروة ذاته.
+- **العتاد المرصود فعلاً**: طابعات النظام: Microsoft Print to PDF، Epson_XP3100series (PrintFab)، Epson_L1800 (PrintFab)، EPSON L3250 Series، EPSON L1800 Series — نقطة الربط للإبسون: «EPSON L1800 Series». منافذ COM: COM1 (اتصالات)، COM3 (Prolific USB).
+- دايمون حي pid=5732 (+عملية ابنه 6944 من محاولة سابقة — آمن: دمج بسيط للكتابة نفسها) — إيقافه أو تشغيله: `python workspaces/sasa_devices/system_engine/sasa_hardware_link.py`.
