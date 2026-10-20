@@ -19,6 +19,8 @@ import { AgentRoom } from './agent-room'
 import { ReportsDialog } from './reports-dialog'
 import { AchievementsDialog } from './achievements-dialog'
 import { HandoverDialog } from './handover-dialog'
+import { supabase, supabaseConfigured } from '@/lib/supabase'
+import { subscribeUrgentAlerts, buildAlertText, type AlertRow } from '@/lib/agent-alerts'
 
 type View = 'main' | AgentId
 type DialogId = 'reports' | 'achievements' | 'handover' | null
@@ -50,7 +52,20 @@ export function MarwaApp() {
   const [view, setView] = useState<View>('main')
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('agent')
-    if (q && agentIds.includes(q as AgentId)) setView(q as View)
+    if (q && agentIds.includes(q as AgentId)) setView(q as AgentId)
+  }, [])
+
+  // الشات الاستباقي (task-4): أي تنبيه عاجل في العقل السحابي (severity='عالي' أو kind='alert')
+  // يظهر فوراً كرسالة من الوكيل في غرفته — بلا أي تدخل من المالك.
+  useEffect(() => {
+    if (!supabaseConfigured || !supabase) return
+    const sub = subscribeUrgentAlerts(supabase, (row: AlertRow) => {
+      if (!agentIds.includes(row.agent_id as AgentId)) return
+      const id = row.agent_id as AgentId
+      pushRoom(id, make(id, buildAlertText(row, agentMap[id].name)))
+      setUnread((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }))
+    })
+    return () => sub.unsubscribe()
   }, [])
   const [activeAgents, setActiveAgents] = useState<AgentId[]>(['fares'])
   const [autoMode, setAutoMode] = useState(true)
