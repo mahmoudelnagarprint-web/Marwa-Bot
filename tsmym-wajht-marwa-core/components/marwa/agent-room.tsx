@@ -10,6 +10,7 @@ import Image from 'next/image'
 import { AlertTriangle, ArrowRight, FileText, LayoutDashboard, Lightbulb, ListTodo, Newspaper, UserPlus, Zap } from 'lucide-react'
 import { SalmaDashboard } from './salma-dashboard'
 import { BeboDashboard } from './bebo-dashboard'
+import { SasaDashboard } from './sasa-dashboard'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
@@ -55,7 +56,7 @@ export function AgentRoom({
   onToggleActive: () => void
   onEscalate: (text: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' ? 'dashboard' : 'news')
+  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' ? 'dashboard' : 'news')
   const [approved, setApproved] = useState<string[]>([])
 
   // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
@@ -116,6 +117,10 @@ export function AgentRoom({
   // قلعة الإنتاج — لوحة بيبو كانبان + صندوق وارد + ماكينات (أمر المالك 2026-10-20)
   if (agent.id === 'bebo') {
     tabs.push({ id: 'dashboard', label: 'قلعة الإنتاج', icon: LayoutDashboard, count: 0, preview: 'كانبان + صندوق وارد + ماكينات — حي من الورشة' })
+  }
+  // غرفة تحكم صاصا — رادار الماكينات + طابور التشغيل + متصفح التصميمات (أمر المالك 2026-10-20)
+  if (agent.id === 'sasa') {
+    tabs.push({ id: 'dashboard', label: 'غرفة التحكم', icon: LayoutDashboard, count: 0, preview: 'رادار ماكينات + طابور تشغيل + تصميمات — غرفة قيادة' })
   }
 
   const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
@@ -229,6 +234,7 @@ export function AgentRoom({
 
               {tab === 'dashboard' && agent.id === 'salma' && <SalmaDashboard agentId={agent.id} />}
               {tab === 'dashboard' && agent.id === 'bebo' && <BeboDashboard />}
+              {tab === 'dashboard' && agent.id === 'sasa' && <SasaDashboard />}
 
               {tab === 'reports' && (
                 <ul className="flex flex-col divide-y divide-border">
