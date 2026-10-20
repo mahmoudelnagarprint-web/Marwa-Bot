@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { AlertTriangle, ArrowRight, FileText, LayoutDashboard, Lightbulb, ListTodo, Newspaper, UserPlus, Zap } from 'lucide-react'
 import { SalmaDashboard } from './salma-dashboard'
+import { BeboDashboard } from './bebo-dashboard'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
@@ -54,7 +55,7 @@ export function AgentRoom({
   onToggleActive: () => void
   onEscalate: (text: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' ? 'dashboard' : 'news')
+  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' ? 'dashboard' : 'news')
   const [approved, setApproved] = useState<string[]>([])
 
   // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
@@ -111,6 +112,10 @@ export function AgentRoom({
   // لوحة سلمى ERP — الأوبريت الأول لتطوير لوحات الوكلاء (أمر المالك 2026-10-20)
   if (agent.id === 'salma') {
     tabs.push({ id: 'dashboard', label: 'لوحة سلمى CRM', icon: LayoutDashboard, count: 0, preview: 'KPIs + نواقص الإنتاج + تحصيل — حي من الورشة' })
+  }
+  // قلعة الإنتاج — لوحة بيبو كانبان + صندوق وارد + ماكينات (أمر المالك 2026-10-20)
+  if (agent.id === 'bebo') {
+    tabs.push({ id: 'dashboard', label: 'قلعة الإنتاج', icon: LayoutDashboard, count: 0, preview: 'كانبان + صندوق وارد + ماكينات — حي من الورشة' })
   }
 
   const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
@@ -223,6 +228,7 @@ export function AgentRoom({
               {tab === 'tasks' && <AgentTasksPanel agentId={agent.id} agentName={agent.name} toneDot={agent.tone.dot} />}
 
               {tab === 'dashboard' && agent.id === 'salma' && <SalmaDashboard agentId={agent.id} />}
+              {tab === 'dashboard' && agent.id === 'bebo' && <BeboDashboard />}
 
               {tab === 'reports' && (
                 <ul className="flex flex-col divide-y divide-border">
