@@ -20,6 +20,13 @@ const PYTHON = process.env.PYTHON_EXE || 'G:\\ai\\Naggar Print POS Agent\\.venv\
 const DB_PATH = 'G:\\ai\\Elnagar POS\\pos_data.db'
 const DESIGNS_DIR = process.env.DESIGNS_DIR || 'G:\\ai\\Naggar Print POS Agent\\designs'
 const DESIGN_EXTS = new Set(['.dxf', '.cdr', '.psd', '.ai', '.pdf', '.svg', '.plt'])
+// العتاد الحقيقي (فيجن 2026-10-20): دايمون Python يكتب hardware_state.json كل 3 ثوانٍ
+const HW_STATE = path.join(WORKSPACE_ROOT, 'sasa_devices', 'active_workspaces', 'hardware_state.json')
+// المجلدات الساخنة للتوجيه المباشر (راصد + فيجن):
+// ليزر CO2 → Laser_HotFolder (LightBurn / RDWorks يسحب فوراً)
+// كاتر بلوتر → Cutter_HotFolder (حسب برنامج الكاتر)
+const LASER_HOT = path.join(WORKSPACE_ROOT, 'sasa_devices', 'active_workspaces', 'Laser_HotFolder')
+const CUTTER_HOT = path.join(WORKSPACE_ROOT, 'sasa_devices', 'active_workspaces', 'Cutter_HotFolder')
 
 export type SpoolTask = {
   id: number
@@ -42,9 +49,10 @@ export type MachineTelemetry = {
   name: string
   state: 'Idle' | 'Busy'
   metric_label: string
-  metric_value: number
+  metric_value: string | number
   metric_unit: string
-  simulated: true
+  simulated: true | false
+  hardware_source?: string
 }
 
 function runSlash(text: string): Promise<Record<string, unknown>> {
@@ -66,13 +74,43 @@ function machineFor(items: { name: string; qty: number }[]): string {
   return 'Epson L1800'
 }
 
-/** رادار وهمي ثابت نسبياً (محاكاة) — يهتز قليلاً بين نداءات، وموسوم simulated:true */
+/** قراءة العتاد الحقيقي من دايمون Python (نقطة تحقق 2026-10-20) — يهتم مع المحاكاة فقط في غيابه */
+type HardwareState = {
+  updated_at?: string
+  epson?: { state?: string; online?: boolean; jobs?: number }
+  cutter?: { state?: string; online?: boolean; port?: string }
+  laser?: { state?: string; online?: boolean; port?: string }
+}
+
+function readHardware(): HardwareState | null {
+  try {
+    return JSON.parse(fs.readFileSync(HW_STATE, 'utf8')) as HardwareState
+  } catch {
+    return null
+  }
+}
+
+/** رادار: العتاد الحقيقي أولاً (hardware_state.json)، والمحاكاة احتياط — دائماً موسومة بمصدر الحقيقة */
 function telemetry(board: SpoolTask[]): MachineTelemetry[] {
   const busyLaser = board.some((t) => t.machine === 'ليزر CO2')
   const busyEpson = board.some((t) => t.machine === 'Epson L1800')
   const busyCutter = board.some((t) => t.machine === 'كاتر بلوتر')
   const soon = Date.now()
   const wob = (seed: number, span: number) => ((Math.sin(soon / 30_000 + seed) + 1) / 2) * span
+  const hw = readHardware()
+  const fromHw = (status: string | undefined, online: boolean | undefined, fallback: 'Idle' | 'Busy'): 'Idle' | 'Busy' => {
+    if (!online) return 'Idle' // ماكينة غير متصلة → تعامل كخامل (ولا تزعج الرسم)
+    if (status === 'busy' || status === 'printing') return 'Busy'
+    if (status === 'idle') return 'Idle'
+    return fallback
+  }
+  if (hw) {
+    return [
+      { id: 'laser', name: 'ليزر CO2', state: fromHw(hw.laser?.state, true, busyLaser ? 'Busy' : 'Idle'), metric_label: 'حالة الإتصال', metric_value: hw.laser?.state === 'idle' ? 'متصلة' : 'غير مربوطة', metric_unit: '', simulated: false, hardware_source: `دايمون العتاد ${hw.updated_at ?? ''}` },
+      { id: 'epson', name: 'Epson L1800', state: fromHw(hw.epson?.state, hw.epson?.online, busyEpson ? 'Busy' : 'Idle'), metric_label: 'مهام الطباعة', metric_value: hw.epson?.jobs ?? 0, metric_unit: 'مهمة', simulated: false, hardware_source: `win32print @ ${hw.updated_at ?? ''}` },
+      { id: 'cutter', name: 'كاتر بلوتر', state: fromHw(hw.cutter?.state, hw.cutter?.online, busyCutter ? 'Busy' : 'Idle'), metric_label: 'المنفذ', metric_value: hw.cutter?.port ?? '-', metric_unit: '', simulated: false, hardware_source: `pyserial @ ${hw.updated_at ?? ''}` },
+    ]
+  }
   return [
     {
       id: 'laser', name: 'ليزر CO2', state: busyLaser ? 'Busy' : 'Idle',
@@ -169,28 +207,51 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  let action = '', orderId = 0, machine = '', maintenance = ''
+  let action = '', orderId = 0, machine = '', maintenance = '', fileRel = ''
   try {
-    const body = (await req.json()) as { action?: string; order_id?: number; machine?: string; maintenance?: string }
+    const body = (await req.json()) as { action?: string; order_id?: number; machine?: string; maintenance?: string; file_rel?: string }
     action = body.action ?? ''
     orderId = Number(body.order_id ?? 0)
     machine = body.machine ?? ''
     maintenance = body.maintenance ?? ''
+    fileRel = body.file_rel ?? ''
   } catch {
     return NextResponse.json({ ok: false, message: 'جسم الطلب غير صالح' }, { status: 400 })
   }
 
   try {
     // ---------- 🚀 إرسال للماكينة: إشعار بيبو + مروة ----------
+    // **التوجيه المباشر للملفات (راصد 2026-10-20):** مع file_rel (من متصفح التصميمات) —
+    // ليزر CO2 → Laser_HotFolder (LightBurn / RDWorks يسحب فوراً)
+    // كاتر بلوتر → Cutter_HotFolder
     if (action === 'launch_machine') {
       if (!orderId || !machine) {
         return NextResponse.json({ ok: false, message: 'معطيات ناقصة' }, { status: 400 })
       }
+      // التوجيه المباشر: نسخ ملف التصميم للمجلد الساخن المناسب
+      let routed = ''
+      if (fileRel) {
+        try {
+          const src = path.join(DESIGNS_DIR, fileRel)
+          const hotdir = machine === 'ليزر CO2' ? LASER_HOT : machine === 'كاتر بلوتر' ? CUTTER_HOT : ''
+          if (fs.existsSync(src) && hotdir) {
+            fs.mkdirSync(hotdir, { recursive: true })
+            const dest = path.join(hotdir, path.basename(src))
+            fs.copyFileSync(src, dest)
+            routed = hotdir.split('\\').slice(-2).join('/')
+          }
+        } catch {
+          routed = '' // فشل النسخ لا يعطل التنبيه
+        }
+      }
       const out = await runSlash(`/summon @bebo @marwa الطلب #${orderId} دخل حيز التنفيذ الفعلي على ${machine} — صاصا بدأ التشغيل 🚀 (تسجيل في سجل الورشة)`)
       return NextResponse.json({
         ok: Boolean(out.ok),
-        notify: out.ok ? `🚀 بيبو ومروة تلقوا تنبيه التشغيل — ${String(out.file ?? '').split('\\').pop()}` : '⚠️ المحرك رفض التنبيه',
+        notify: out.ok
+          ? `🚀 بيبو ومروة تلقوا تنبيه التشغيل — ${String(out.file ?? '').split('\\').pop()}${routed ? ` • الملف التوجّه إلى ${routed}` : ''}`
+          : '⚠️ المحرك رفض التنبيه',
         file: String(out.file ?? ''),
+        routed_to: routed || null,
       })
     }
 
