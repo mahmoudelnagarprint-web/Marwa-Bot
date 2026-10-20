@@ -117,12 +117,10 @@ export async function updateAgentUpdateStatus(
   decided_by = 'mahmoud',
 ): Promise<{ ok: boolean; error: SupabaseError | null }> {
   const now = new Date().toISOString()
-  const { data, error } = await client
+  const { error } = await client
     .from('agent_updates')
     .update({ status, decided_by, decided_at: now })
     .eq('id', id)
-    .select()
-    .limit(1)
   if (error) return { ok: false, error }
-  return { ok: true, error: null, row: data?.[0] }
+  return { ok: true, error: null }
 }

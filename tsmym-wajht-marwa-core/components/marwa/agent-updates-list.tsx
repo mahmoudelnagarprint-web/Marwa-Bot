@@ -74,6 +74,28 @@ export function AgentUpdatesList({
     setState({ phase: 'ready', items: filtered })
   }, [agentId, kind])
 
+  // أزرار قرار المالك: ✅ اعتماد / ❌ رفض (المرحلة 2 — تنفيذ سحابي عبر updateAgentUpdateStatus)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
+
+  const decide = useCallback(
+    async (id: string, decision: 'approved' | 'rejected') => {
+      if (!supabase) return
+      setBusyId(id)
+      setRowError(null)
+      const { ok, error } = await updateAgentUpdateStatus(supabase, id, decision)
+      setBusyId(null)
+      if (!ok) {
+        setRowError({ id, message: error?.message ?? 'فشل تنفيذ القرار في السحابة' })
+        return
+      }
+      void load()
+    },
+    [load],
+  )
+  const handleApprove = useCallback((id: string) => decide(id, 'approved'), [decide])
+  const handleReject = useCallback((id: string) => decide(id, 'rejected'), [decide])
+
   useEffect(() => {
     if (!supabaseConfigured || !supabase) {
       setState({ phase: 'no-env' })
@@ -161,7 +183,38 @@ export function AgentUpdatesList({
                 ) : null}
                 {statusLabel[u.status] ?? u.status}
               </span>
+              {u.status === 'pending' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleApprove(u.id)}
+                    disabled={busyId !== null}
+                    aria-label="اعتماد وتنفيذ"
+                    title="اعتماد وتنفيذ في السحابة"
+                    className="inline-flex items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 transition-colors hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {busyId === u.id ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <ThumbsUp className="size-3" aria-hidden="true" />}
+                    اعتماد ✅
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReject(u.id)}
+                    disabled={busyId !== null}
+                    aria-label="رفض"
+                    title="رفض الاقتراح"
+                    className="inline-flex items-center gap-1 rounded-md border border-rose-400/30 bg-rose-400/10 px-2 py-0.5 text-[10px] font-medium text-rose-300 transition-colors hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ThumbsDown className="size-3" aria-hidden="true" />
+                    رفض ❌
+                  </button>
+                </>
+              )}
             </div>
+            {rowError?.id === u.id && (
+              <p className="w-full text-left text-[10px] text-rose-300" role="alert">
+                {rowError.message}
+              </p>
+            )}
           </li>
         )
       })}
