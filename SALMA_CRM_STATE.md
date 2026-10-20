@@ -333,3 +333,11 @@
 - **Gabriel نقطة تحقق**: 21:01 استعجال طلب #328 زينب — ملف bebo_production/inbox_tasks/01a15a79ebbc-54060d170646… + Supabase 402c0b08-237f-43f7-ab29-c3085881106a (op_id مطابق) — دائرة كاملة ناجحة.
 - **أدوات**: scripts/salma_shot.js + salma_shot2.js (playwright-core 1.64.1 devDependency) لقطات شاشة للتحقق البصري.
 - **الجولة القادمة المقترحة**: تعميم نمط اللوحة على باقي الوكلاء (bebo production board، koko marketing، وفق تفويض مراحل).
+
+## 🏰 قلعة الإنتاج — أوبريت بيبو (2026-10-20 21:35)
+- **/api/production**: كانبان حي من pos_data.db (قراءة فقط) مع تخطي status override إلى beam_state.json في workspaces/bebo_production/active_workspaces/board_state.json (ملك بيبو — ملزم وليس قاعدة POS)؛ صندوق وارد يقرأ حصرياً من workspaces/bebo_production/inbox_tasks (عناوين + op_id).
+- **لوحة bebo-dashboard.tsx**: كانبان 3 أعمدة (تجهيز التصميم والمقاسات / قيد الطباعة/الليزر / جاهز للتسليم) — كروت بأصنافها، كشف نوع الماكينة تلقائياً (ليزر/Epson/كاتر) من أصناف الطلب (تمهيد لربط صاصا)، كروت ماكينات علوية (Epson L1800 / ليزر CO2 / كاتر بلوتر)، أزرار نقل فوري بين الأعمدة، زر «خامات» يرسل /task @fares الحقيقي عبر /api/slash.
+- **زر ✅ تم التنفيذ**: أرشفة الملف إلى workspaces/bebo_production/archive/[ناريخ]_[اسم].md مع استخراج المرسل من @mention غير المستهدف وإطلاق /summon له تلقائياً.
+- **نقل لكارت لـ«جاهز للتسليم»** يُطلق /summon @salma (تنبيه سلمى بـ«بلّغي العميل») — يكتب ملف استدعاء في workspaces/salma_crm/chats/summon_[وقت].md.
+- **نقطة تحقق كاملة 21:35**: #328 زينب design→printing→ready — استدعاء سلمى: summon_2026-10-20T213506.md ✅؛ مهمة سلمى (استعجال #328) أُرشفت إلى 2026-10-20_01a15a79ebbc… مليّة «تم التنفيذ» ✅؛ board_state.json = {«328»:«ready»} ✅. دورة حياة كاملة: سلمى→بيبو→ورشة→جاهز→تنبيه عودة.
+- **تلميح المالك**: تحقق البصر (لقطات) يعتمد playwright-core 1.64.1 (devDependency).
