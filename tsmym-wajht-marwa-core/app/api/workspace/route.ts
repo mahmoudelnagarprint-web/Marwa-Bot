@@ -127,6 +127,12 @@ export async function GET(req: NextRequest) {
     )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('ENOENT') || msg.includes('no such file')) {
+      return NextResponse.json(
+        { success: false, error: 'المجلد غير موجود في مساحة العمل' },
+        { status: 404 },
+      )
+    }
     return NextResponse.json(
       { success: false, error: `تعذر قراءة المجلد: ${msg}` },
       { status: 500 },

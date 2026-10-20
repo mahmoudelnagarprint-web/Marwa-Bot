@@ -185,7 +185,6 @@ def main() -> int:
             "title": "⏰ أوردر متأخر: #%s — %s (%s ج)" % (o["id"], o["client_name"], o["total_amount"]),
             "body": "عمره %s يوماً في التجهيز (العتبة %s أيام) — الإسراع في التسليم مطلوب، ومتابعة سلمى مع العميل."
             % (age, OVERDUE_DAYS),
-            "source": "proactive_alerts",
         }
         titles = recent_titles(env, "bebo")
         if payload["title"] not in titles:
