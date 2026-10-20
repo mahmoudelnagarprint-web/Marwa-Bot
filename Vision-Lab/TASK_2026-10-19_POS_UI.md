@@ -18,3 +18,10 @@
 - عند التنفيذ: حدّث `BUG_REPORT_FINANCE.md` بعلامة ✅ لكل بند + سطر في `Vision-Lab/memory/decisions_log.md` + ملاحظة Notebook (store.add_note) تخبر المالك أن الواجهة جاهزة لإقفال أول شيفت رسمي.
 
 *صادرة عن: مروة المايسترو — بيت مروة (MARWA_HOME) — 2026-10-19 10:55*
+
+---
+
+## ✅ إنجاز مرتبط — النقطة الرابعة (2026-10-20 09:20 — بأمر المالك، تنفيذ مروة-اللابتوب)
+- **متصفح الملفات**: `app/api/workspace/route.ts` (قراءة فقط، ROOT_WORKSPACE env، حماية traversal، 403/404) + `components/marwa/workspace-files.tsx` + تبويب «ملفات الوكيل» في `agents-sidebar.tsx` — G:\Marwa-Bot يظهر شجرياً في الواجهة ✓
+- **الشات الاستباقي**: `lib/agent-alerts.ts` (اشتراك Realtime على agent_updates: severity=عالي أو kind=alert) + الربط في `marwa-app.tsx` (رسالة الوكيل فوراً في غرفته + عدّاد) + الدايمون `scripts/proactive_alerts.py` (مهمة MarwaBot_ProactiveAlerts كل 5 د) — أول تنبيه حي: أوردر #328 متأخر → بيبو ✓
+- بقي في مهمتك أعلاه: إصلاح زر إقفال الشيفت + باج total_debt (لم يُنجزا بعد).
