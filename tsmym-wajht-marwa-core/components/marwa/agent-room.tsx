@@ -13,6 +13,7 @@ import { BeboDashboard } from './bebo-dashboard'
 import { SasaDashboard } from './sasa-dashboard'
 import { KokoDashboard } from './koko-dashboard'
 import { HakimDashboard } from './hakim-dashboard'
+import { VisionDashboard } from './vision-dashboard'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
@@ -58,7 +59,7 @@ export function AgentRoom({
   onToggleActive: () => void
   onEscalate: (text: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' || agent.id === 'koko' || agent.id === 'hakim' ? 'dashboard' : 'news')
+  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' || agent.id === 'koko' || agent.id === 'hakim' || agent.id === 'vision' ? 'dashboard' : 'news')
   const [approved, setApproved] = useState<string[]>([])
 
   // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
@@ -131,6 +132,10 @@ export function AgentRoom({
   // غرفة حكيم — CEO Advisor: تسعير + اختناقات + عقود B2B + محاكي (أمر المالك 2026-10-20)
   if (agent.id === 'hakim') {
     tabs.push({ id: 'dashboard', label: 'غرفة القيادة العليا', icon: LayoutDashboard, count: 0, preview: 'تسعير ذكي + رادار اختناقات + عقود B2B + محاكي — عقل المنظومة' })
+  }
+  // مركز القيادة التقنية — Mini-OS: منصة إطلاق البرامج + مدير العمليات + محرر + تيرمينال (أمر المالك 2026-10-20)
+  if (agent.id === 'vision') {
+    tabs.push({ id: 'dashboard', label: 'مركز القيادة التقنية', icon: LayoutDashboard, count: 0, preview: 'منصة إطلاق البرامج + مدير العمليات + محرر الأكواد + تيرمينال — Mini-OS' })
   }
 
   const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
@@ -247,6 +252,7 @@ export function AgentRoom({
               {tab === 'dashboard' && agent.id === 'sasa' && <SasaDashboard />}
               {tab === 'dashboard' && agent.id === 'koko' && <KokoDashboard />}
               {tab === 'dashboard' && agent.id === 'hakim' && <HakimDashboard />}
+              {tab === 'dashboard' && agent.id === 'vision' && <VisionDashboard />}
 
               {tab === 'reports' && (
                 <ul className="flex flex-col divide-y divide-border">

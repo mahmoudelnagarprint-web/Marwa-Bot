@@ -42,6 +42,9 @@ const agentActions: Record<AgentId, string> = {
   fares: 'تسوية حساب العميل',
   bebo: 'اعتماد مقايسة بيبو',
   koko: 'إطلاق حملة ترويجية',
+  sasa: 'تشغيل عجلة الأجهزة',
+  hakim: 'استشارة سريعة',
+  afkar: 'عصف ذهني',
   rased: 'تفعيل تنبيه فوري',
   vision: 'بدء الأتمتة',
 }
