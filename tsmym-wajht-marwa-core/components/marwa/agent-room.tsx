@@ -11,6 +11,7 @@ import { AlertTriangle, ArrowRight, FileText, LayoutDashboard, Lightbulb, ListTo
 import { SalmaDashboard } from './salma-dashboard'
 import { BeboDashboard } from './bebo-dashboard'
 import { SasaDashboard } from './sasa-dashboard'
+import { KokoDashboard } from './koko-dashboard'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
@@ -56,7 +57,7 @@ export function AgentRoom({
   onToggleActive: () => void
   onEscalate: (text: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' ? 'dashboard' : 'news')
+  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' || agent.id === 'koko' ? 'dashboard' : 'news')
   const [approved, setApproved] = useState<string[]>([])
 
   // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
@@ -121,6 +122,10 @@ export function AgentRoom({
   // غرفة تحكم صاصا — رادار الماكينات + طابور التشغيل + متصفح التصميمات (أمر المالك 2026-10-20)
   if (agent.id === 'sasa') {
     tabs.push({ id: 'dashboard', label: 'غرفة التحكم', icon: LayoutDashboard, count: 0, preview: 'رادار ماكينات + طابور تشغيل + تصميمات — غرفة قيادة' })
+  }
+  // وكالة كوكو — الناشر الآلي + البحث البصري + مدفع الواتساب + العروض اللحظية (أمر المالك 2026-10-20)
+  if (agent.id === 'koko') {
+    tabs.push({ id: 'dashboard', label: 'وكالة التسويق', icon: LayoutDashboard, count: 0, preview: 'ناشر فيسبوك + بحث بصري + واتساب VIP — وقود الورشة' })
   }
 
   const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
@@ -235,6 +240,7 @@ export function AgentRoom({
               {tab === 'dashboard' && agent.id === 'salma' && <SalmaDashboard agentId={agent.id} />}
               {tab === 'dashboard' && agent.id === 'bebo' && <BeboDashboard />}
               {tab === 'dashboard' && agent.id === 'sasa' && <SasaDashboard />}
+              {tab === 'dashboard' && agent.id === 'koko' && <KokoDashboard />}
 
               {tab === 'reports' && (
                 <ul className="flex flex-col divide-y divide-border">
