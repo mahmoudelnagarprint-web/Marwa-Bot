@@ -1,4 +1,7 @@
-import { Check } from 'lucide-react'
+'use client'
+
+import { useState } from 'react'
+import { Bot, Check, Copy, Pencil, Timer, Undo2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { agentMap, type Message } from '@/lib/marwa-data'
 import { AgentAvatar, marwaProfile } from './agent-avatar'
@@ -6,10 +9,25 @@ import { AgentAvatar, marwaProfile } from './agent-avatar'
 export function ChatMessage({
   message,
   onAction,
+  onEdit,
 }: {
   message: Message
   onAction?: (messageId: string, actionId: string, label: string) => void
+  onEdit?: (messageId: string, newText: string) => void
 }) {
+  const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(message.text)
+
+  /** نسخ نص الرسالة للحافظة بضغطة (أمر المالك 2026-10-21) */
+  async function copyText() {
+    try {
+      await navigator.clipboard.writeText(message.text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* الحافظة غير متاحة */ }
+  }
+
   if (message.author === 'system') {
     return (
       <div className="flex justify-center py-1">
@@ -22,10 +40,67 @@ export function ChatMessage({
 
   if (message.author === 'user') {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[78%] rounded-2xl rounded-es-md bg-secondary px-4 py-2.5">
-          <p className="text-sm leading-relaxed text-secondary-foreground">{message.text}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{message.time}</p>
+      <div className="group flex justify-end">
+        <div className="flex max-w-[78%] flex-col items-end gap-1">
+          {editing ? (
+            <div className="w-full min-w-64 rounded-2xl rounded-es-md border border-sky-400/40 bg-secondary p-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={Math.min(6, Math.max(2, Math.ceil(draft.length / 60)))}
+                autoFocus
+                aria-label="تعديل الرسالة"
+                className="w-full resize-none bg-transparent text-sm leading-relaxed text-secondary-foreground outline-none"
+              />
+              <div className="mt-1.5 flex justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setEditing(false); setDraft(message.text) }}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Undo2 className="size-3" /> إلغاء
+                </button>
+                <button
+                  type="button"
+                  disabled={!draft.trim()}
+                  onClick={() => { setEditing(false); onEdit?.(message.id, draft.trim()) }}
+                  className="flex items-center gap-1 rounded-md bg-sky-400/20 px-2 py-1 text-xs text-sky-200 transition-colors hover:bg-sky-400/30 disabled:opacity-40"
+                >
+                  <Check className="size-3" /> حفظ وإعادة الإرسال
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl rounded-es-md bg-secondary px-4 py-2.5">
+              <p className="text-sm leading-relaxed text-secondary-foreground">{message.text}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{message.time}</p>
+            </div>
+          )}
+          {!editing && (
+            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={() => void copyText()}
+                aria-label="نسخ الرسالة"
+                title="نسخ"
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                {copied ? <Check className="size-3 text-emerald-300" /> : <Copy className="size-3" />}
+                {copied ? 'تم النسخ' : 'نسخ'}
+              </button>
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label="تعديل الرسالة وإعادة إرسالها"
+                  title="تعديل"
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="size-3" /> تعديل
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -36,7 +111,7 @@ export function ChatMessage({
   const label = agent ? `${agent.name} ${agent.code}` : 'مروة المايسترو'
 
   return (
-    <div className="flex gap-3">
+    <div className="group flex gap-3">
       <AgentAvatar agent={profile} size={32} className="mt-0.5" />
       <div className="min-w-0 max-w-[82%] flex-1">
         <div className="mb-1 flex items-center gap-2">
@@ -51,6 +126,32 @@ export function ChatMessage({
         >
           <p className="text-sm leading-relaxed text-foreground/90">{message.text}</p>
         </div>
+
+        {/* شارة هوية النموذج ووقت الاستجابة — من ردود الذكاء الحقيقية فقط (أمر المالك 2026-10-21) */}
+        {message.meta && (
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground" dir="ltr">
+            <span className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono">
+              <Bot className="size-3" aria-hidden="true" /> {message.meta.model}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono">
+              <Timer className="size-3" aria-hidden="true" /> {(message.meta.ms / 1000).toFixed(1)}s
+            </span>
+          </p>
+        )}
+
+        <div className="mt-1 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void copyText()}
+            aria-label="نسخ الرد"
+            title="نسخ"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+          >
+            {copied ? <Check className="size-3 text-emerald-300" /> : <Copy className="size-3" />}
+            {copied ? 'تم النسخ' : 'نسخ'}
+          </button>
+        </div>
+
         {message.actions && message.actions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="إجراءات سريعة">
             {message.actions.map((action) => (

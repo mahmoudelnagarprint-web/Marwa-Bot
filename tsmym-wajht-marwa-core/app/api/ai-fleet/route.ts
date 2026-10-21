@@ -97,13 +97,56 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, message: `✏️ ${p.name} اتحدث` })
   }
 
-  if (action === 'remove_provider') {
+  if (action === 'remove_provider' || action === 'delete_provider') {
     const id = String(body.id ?? '')
     const before = fleet.providers.length
     fleet.providers = fleet.providers.filter((p) => p.id !== id)
     if (fleet.providers.length === before) return NextResponse.json({ ok: false, message: 'المزود غير موجود' }, { status: 404 })
     saveFleet(fleet)
-    return NextResponse.json({ ok: true, message: '🗑️ اتشال من الأسطول' })
+    return NextResponse.json({ ok: true, message: '🗑️ تم حذف المزود بنجاح من الأسطول' })
+  }
+
+  // 1️⃣ مسح المزود بالكامل: حذف جميع النماذج التي تشترك في نفس הـ Base URL
+  if (action === 'delete_by_base_url' || action === 'delete_provider_group') {
+    const rawUrl = String(body.base_url ?? '').trim()
+    const targetUrl = rawUrl.replace(/\/+$/, '')
+    if (!targetUrl) return NextResponse.json({ ok: false, message: 'Base URL مطلوب للمسح المجمع' }, { status: 400 })
+    const before = fleet.providers.length
+    fleet.providers = fleet.providers.filter((p) => p.base_url.replace(/\/+$/, '') !== targetUrl)
+    const count = before - fleet.providers.length
+    saveFleet(fleet)
+    return NextResponse.json({
+      ok: true,
+      message: `🗑️ تم مسح المزود بالكامل (${count} نموذج) من الأسطول بنجاح!`,
+      deleted_count: count,
+    })
+  }
+
+  // 2️⃣ تنظيف النماذج المعطلة: حذف أي نموذج حالته 404, 429, 410, down, أو غير متصل
+  if (action === 'clean_broken_models') {
+    const usage = loadUsage()
+    const before = fleet.providers.length
+    fleet.providers = fleet.providers.filter((p) => {
+      const st = stateOf(usage, p.id)
+      const err = (st.last_error || '').toLowerCase()
+      const isBroken =
+        st.status === 'down' ||
+        err.includes('404') ||
+        err.includes('410') ||
+        err.includes('429') ||
+        err.includes('not found') ||
+        err.includes('gone') ||
+        err.includes('concurrency') ||
+        err.includes('aborted')
+      return !isBroken
+    })
+    const count = before - fleet.providers.length
+    saveFleet(fleet)
+    return NextResponse.json({
+      ok: true,
+      message: `🧹 تم تنظيف وحذف ${count} نموذج معطل من الأسطول بنجاح!`,
+      cleaned_count: count,
+    })
   }
 
   if (action === 'set_routing') {
@@ -131,6 +174,120 @@ export async function POST(req: NextRequest) {
 
   // سحب النماذج ديناميكياً — GET /v1/models القياسية (أمر المالك 2026-10-21: إلزامي)
   // يقبل إما {id مزود محفوظ} أو {base_url + مفتاح خام} (أثناء الإضافة قبل الحفظ)
+  if (action === 'bulk_add_models') {
+    let base_url = String(body.base_url ?? '').trim().replace(/\/$/, '')
+    const env_key = body.env_key ? String(body.env_key).trim() : undefined
+    const api_key = body.api_key ? String(body.api_key).trim() : undefined
+    let key = (env_key ? process.env[env_key] || envFileValue(env_key) : api_key) ?? null
+    if (!key && env_key) key = env_key
+    if (!key && api_key) key = api_key
+
+    if (!base_url || !key) {
+      return NextResponse.json({ ok: false, message: 'Base URL والمفتاح مطلوبان لسحب وإضافة النماذج' }, { status: 400 })
+    }
+
+    const providerPrefix = String(body.name ?? '').trim() || 'AI'
+    const max_tokens = Math.max(1000, Number(body.max_tokens ?? 8000))
+    const defaultRole = body.role === 'light' ? 'light' : 'strong'
+
+    // 1. الاتصال بـ endpoint /models لسحب كافة النماذج
+    let fetchedModels: string[] = []
+    try {
+      const ctl = new AbortController()
+      const timer = setTimeout(() => ctl.abort(), 12000)
+      const endpoint = base_url.endsWith('/models') ? base_url : `${base_url}/models`
+      const res = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${key}`, 'cache-control': 'no-store' },
+        cache: 'no-store',
+        signal: ctl.signal,
+      })
+      clearTimeout(timer)
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        return NextResponse.json({ ok: false, message: `المزود رفض (${res.status}): ${errText.slice(0, 100)}` }, { status: 400 })
+      }
+      const j = (await res.json()) as { data?: { id?: string; name?: string }[]; models?: { id?: string; name?: string }[] }
+      const rawList = Array.isArray(j.data) ? j.data : Array.isArray(j.models) ? j.models : Array.isArray(j) ? j : []
+      fetchedModels = rawList
+        .map((m: unknown) => {
+          if (typeof m === 'string') return m
+          if (typeof m === 'object' && m !== null) {
+            const obj = m as { id?: string; name?: string }
+            return String(obj.id || obj.name || '')
+          }
+          return ''
+        })
+        .filter(Boolean)
+        .sort()
+    } catch (e) {
+      const cause = (e as { cause?: { code?: string } })?.cause
+      return NextResponse.json({ ok: false, message: `تعذر الاتصال بـ /models: ${String(e).slice(0, 80)} ${cause?.code ?? ''}` }, { status: 500 })
+    }
+
+    if (fetchedModels.length === 0) {
+      return NextResponse.json({ ok: false, message: 'لم يعثر المزود على أي نماذج نشطة في استجابة /models' }, { status: 404 })
+    }
+
+    // 2. إنشاء Provider Object مستقل لكل نموذج وإضافتها دفعة واحدة
+    const addedProviders: AiProvider[] = []
+    for (const modelName of fetchedModels) {
+      const existing = fleet.providers.find((p) => p.base_url === base_url && p.model === modelName)
+      if (existing) {
+        if (api_key) existing.api_key = api_key
+        if (env_key) existing.env_key = env_key
+        existing.enabled = true
+        continue
+      }
+
+      const shortModel = modelName.split('/').pop() || modelName
+      const isLightModel = /(?:flash|mini|light|nano|7b|8b)/i.test(modelName)
+      const role = defaultRole === 'light' ? 'light' : (isLightModel ? 'light' : 'strong')
+
+      const newProvider: AiProvider = {
+        id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        name: `${providerPrefix} (${shortModel})`,
+        base_url,
+        model: modelName,
+        max_tokens,
+        api_key: env_key ? undefined : api_key,
+        env_key: env_key || undefined,
+        enabled: true,
+        role,
+        added_at: new Date().toISOString(),
+      }
+      fleet.providers.push(newProvider)
+      addedProviders.push(newProvider)
+    }
+
+    // 3. الحفظ الفعلي المتزامن في ai_providers.json
+    saveFleet(fleet)
+
+    // 4. اختبار أولي خفيف لأول 3 نماذج فقط لتفادي تجميد السيرفر وترك الباقي للاختبار المتسلسل المنظم
+    const usage = loadUsage()
+    const quickSample = addedProviders.slice(0, 3)
+    for (const p of quickSample) {
+      try {
+        const ping = await preflight(p)
+        const st = stateOf(usage, p.id)
+        st.status = ping.ok ? 'up' : 'down'
+        if (!ping.ok) st.last_error = `preflight ${ping.status ?? 'شبكة'}`
+        usage.providers[p.id] = st
+      } catch {
+        // نتجاهل
+      }
+    }
+    saveUsage(usage)
+
+    return NextResponse.json({
+      ok: true,
+      message: `⚡ تم سحب وإضافة ${fetchedModels.length} نموذجاً مجمعاً للأسطول وحفظها في ai_providers.json بنجاح!`,
+      total_models: fetchedModels.length,
+      added_count: addedProviders.length,
+    })
+  }
+
+  // سحب النماذج ديناميكياً — GET /v1/models القياسية (أمر المالك 2026-10-21: إلزامي)
+  // يقبل إما {id مزود محفوظ} أو {base_url + مفتاح خام} (أثناء الإضافة قبل الحفظ)
   if (action === 'list_models') {
     let base_url = ''
     let key: string | null = null
@@ -145,22 +302,40 @@ export async function POST(req: NextRequest) {
     } else {
       base_url = String(body.base_url ?? '').trim().replace(/\/$/, '')
       key = (env_key ? process.env[env_key] || envFileValue(env_key) : api_key) ?? null
+      // في حال تمرير المفتاح الفعلي كـ env_key بالخطأ أو العكس
+      if (!key && env_key) key = env_key
+      if (!key && api_key) key = api_key
     }
     if (!base_url || !key) {
       return NextResponse.json({ ok: false, message: 'Base URL والمفتاح مطلوبان لسحب النماذج' }, { status: 400 })
     }
     try {
       const ctl = new AbortController()
-      const timer = setTimeout(() => ctl.abort(), 8000)
-      const res = await fetch(`${base_url}/models`, {
+      const timer = setTimeout(() => ctl.abort(), 10000)
+      const endpoint = base_url.endsWith('/models') ? base_url : `${base_url}/models`
+      const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${key}`, 'cache-control': 'no-store' },
         cache: 'no-store',
         signal: ctl.signal,
       })
       clearTimeout(timer)
-      if (!res.ok) return NextResponse.json({ ok: false, message: `المزود رفض (${res.status})` })
-      const j = (await res.json()) as { data?: { id?: string }[] }
-      const models = (j.data ?? []).map((m) => String(m.id ?? '')).filter(Boolean).sort()
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        return NextResponse.json({ ok: false, message: `المزود رفض (${res.status}): ${errText.slice(0, 100)}` })
+      }
+      const j = (await res.json()) as { data?: { id?: string; name?: string }[]; models?: { id?: string; name?: string }[] }
+      const rawList = Array.isArray(j.data) ? j.data : Array.isArray(j.models) ? j.models : Array.isArray(j) ? j : []
+      const models = rawList
+        .map((m: unknown) => {
+          if (typeof m === 'string') return m
+          if (typeof m === 'object' && m !== null) {
+            const obj = m as { id?: string; name?: string }
+            return String(obj.id || obj.name || '')
+          }
+          return ''
+        })
+        .filter(Boolean)
+        .sort()
       return NextResponse.json({ ok: true, models })
     } catch (e) {
       const cause = (e as { cause?: { code?: string } })?.cause
@@ -226,4 +401,76 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: false, message: `إجراء غير معروف: ${action}` }, { status: 400 })
+}
+
+export async function DELETE(req: NextRequest) {
+  const urlParam = req.nextUrl.searchParams.get('base_url')
+  let cleanBroken = req.nextUrl.searchParams.get('clean_broken') === 'true'
+  let id = req.nextUrl.searchParams.get('id')
+  let bodyBaseUrl: string | null = null
+
+  try {
+    const body = (await req.json()) as { id?: string; base_url?: string; clean_broken?: boolean }
+    if (body.id) id = String(body.id)
+    if (body.base_url) bodyBaseUrl = String(body.base_url)
+    if (body.clean_broken) cleanBroken = true
+  } catch {
+    // نتجاهل في حال عدم وجود json body
+  }
+
+  const fleet = loadFleet()
+  const targetBaseUrl = (urlParam || bodyBaseUrl)?.trim().replace(/\/+$/, '')
+
+  // 1️⃣ مسح المزود بالكامل عبر Base URL
+  if (targetBaseUrl) {
+    const before = fleet.providers.length
+    fleet.providers = fleet.providers.filter((p) => p.base_url.replace(/\/+$/, '') !== targetBaseUrl)
+    const count = before - fleet.providers.length
+    saveFleet(fleet)
+    return NextResponse.json({
+      ok: true,
+      message: `🗑️ تم مسح المزود بالكامل (${count} نموذج) من ملف ai_providers.json بنجاح`,
+      deleted_count: count,
+    })
+  }
+
+  // 2️⃣ تنظيف النماذج المعطلة
+  if (cleanBroken) {
+    const usage = loadUsage()
+    const before = fleet.providers.length
+    fleet.providers = fleet.providers.filter((p) => {
+      const st = stateOf(usage, p.id)
+      const err = (st.last_error || '').toLowerCase()
+      const isBroken =
+        st.status === 'down' ||
+        err.includes('404') ||
+        err.includes('410') ||
+        err.includes('429') ||
+        err.includes('not found') ||
+        err.includes('gone') ||
+        err.includes('concurrency') ||
+        err.includes('aborted')
+      return !isBroken
+    })
+    const count = before - fleet.providers.length
+    saveFleet(fleet)
+    return NextResponse.json({
+      ok: true,
+      message: `🧹 تم تنظيف وحذف ${count} نموذج معطل من الأسطول بنجاح!`,
+      cleaned_count: count,
+    })
+  }
+
+  if (!id) {
+    return NextResponse.json({ ok: false, message: 'معرف المزود (id) أو base_url مطلوب للحذف' }, { status: 400 })
+  }
+
+  const before = fleet.providers.length
+  fleet.providers = fleet.providers.filter((p) => p.id !== id)
+  if (fleet.providers.length === before) {
+    return NextResponse.json({ ok: false, message: 'المزود غير موجود في الأسطول' }, { status: 404 })
+  }
+
+  saveFleet(fleet)
+  return NextResponse.json({ ok: true, message: '🗑️ تم حذف المزود بنجاح من ملف ai_providers.json' })
 }

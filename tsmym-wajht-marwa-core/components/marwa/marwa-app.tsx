@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   agentMap,
   agents,
   initialMainMessages,
-  models,
   nowTime,
   type AgentId,
   type Message,
@@ -19,13 +18,12 @@ import { MainChat } from './main-chat'
 import { AgentRoom } from './agent-room'
 import { ReportsDialog } from './reports-dialog'
 import { AchievementsDialog } from './achievements-dialog'
-import { HandoverDialog } from './handover-dialog'
 import { SettingsDialog } from './settings-dialog'
 import { supabase, supabaseConfigured } from '@/lib/supabase'
 import { subscribeUrgentAlerts, buildAlertText, type AlertRow } from '@/lib/agent-alerts'
 
 type View = 'main' | AgentId
-type DialogId = 'reports' | 'achievements' | 'handover' | 'settings' | null
+type DialogId = 'reports' | 'achievements' | 'settings' | null
 
 const agentIds = agents.map((a) => a.id)
 
@@ -33,11 +31,9 @@ function byAgent<T>(make: (id: AgentId) => T) {
   return Object.fromEntries(agentIds.map((id) => [id, make(id)])) as Record<AgentId, T>
 }
 
-const marwaLines = [
-  'تمام، وزعت المهمة على الوكلاء وجمعت السياق من النوت بوك وآخر التقارير.',
-  'فهمت. هذا ملخص ما عند الفريق، واخترت لك أنسب الإجراءات.',
-  'تم. راجعت الأولويات: الطلبات العاجلة أولاً ثم الإنتاج المتأخر.',
-]
+// تطهير (أمر المالك 2026-10-21): الردود المعلبة marwaLines وnextReply حُذفت —
+// كل رد يأتي من مزود الذكاء الحي عبر /api/chat، وعند غياب المزود رسالة نظام
+// صادقة توجّه لـ ⚙️ الإعدادات العامة (لا محاكاة ولا نصوص متخيلة).
 
 const agentActions: Record<AgentId, string> = {
   salma: 'إبلاغ العميل عبر واتساب',
@@ -52,6 +48,10 @@ const agentActions: Record<AgentId, string> = {
 }
 
 export function MarwaApp() {
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
   // deep-link مباشر لغرفة وكيل (?agent=fares) — يُطبَّق بعد الترطيب فقط
   // لتفادي اختلاف SSR/عميل (hydration mismatch).
   const [view, setView] = useState<View>('main')
@@ -74,7 +74,6 @@ export function MarwaApp() {
   }, [])
   const [activeAgents, setActiveAgents] = useState<AgentId[]>(['fares'])
   const [autoMode, setAutoMode] = useState(true)
-  const [model, setModel] = useState(models[0].id)
   const [dialog, setDialog] = useState<DialogId>(null)
   const [mainMessages, setMainMessages] = useState<Message[]>(initialMainMessages)
   const [mainTyping, setMainTyping] = useState<Message['author'] | null>(null)
@@ -94,23 +93,14 @@ export function MarwaApp() {
   // أمر المالك 2026-10-21: الأشرطة الجانبية قابلة للطي — الافتراضي مغلق لتوسيع الشات
   const [rightOpen, setRightOpen] = useState(false)
   const [leftOpen, setLeftOpen] = useState(false)
-  const replyIndex = useRef(1)
 
-  const nextReply = (id: AgentId) => {
-    const list = agentMap[id].replies
-    if (list.length === 0) {
-      // لا ردود وهمية — بديل صادق حتى تفعيل الدماغ السحابي لكل وكيل
-      return 'سجلت طلبك. الواجهة الحالية إثبات عمل (PoC) — الردود الحية تُفعَّل عند ربط الدماغ السحابي للوكيل.'
-    }
-    return list[replyIndex.current++ % list.length]
-  }
-
-  const make = (author: Message['author'], text: string, actions?: string[]): Message => ({
+  const make = (author: Message['author'], text: string, actions?: string[], meta?: { model: string; ms: number }): Message => ({
     id: crypto.randomUUID(),
     author,
     text,
     time: nowTime(),
     actions: actions?.map((label) => ({ id: crypto.randomUUID(), label })),
+    meta,
   })
 
   function pushMain(msg: Message) {
@@ -126,12 +116,13 @@ export function MarwaApp() {
   }
 
   /** الشات الحي عبر بوابة الذكاء الاصطناعي (Enterprise AI Gateway).
-   * 'ai' = الرد من مزود حي • 'simulate' = لا مزودين — رجوع للمحاكاة القديمة • 'error' = فشل مُعلن */
+   * 'ai' = رد حي من مزود • 'noprovider' = لا مزودين — رسالة نظام صادقة • 'error' = فشل مُعلن.
+   * تطهير 2026-10-21: لا محاكاة ولا ردود معلبة بعد اليوم. */
   async function askAI(
     agentKey: AgentId | 'marwa',
     history: Message[],
     push: (m: Message) => void,
-  ): Promise<'ai' | 'simulate' | 'error'> {
+  ): Promise<'ai' | 'noprovider' | 'error'> {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -144,17 +135,25 @@ export function MarwaApp() {
           })),
         }),
       })
-      const j = (await res.json()) as { ok?: boolean; text?: string; reason?: string; compacted?: boolean }
+      const j = (await res.json()) as {
+        ok?: boolean; text?: string; reason?: string; compacted?: boolean
+        provider?: { name?: string; model?: string }; latency_ms?: number
+      }
       if (j.ok && j.text) {
-        push(make(agentKey as Message['author'], j.text))
+        // شارة هوية النموذج وزمن الاستجابة — من المزود الفعلي فقط (أمر المالك 2026-10-21)
+        const meta = j.provider?.model
+          ? { model: j.provider.model, ms: j.latency_ms ?? 0 }
+          : undefined
+        push(make(agentKey as Message['author'], j.text, undefined, meta))
         if (j.compacted) push(make('system', '🗜️ السجل كان أطول من حد المزود — اتعمل له Auto-Compact تلقائياً (ملخص الحالة + آخر الرسائل)'))
         return 'ai'
       }
-      if ((j.reason ?? '').includes('لا مزودين')) return 'simulate'
-      push(make('system', `⚠️ ${j.reason ?? 'محرك الذكاء غير متاح'} — الشات الحي يحتاج مزوداً في «أسطول الذكاء» بغرفة فيجن`))
+      if ((j.reason ?? '').includes('لا مزودين')) return 'noprovider'
+      push(make('system', `⚠️ ${j.reason ?? 'محرك الذكاء غير متاح'} — راجع «أسطول الذكاء» في ⚙️ الإعدادات العامة`))
       return 'error'
     } catch {
-      return 'simulate'
+      push(make('system', '⚠️ فشل الاتصال بمحرك الشات — أعد المحاولة'))
+      return 'error'
     }
   }
 
@@ -203,39 +202,17 @@ export function MarwaApp() {
       ? agents.filter((a) => a.keywords.some((k) => text.includes(k))).map((a) => a.id)
       : []
     const newlyActivated = detected.filter((id) => !activeAgents.includes(id))
-    const responders = Array.from(new Set([...detected, ...activeAgents])).slice(0, 3)
     if (newlyActivated.length) activate(newlyActivated)
 
-    // الشات الحي لمروة — والمحاكاة احتياط فقط عند غياب المزودين
+    // الشات الحي حصرياً (تطهير 2026-10-21): الرد من مزود الأسطول — لا محاكاة
     const history = [...mainMessages, make('user', text)]
     setMainTyping('marwa')
     void (async () => {
       const mode = await askAI('marwa', history, pushMain)
-      if (mode !== 'simulate') {
-        setMainTyping(null)
-        return
+      setMainTyping(null)
+      if (mode === 'noprovider') {
+        pushMain(make('system', 'لم يُضف مزود ذكاء اصطناعي بعد — افتح ⚙️ الإعدادات العامة وأضف مزوداً ليعمل الشات الحي.'))
       }
-      const intro = newlyActivated.length
-        ? `وضع أوتو: فعّلت ${newlyActivated.map((id) => agentMap[id].name).join(' و')} تلقائياً. `
-        : ''
-      const actions = responders.map((id) => agentActions[id]).slice(0, 3)
-
-      runSequence(
-        [
-          ...responders.map((id) => ({ author: id as Message['author'], build: () => make(id, nextReply(id)) })),
-          {
-            author: 'marwa' as const,
-            build: () =>
-              make(
-                'marwa',
-                intro + (responders.length ? marwaLines[replyIndex.current % marwaLines.length] : 'لا يوجد وكلاء مفعّلون. فعّل وكيلاً أو شغّل وضع أوتو وسأتولى التوزيع.'),
-                actions.length ? actions : undefined,
-              ),
-          },
-        ],
-        setMainTyping,
-        pushMain,
-      )
     })()
   }
 
@@ -247,22 +224,21 @@ export function MarwaApp() {
           : m,
       ),
     )
-    pushMain(make('system', `تم تنفيذ: ${label}`))
-
+    // تطهير 2026-10-21: لا رد معلب — الإجراء يمر كطلب حقيقي إلى الذكاء الحي
     const mentioned = agents.filter((a) => label.includes(a.name)).map((a) => a.id)
     if (mentioned.length > 1) {
       activate(mentioned)
       pushMain(make('system', `تم تفعيل ${mentioned.map((id) => agentMap[id].name).join(' و')} في الشات`))
-      return
     }
-    const owner = mentioned[0] ?? (Object.keys(agentActions) as AgentId[]).find((id) => agentActions[id] === label)
-    if (owner) {
-      runSequence(
-        [{ author: owner, build: () => make(owner, `تم يا فندم، بدأت التنفيذ: ${label}. هبلغك أول ما يخلص.`) }],
-        setMainTyping,
-        pushMain,
-      )
-    }
+    sendMain(label)
+  }
+
+  /** تعديل رسالة المالك وإعادة إرسالها — يقصّ السياق من نقطة التعديل ويحدّثه (أمر المالك 2026-10-21) */
+  function editMain(messageId: string, newText: string) {
+    const idx = mainMessages.findIndex((m) => m.id === messageId)
+    if (idx === -1) return
+    setMainMessages((prev) => prev.slice(0, idx))
+    sendMain(newText)
   }
 
   function toggleAgent(id: AgentId) {
@@ -317,22 +293,25 @@ export function MarwaApp() {
       })()
       return
     }
-    const participants = [room, ...guests[room]]
-    // الشات الحي أولاً — والمحاكاة احتياط فقط عند غياب المزودين
+    // الشات الحي حصرياً (تطهير 2026-10-21) — لا محاكاة
     const history = [...roomMessages[room], make('user', text)]
     setRoomTyping((prev) => ({ ...prev, [room]: agentMap[room].name }))
     void (async () => {
       const mode = await askAI(room, history, (m) => pushRoom(room, m))
-      if (mode !== 'simulate') {
-        setRoomTyping((prev) => ({ ...prev, [room]: null }))
-        return
+      setRoomTyping((prev) => ({ ...prev, [room]: null }))
+      if (mode === 'noprovider') {
+        pushRoom(room, make('system', 'لم يُضف مزود ذكاء اصطناعي بعد — افتح ⚙️ الإعدادات العامة وأضف مزوداً ليعمل الشات الحي.'))
       }
-      runSequence(
-        participants.map((id) => ({ author: id, build: () => make(id, nextReply(id)) })),
-        (a) => setRoomTyping((prev) => ({ ...prev, [room]: a })),
-        (m) => pushRoom(room, m),
-      )
     })()
+  }
+
+  /** تعديل رسالة المالك داخل غرفة وكيل — يقصّ السياق من نقطة التعديل (أمر المالك 2026-10-21) */
+  function editRoom(room: AgentId, messageId: string, newText: string) {
+    const list = roomMessages[room]
+    const idx = list.findIndex((m) => m.id === messageId)
+    if (idx === -1) return
+    setRoomMessages((prev) => ({ ...prev, [room]: prev[room].slice(0, idx) }))
+    sendRoom(room, newText)
   }
 
   function invite(room: AgentId, guest: AgentId) {
@@ -356,25 +335,37 @@ export function MarwaApp() {
     sendMain(text)
   }
 
-  function changeModel(id: string) {
-    if (id === model) return
-    setModel(id)
-    pushMain(make('system', `تم التبديل إلى ${models.find((m) => m.id === id)?.label} — يُنصح بتسليم السياق`))
-  }
-
-  function completeHandover(target: string) {
-    setModel(target)
-    pushMain(make('system', `اكتمل تسليم السياق إلى ${models.find((m) => m.id === target)?.label}`))
-  }
+  // تطهير 2026-10-21: changeModel/completeHandover حُذفا — قائمة الموديلات الوهمية
+  // (Claude/GPT-5/Gemini) ومسرحية Handover أصبحا بلا معنى؛ المزود الفعلي يُدار
+  // من ⚙️ الإعدادات العامة والشارة الحية في الشريط العلوي.
 
   const roomAgent = view !== 'main' ? agentMap[view] : null
 
+  if (!isMounted) {
+
+    return (
+
+      <div className="flex h-dvh flex-col items-center justify-center bg-background text-foreground" suppressHydrationWarning>
+
+        <div className="flex items-center gap-3 text-sm text-muted-foreground" suppressHydrationWarning>
+
+          <span className="size-4 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+
+          <span>جاري تهيئة منظومة مروة كور…</span>
+
+        </div>
+
+      </div>
+
+    )
+
+  }
+
+
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+
+    <div className="flex h-dvh flex-col overflow-hidden" suppressHydrationWarning>
       <TopHeader
-        model={model}
-        onModelChange={changeModel}
-        onHandover={() => setDialog('handover')}
         onReports={() => setDialog('reports')}
         onAchievements={() => setDialog('achievements')}
         onOpenSettings={() => setDialog('settings')}
@@ -411,6 +402,7 @@ export function MarwaApp() {
               onInvite={(g) => invite(roomAgent.id, g)}
               onToggleActive={() => toggleAgent(roomAgent.id)}
               onEscalate={delegateToMarwa}
+              onEdit={(mid, t) => editRoom(roomAgent.id, mid, t)}
             />
           ) : (
             <>
@@ -425,6 +417,7 @@ export function MarwaApp() {
                 typing={mainTyping}
                 onSend={sendMain}
                 onAction={handleMainAction}
+                onEdit={editMain}
                 autoMode={autoMode}
               />
             </>
@@ -451,14 +444,6 @@ export function MarwaApp() {
       <ReportsDialog open={dialog === 'reports'} onOpenChange={(v) => setDialog(v ? 'reports' : null)} />
       <AchievementsDialog open={dialog === 'achievements'} onOpenChange={(v) => setDialog(v ? 'achievements' : null)} />
       <SettingsDialog open={dialog === 'settings'} onOpenChange={(v) => setDialog(v ? 'settings' : null)} />
-      <HandoverDialog
-        open={dialog === 'handover'}
-        onOpenChange={(v) => setDialog(v ? 'handover' : null)}
-        currentModel={model}
-        messageCount={mainMessages.length}
-        activeCount={activeAgents.length}
-        onComplete={completeHandover}
-      />
     </div>
   )
 }

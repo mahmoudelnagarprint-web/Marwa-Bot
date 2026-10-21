@@ -20,12 +20,17 @@ export function AgentAvatar({
   className?: string
 }) {
   return (
-    <span className={cn('relative inline-flex shrink-0', className)} style={{ width: size, height: size }}>
+    <span
+      className={cn('relative inline-flex shrink-0', className)}
+      style={{ width: size, height: size }}
+      suppressHydrationWarning
+    >
       <Image
         src={agent.image}
         alt={agent.name}
         width={size * 2}
         height={size * 2}
+        suppressHydrationWarning
         className={cn('size-full rounded-full object-cover ring-1', agent.tone.ring)}
       />
       {showStatus && (
@@ -35,6 +40,7 @@ export function AgentAvatar({
             statusColor[agent.status],
           )}
           aria-hidden="true"
+          suppressHydrationWarning
         />
       )}
     </span>

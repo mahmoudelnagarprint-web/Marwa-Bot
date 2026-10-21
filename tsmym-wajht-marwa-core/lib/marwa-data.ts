@@ -289,12 +289,9 @@ export const agents: Agent[] = [
 
 export const agentMap = Object.fromEntries(agents.map((a) => [a.id, a])) as Record<AgentId, Agent>
 
-export const models = [
-  { id: 'claude-opus', label: 'Claude Opus 4.5', provider: 'Anthropic' },
-  { id: 'gpt-5', label: 'GPT-5', provider: 'OpenAI' },
-  { id: 'gemini-pro', label: 'Gemini 2.5 Pro', provider: 'Google' },
-  { id: 'llama-local', label: 'Llama محلي', provider: 'LAPTOP' },
-]
+// ملاحظة (تطهير بأمر المالك 2026-10-21): قائمة الموديلات الوهمية (Claude/GPT-5/
+// Gemini/Llama) حُذفت — النموذج الفعلي يأتي حيًّا من مزود الأسطول عبر /api/ai-fleet
+// ويُعرض كشارة على كل رد (Message.meta).
 
 export type Message = {
   id: string
@@ -302,6 +299,8 @@ export type Message = {
   text: string
   time: string
   actions?: { id: string; label: string; done?: boolean }[]
+  /** هوية النموذج ووقت الاستجابة — تُملأ فقط من ردود الذكاء الاصطناعي الحقيقية */
+  meta?: { model: string; ms: number }
 }
 
 export function nowTime() {

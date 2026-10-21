@@ -4,13 +4,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseSync } from 'node:sqlite'
 import fs from 'fs'
-import { chatWithFailover, type ChatMsg } from '@/lib/ai-gateway'
+import path from 'path'
+import { chatWithFailover, getRepoRoot, type ChatMsg } from '@/lib/ai-gateway'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ROOT = 'G:\\ai\\Naggar Print POS Agent'
-const POS_DB = 'G:\\ai\\Elnagar POS\\pos_data.db'
+function getPosDb(): string {
+  return process.env.NB2_POS_DB_PATH || ['G:', 'ai', 'Elnagar POS', 'pos_data.db'].join(path.sep)
+}
 
 export async function POST(req: NextRequest) {
   let body: { client?: unknown; intent?: unknown }
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
   let clientRow: PosClient | null = null
   let orders: PosOrder[] = []
   try {
-    const db = new DatabaseSync(POS_DB, { readOnly: true })
+    const db = new DatabaseSync(getPosDb(), { readOnly: true })
     clientRow = (db
       .prepare('SELECT id, TRIM(name) AS name, NULLIF(phone, \'\') AS phone, balance FROM clients WHERE TRIM(name) = ? LIMIT 1')
       .get(clientName) ?? null) as PosClient | null
@@ -46,7 +48,10 @@ export async function POST(req: NextRequest) {
   // 2) حالة الطلبات من لوحة بيبو (board_state.json)
   let board: Record<string, string> = {}
   try {
-    board = JSON.parse(fs.readFileSync(`${ROOT}\\workspaces\\bebo_production\\active_workspaces\\board_state.json`, 'utf8')) as Record<string, string>
+    const boardPath = path.join(getRepoRoot(), 'workspaces', 'bebo_production', 'active_workspaces', 'board_state.json')
+    if (fs.existsSync(boardPath)) {
+      board = JSON.parse(fs.readFileSync(boardPath, 'utf8')) as Record<string, string>
+    }
   } catch { /* لا لوحة — نتجاهل */ }
 
   const statusMap: Record<string, string> = {

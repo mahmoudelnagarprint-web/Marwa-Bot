@@ -1,18 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart3, ChevronDown, Cpu, Laptop, RefreshCw, Settings, Trophy } from 'lucide-react'
+import { BarChart3, Bot, Cpu, Laptop, Settings, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { models } from '@/lib/marwa-data'
 
 function PulseIndicator() {
   const [seconds, setSeconds] = useState(3)
@@ -33,29 +23,71 @@ function PulseIndicator() {
           Marwa Pulse
         </span>
         {' • '}
-        <span className="font-mono tabular-nums">{seconds}s</span> — واجهة تجريبية (التفعيل الحي بالمرحلة 3 بأمر المالك)
+        <span className="font-mono tabular-nums">{seconds}s</span> — متصلة بالطبقة الحية (POS + Workspaces)
       </span>
     </div>
   )
 }
 
+/** المزود النشط الحي — يقرأ أسطول الذكاء فعلياً (تطهير 2026-10-21: قائمة
+ * الموديلات الوهمية Claude/GPT-5/Gemini حُذفت) */
+function ActiveProviderBadge({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const [provider, setProvider] = useState<{ name: string; model: string } | null>(null)
+  const [checked, setChecked] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    async function load() {
+      try {
+        const res = await fetch('/api/ai-fleet', { cache: 'no-store' })
+        const j = (await res.json()) as {
+          providers?: { name: string; model: string; enabled: boolean }[]
+        }
+        if (!alive) return
+        const active = (j.providers ?? []).find((p) => p.enabled)
+        setProvider(active ? { name: active.name, model: active.model } : null)
+      } catch { /* السيرفر غير متاح */ } finally {
+        if (alive) setChecked(true)
+      }
+    }
+    void load()
+    const id = setInterval(load, 60_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenSettings}
+      title="المزود النشط — إدارة الأسطول من ⚙️ الإعدادات"
+      aria-label="المزود النشط للذكاء الاصطناعي"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
+    >
+      {provider ? (
+        <>
+          <Bot className="size-3.5 text-sky-300" aria-hidden="true" />
+          <span className="max-w-40 truncate">{provider.name}</span>
+          <span className="hidden max-w-48 truncate font-mono text-[11px] md:inline" dir="ltr">{provider.model}</span>
+        </>
+      ) : (
+        <>
+          <Cpu className="size-3.5" aria-hidden="true" />
+          {checked ? 'لا مزود — أضف من ⚙️' : 'يفحص الأسطول…'}
+        </>
+      )}
+    </button>
+  )
+}
+
 export function TopHeader({
-  model,
-  onModelChange,
-  onHandover,
   onReports,
   onAchievements,
   onOpenSettings,
 }: {
-  model: string
-  onModelChange: (id: string) => void
-  onHandover: () => void
   onReports: () => void
   onAchievements: () => void
   onOpenSettings: () => void
 }) {
-  const current = models.find((m) => m.id === model) ?? models[0]
-
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-sidebar px-4">
       <div className="flex items-center gap-3">
@@ -83,42 +115,10 @@ export function TopHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onHandover} className="gap-2">
-          <RefreshCw className="size-3.5" aria-hidden="true" />
-          تسليم السياق
-          <span className="font-mono text-[11px] text-muted-foreground" dir="ltr">
-            Handover
-          </span>
-        </Button>
+        <ActiveProviderBadge onOpenSettings={onOpenSettings} />
         <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} aria-label="الإعدادات العامة — أسطول الذكاء" title="الإعدادات العامة (أسطول الذكاء)" className="text-muted-foreground hover:text-foreground">
           <Settings className="size-4" aria-hidden="true" />
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground" />
-            }
-          >
-            <Cpu className="size-3.5" aria-hidden="true" />
-            <span dir="ltr">{current.label}</span>
-            <ChevronDown className="size-3.5" aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-56">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>اختيار النموذج</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={model} onValueChange={(v) => onModelChange(String(v))}>
-                {models.map((m) => (
-                  <DropdownMenuRadioItem key={m.id} value={m.id}>
-                    <span className="flex w-full items-center justify-between gap-3">
-                      <span dir="ltr">{m.label}</span>
-                      <span className="text-[11px] text-muted-foreground">{m.provider}</span>
-                    </span>
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       <div className="flex items-center gap-2">

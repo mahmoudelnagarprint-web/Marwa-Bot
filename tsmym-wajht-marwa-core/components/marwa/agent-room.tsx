@@ -15,6 +15,7 @@ import { KokoDashboard } from './koko-dashboard'
 import { HakimDashboard } from './hakim-dashboard'
 import { VisionDashboard } from './vision-dashboard'
 import { AfkarDashboard } from './afkar-dashboard'
+import { FaresDashboard } from './fares-dashboard'
 import { CustomerChat } from './customer-chat'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -49,6 +50,7 @@ export function AgentRoom({
   onInvite,
   onToggleActive,
   onEscalate,
+  onEdit,
 }: {
   agent: Agent
   messages: Message[]
@@ -60,8 +62,9 @@ export function AgentRoom({
   onInvite: (guest: AgentId) => void
   onToggleActive: () => void
   onEscalate: (text: string) => void
+  onEdit: (messageId: string, newText: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>(agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' || agent.id === 'koko' || agent.id === 'hakim' || agent.id === 'vision' || agent.id === 'afkar' ? 'dashboard' : 'news')
+  const [tab, setTab] = useState<TabId | null>(agent.id === 'fares' || agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' || agent.id === 'koko' || agent.id === 'hakim' || agent.id === 'vision' || agent.id === 'afkar' ? 'dashboard' : 'news')
   const [approved, setApproved] = useState<string[]>([])
 
   // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
@@ -69,7 +72,7 @@ export function AgentRoom({
     const q = new URLSearchParams(window.location.search).get('tab')
     if (!q) return
     if (q === 'tasks' && agent.id !== 'fares') return
-    if (q === 'dashboard' && agent.id !== 'salma' && agent.id !== 'afkar') return
+    if (q === 'dashboard' && agent.id !== 'fares' && agent.id !== 'salma' && agent.id !== 'afkar') return
     if ((['news', 'reports', 'suggestions', 'complaints', 'tasks', 'dashboard', 'customers'] as const).includes(q as TabId)) {
       setTab(q as TabId)
     }
@@ -111,8 +114,9 @@ export function AgentRoom({
     },
   ]
 
-  // تبويب المهام — PoC في غرفة فارس (يُعمم على كل الوكلاء في task-3)
+  // لوحة فارس CFO — الخزنة المركزية + تقفيل الشيفت + المخزن والرادار المالي (أمر المالك 2026-10-21)
   if (agent.id === 'fares') {
+    tabs.unshift({ id: 'dashboard', label: 'الخزنة والمخزن', icon: LayoutDashboard, count: 0, preview: 'الخزنة الحية + تقفيل الشيفت + المخزن التفاعلي والرادار المالي' })
     tabs.push({ id: 'tasks', label: 'المهام الجارية', icon: ListTodo, count: 0, preview: 'Supabase agent_tasks — حي' })
   }
   // لوحة سلمى ERP — الأوبريت الأول لتطوير لوحات الوكلاء (أمر المالك 2026-10-20)
@@ -258,6 +262,7 @@ export function AgentRoom({
 
               {tab === 'tasks' && <AgentTasksPanel agentId={agent.id} agentName={agent.name} toneDot={agent.tone.dot} />}
 
+              {tab === 'dashboard' && agent.id === 'fares' && <FaresDashboard />}
               {tab === 'dashboard' && agent.id === 'salma' && <SalmaDashboard agentId={agent.id} />}
               {tab === 'dashboard' && agent.id === 'bebo' && <BeboDashboard />}
               {tab === 'dashboard' && agent.id === 'sasa' && <SasaDashboard />}
@@ -371,7 +376,7 @@ export function AgentRoom({
         )}
       </div>
 
-      <MessageList messages={messages} typing={typing} />
+      <MessageList messages={messages} typing={typing} onEdit={onEdit} />
       <div className="mx-auto w-full max-w-3xl px-5 pb-5">
         <ChatComposer
           placeholder={`تحدث مباشرة مع ${agent.name}...`}
