@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FolderTree, MessagesSquare, Users } from 'lucide-react'
+import { FolderTree, MessagesSquare, PanelRightClose, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { agents, type AgentId } from '@/lib/marwa-data'
 import { AgentAvatar, marwaProfile } from './agent-avatar'
@@ -16,11 +16,13 @@ export function AgentsSidebar({
   onNavigate,
   unread,
   activeAgents,
+  onCollapse,
 }: {
   view: 'main' | AgentId
   onNavigate: (v: 'main' | AgentId) => void
   unread: Record<AgentId, number>
   activeAgents: AgentId[]
+  onCollapse?: () => void
 }) {
   const [tab, setTab] = useState<SidebarTab>('agents')
   const selectedAgent: AgentId | undefined = view === 'main' ? undefined : view
@@ -54,6 +56,17 @@ export function AgentsSidebar({
           <FolderTree className="size-3.5" aria-hidden="true" />
           ملفات الوكيل
         </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="طي قائمة الوكلاء"
+            title="طي القائمة"
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <PanelRightClose className="size-3.5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {tab === 'files' ? (

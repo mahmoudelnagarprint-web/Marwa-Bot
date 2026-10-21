@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, CheckCircle2, KeyRound, Plug, Plus, RefreshCw, RotateCcw, Server, Trash2, X, Zap } from 'lucide-react'
+import { Activity, ArrowDownUp, CheckCircle2, KeyRound, Plug, Plus, RefreshCw, RotateCcw, Server, Trash2, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -44,6 +44,12 @@ export function AiFleet() {
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ name: '', base_url: '', model: '', max_tokens: 8000, api_key: '', env_key: '', role: 'strong' })
+  const [models, setModels] = useState<string[]>([])
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const [modelsErr, setModelsErr] = useState<string | null>(null)
+  // إصلاح الموديل داخل الكرت — للمزود المحفوظ الذي دخل بموديل خاطئ
+  const [fixingId, setFixingId] = useState<string | null>(null)
+  const [fixModels, setFixModels] = useState<string[]>([])
 
   const load = useCallback(async () => {
     setError(null)
@@ -79,10 +85,73 @@ export function AiFleet() {
       if (j.ok) {
         setAdding(false)
         setForm({ name: '', base_url: '', model: '', max_tokens: 8000, api_key: '', env_key: '', role: 'strong' })
+        setModels([])
         await load()
       }
+      return j
     } catch {
       setFlash('⚠️ فشل الاتصال')
+      return { ok: false }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** السحب التلقائي للنماذج — GET /v1/models القياسية من المزود المُدخل */
+  async function fetchModels() {
+    if (!form.base_url || (!form.env_key && !form.api_key)) {
+      setModelsErr('أدخل Base URL والمفتاح أولاً')
+      return
+    }
+    setFetchingModels(true)
+    setModelsErr(null)
+    try {
+      const res = await fetch('/api/ai-fleet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list_models', base_url: form.base_url, env_key: form.env_key || undefined, api_key: form.api_key || undefined }),
+      })
+      const j = (await res.json()) as { ok?: boolean; models?: string[]; message?: string }
+      if (j.ok && j.models?.length) {
+        setModels(j.models)
+        if (!form.model || !j.models.includes(form.model)) setForm((f) => ({ ...f, model: j.models![0] }))
+      } else {
+        setModelsErr(j.message ?? 'لا نماذج')
+      }
+    } catch {
+      setModelsErr('⚠️ فشل سحب النماذج')
+    } finally {
+      setFetchingModels(false)
+    }
+  }
+
+  /** اختبار حقيقي: رسالة Ping فعلية للنموذج المختار */
+  async function realPing(id: string) {
+    setBusy(true)
+    setFlash(null)
+    const j = (await post({ action: 'ping_chat', id })) as { ms?: number; reply?: string }
+    if (j?.ms) setFlash(`⚡ رد حقيقي في ${j.ms}ms — «${(j.reply ?? '').slice(0, 60)}»`)
+  }
+
+  /** سحب نماذج مزود محفوظ (بمفتاحه المخزن) لإصلاح الموديل بنقرة */
+  async function fixModel(id: string) {
+    setBusy(true)
+    setFlash(null)
+    try {
+      const res = await fetch('/api/ai-fleet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list_models', id }),
+      })
+      const j = (await res.json()) as { ok?: boolean; models?: string[]; message?: string }
+      if (j.ok && j.models?.length) {
+        setFixModels(j.models)
+        setFixingId(id)
+      } else {
+        setFlash(j.message ?? 'لا نماذج')
+      }
+    } catch {
+      setFlash('⚠️ فشل سحب النماذج')
     } finally {
       setBusy(false)
     }
@@ -124,30 +193,63 @@ export function AiFleet() {
 
       {adding && (
         <div className="flex flex-col gap-2 rounded-xl border border-sky-400/25 bg-card p-3">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="اسم المزود" aria-label="اسم المزود"
-              className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-sky-400/40" />
-            <input value={form.base_url} onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))} placeholder="https://api…/v1" dir="ltr" aria-label="Base URL"
-              className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs outline-none focus:border-sky-400/40" />
-            <input value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} placeholder="اسم الموديل" dir="ltr" aria-label="الموديل"
-              className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs outline-none focus:border-sky-400/40" />
-            <input value={form.max_tokens} onChange={(e) => setForm((f) => ({ ...f, max_tokens: Number(e.target.value) || 8000 }))} placeholder="Max Tokens" type="number" dir="ltr" aria-label="Max Tokens"
-              className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs outline-none focus:border-sky-400/40" />
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              اسم المزود
+              <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="مثال: Dahl / OpenRouter" aria-label="اسم المزود"
+                className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-sky-400/40" />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              Base URL
+              <input value={form.base_url} onChange={(e) => { setForm((f) => ({ ...f, base_url: e.target.value })); setModels([]) }} placeholder="https://api…/v1" dir="ltr" aria-label="Base URL"
+                className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40" />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+              مفتاح API (أو اسم متغير من .env)
+              <input value={form.env_key || form.api_key} onChange={(e) => {
+                const v = e.target.value
+                setForm((f) => (v.startsWith('nvapi-') || v.startsWith('sk-') ? { ...f, api_key: v, env_key: '' } : { ...f, env_key: v, api_key: '' }))
+                setModels([])
+              }} placeholder="DAHL_API_KEY أو sk-…" dir="ltr" aria-label="API Key" type="password"
+                className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40" />
+            </label>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+
+          {/* الموديل: سحب تلقائي من /v1models — أو إدخال يدوي احتياط */}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex min-w-56 flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+              الموديل {models.length > 0 && <span className="text-emerald-300">({models.length} نموذج متاح)</span>}
+              {models.length > 0 ? (
+                <select value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} aria-label="اختيار الموديل"
+                  className="rounded-md border border-emerald-400/30 bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none">
+                  {models.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              ) : (
+                <input value={form.model} onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} placeholder="اكتب يدوياً أو اسحب النماذج" dir="ltr" aria-label="الموديل"
+                  className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40" />
+              )}
+            </label>
+            <Button size="sm" variant="outline" disabled={fetchingModels || !form.base_url || (!form.env_key && !form.api_key)} onClick={() => void fetchModels()} className="gap-1.5">
+              <ArrowDownUp className={cn('size-3.5', fetchingModels && 'animate-bounce')} />
+              {fetchingModels ? 'بيسحب…' : 'سحب النماذج ⬇'}
+            </Button>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              Max Tokens
+              <input value={form.max_tokens} onChange={(e) => setForm((f) => ({ ...f, max_tokens: Number(e.target.value) || 8000 }))} type="number" dir="ltr" aria-label="Max Tokens"
+                className="w-24 rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40" />
+            </label>
             <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} aria-label="دور المزود"
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm">
-              <option value="strong">💪 قوي (الوكلاء المعقدون)</option>
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground">
+              <option value="strong">💪 قوي (المعقدون)</option>
               <option value="light">⚡ خفيف (التنفيذيون)</option>
             </select>
-            <input value={form.env_key} onChange={(e) => setForm((f) => ({ ...f, env_key: e.target.value, api_key: '' }))} placeholder="اسم مفتاح من .env (مثل DAHL_API_KEY)" dir="ltr" aria-label="متغير بيئة"
-              className="min-w-44 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs outline-none focus:border-sky-400/40" />
-            <input value={form.api_key} onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value, env_key: '' }))} placeholder="أو مفتاح مباشر (يُخزن محلياً فقط)" type="password" dir="ltr" aria-label="API Key"
-              className="min-w-44 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs outline-none focus:border-sky-400/40" />
             <Button size="sm" disabled={busy || !form.name || !form.base_url || !form.model || (!form.api_key && !form.env_key)} onClick={() => void post({ action: 'add_provider', ...form })}>
-              <Plug className="size-3.5" /> إضافة
+              <Plug className="size-3.5" /> إضافة للأسطول
             </Button>
           </div>
+          {modelsErr && <p className="text-[11px] text-amber-300">{modelsErr} — يمكن الإدخال يدوياً.</p>}
           <p className="text-[10px] text-muted-foreground">
             🔐 المفتاح لا يظهر أبداً في الواجهة ولا يخرج من السيرفر — والملف محمي في .gitignore.
           </p>
@@ -176,8 +278,11 @@ export function AiFleet() {
                 <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground" dir="ltr">{p.model}</span>
                 <span className={cn('text-[11px]', sm.cls)}>● {sm.label}</span>
                 <span className="ms-auto flex items-center gap-1">
-                  <Button size="xs" variant="ghost" disabled={busy} onClick={() => void post({ action: 'test_provider', id: p.id })} className="gap-1 text-muted-foreground">
-                    <Zap className="size-3" /> Ping
+                  <Button size="xs" variant="ghost" disabled={busy} onClick={() => void realPing(p.id)} className="gap-1 text-sky-300">
+                    <Zap className="size-3" /> اختبار حي
+                  </Button>
+                  <Button size="xs" variant="ghost" disabled={busy} onClick={() => void fixModel(p.id)} className="gap-1 text-muted-foreground" title="سحب النماذج المتاحة وإصلاح الموديل">
+                    <ArrowDownUp className="size-3" /> نموذج
                   </Button>
                   <Button size="xs" variant="ghost" disabled={busy} onClick={() => void post({ action: 'update_provider', id: p.id, enabled: !p.enabled })} className="gap-1 text-muted-foreground">
                     <CheckCircle2 className="size-3" /> {p.enabled ? 'تعطيل' : 'تفعيل'}
@@ -208,6 +313,32 @@ export function AiFleet() {
                 </div>
                 {p.last_error && <p className="mt-1 truncate font-mono text-[10px] text-rose-300/80" dir="ltr">{p.last_error}</p>}
               </div>
+
+              {/* إصلاح الموديل بنقرة — سحب النماذج بمفتاح المزود المخزن */}
+              {fixingId === p.id && fixModels.length > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] p-2">
+                  <span className="text-[11px] text-emerald-200">اختر الموديل الصحيح:</span>
+                  <select
+                    aria-label="إصلاح الموديل"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const model = e.target.value
+                      if (model) {
+                        setFixingId(null)
+                        setFixModels([])
+                        void post({ action: 'update_provider', id: p.id, model }, )
+                      }
+                    }}
+                    className="max-w-72 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-foreground"
+                  >
+                    <option value="" disabled>— اختر —</option>
+                    {fixModels.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => { setFixingId(null); setFixModels([]) }} className="text-[11px] text-muted-foreground">إلغاء</button>
+                </div>
+              ) : null}
             </article>
           )
         })}

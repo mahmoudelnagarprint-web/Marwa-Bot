@@ -340,7 +340,7 @@ export function AfkarDashboard() {
                 >
                   <Trash2 className="size-3" /> أرشفة
                 </Button>
-                <span className="ms-auto text-[10px] text-muted-foreground">
+                <span className="ms-auto text-[10px] text-muted-foreground" suppressHydrationWarning>
                   {new Date(n.created_at).toLocaleDateString('ar-EG')}
                 </span>
               </footer>

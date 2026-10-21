@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertOctagon, Check, Clock, NotebookPen, Plus, RefreshCw, Send, StickyNote, X } from 'lucide-react'
+import { AlertOctagon, Check, Clock, NotebookPen, PanelRightClose, Plus, RefreshCw, Send, StickyNote, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +44,7 @@ const filters: { id: 'all' | Category; label: string }[] = [
   { id: 'note', label: 'ملاحظات' },
 ]
 
-export function NotebookPanel({ onDelegate }: { onDelegate: (text: string) => void }) {
+export function NotebookPanel({ onDelegate, onCollapse }: { onDelegate: (text: string) => void; onCollapse?: () => void }) {
   const [items, setItems] = useState(initialItems)
   const [filter, setFilter] = useState<'all' | Category>('all')
   const [adding, setAdding] = useState(false)
@@ -82,9 +82,22 @@ export function NotebookPanel({ onDelegate }: { onDelegate: (text: string) => vo
             <span className="rounded-full bg-rose-400/15 px-1.5 text-[11px] font-medium text-rose-300">{openUrgent} عاجل</span>
           )}
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={() => setAdding((v) => !v)} aria-label="إضافة ملاحظة">
-          {adding ? <X /> : <Plus />}
-        </Button>
+        <div className="flex items-center gap-1">
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              aria-label="طي النوت بوك"
+              title="طي النوت بوك"
+              className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <PanelRightClose className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+          <Button variant="ghost" size="icon-sm" onClick={() => setAdding((v) => !v)} aria-label="إضافة ملاحظة">
+            {adding ? <X /> : <Plus />}
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2 scrollbar-thin" role="group" aria-label="تصفية">

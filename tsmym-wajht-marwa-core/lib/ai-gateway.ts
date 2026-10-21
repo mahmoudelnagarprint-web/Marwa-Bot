@@ -76,7 +76,7 @@ function writeJson(file: string, data: unknown): void {
 
 /** قراءة قيمة من .env الجذر (سيرفر فقط) — dev server لا يرث متغيرات الجذر تلقائياً */
 let envFileCache: Record<string, string> | null = null
-function envFileValue(name: string): string | null {
+export function envFileValue(name: string): string | null {
   if (envFileCache === null) {
     envFileCache = {}
     try {

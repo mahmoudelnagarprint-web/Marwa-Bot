@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart3, ChevronDown, Cpu, Laptop, RefreshCw, Trophy } from 'lucide-react'
+import { BarChart3, ChevronDown, Cpu, Laptop, RefreshCw, Settings, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -45,12 +45,14 @@ export function TopHeader({
   onHandover,
   onReports,
   onAchievements,
+  onOpenSettings,
 }: {
   model: string
   onModelChange: (id: string) => void
   onHandover: () => void
   onReports: () => void
   onAchievements: () => void
+  onOpenSettings: () => void
 }) {
   const current = models.find((m) => m.id === model) ?? models[0]
 
@@ -87,6 +89,9 @@ export function TopHeader({
           <span className="font-mono text-[11px] text-muted-foreground" dir="ltr">
             Handover
           </span>
+        </Button>
+        <Button variant="ghost" size="icon-sm" onClick={onOpenSettings} aria-label="الإعدادات العامة — أسطول الذكاء" title="الإعدادات العامة (أسطول الذكاء)" className="text-muted-foreground hover:text-foreground">
+          <Settings className="size-4" aria-hidden="true" />
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger

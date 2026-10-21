@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   loadFleet, saveFleet, loadUsage, saveUsage, stateOf, maskKey, resolveApiKey,
-  preflight, tokensOf, type AiProvider,
+  preflight, tokensOf, envFileValue, type AiProvider,
 } from '@/lib/ai-gateway'
 
 export const runtime = 'nodejs'
@@ -127,6 +127,97 @@ export async function POST(req: NextRequest) {
     usage.providers[p.id] = st
     saveUsage(usage)
     return NextResponse.json({ ok: ping.ok, message: ping.ok ? `✅ جاهز (${ping.ms}ms)` : `⚠️ لا يستجيب (${ping.status ?? 'شبكة'}) ${ping.detail ?? ''}`, detail: ping.detail ?? null })
+  }
+
+  // سحب النماذج ديناميكياً — GET /v1/models القياسية (أمر المالك 2026-10-21: إلزامي)
+  // يقبل إما {id مزود محفوظ} أو {base_url + مفتاح خام} (أثناء الإضافة قبل الحفظ)
+  if (action === 'list_models') {
+    let base_url = ''
+    let key: string | null = null
+    const id = body.id !== undefined ? String(body.id) : ''
+    const env_key = body.env_key ? String(body.env_key).trim() : undefined
+    const api_key = body.api_key ? String(body.api_key).trim() : undefined
+    if (id) {
+      const p = fleet.providers.find((x) => x.id === id)
+      if (!p) return NextResponse.json({ ok: false, message: 'المزود غير موجود' }, { status: 404 })
+      base_url = p.base_url
+      key = resolveApiKey(p)
+    } else {
+      base_url = String(body.base_url ?? '').trim().replace(/\/$/, '')
+      key = (env_key ? process.env[env_key] || envFileValue(env_key) : api_key) ?? null
+    }
+    if (!base_url || !key) {
+      return NextResponse.json({ ok: false, message: 'Base URL والمفتاح مطلوبان لسحب النماذج' }, { status: 400 })
+    }
+    try {
+      const ctl = new AbortController()
+      const timer = setTimeout(() => ctl.abort(), 8000)
+      const res = await fetch(`${base_url}/models`, {
+        headers: { Authorization: `Bearer ${key}`, 'cache-control': 'no-store' },
+        cache: 'no-store',
+        signal: ctl.signal,
+      })
+      clearTimeout(timer)
+      if (!res.ok) return NextResponse.json({ ok: false, message: `المزود رفض (${res.status})` })
+      const j = (await res.json()) as { data?: { id?: string }[] }
+      const models = (j.data ?? []).map((m) => String(m.id ?? '')).filter(Boolean).sort()
+      return NextResponse.json({ ok: true, models })
+    } catch (e) {
+      const cause = (e as { cause?: { code?: string } })?.cause
+      return NextResponse.json({ ok: false, message: `شبكة: ${String(e).slice(0, 80)} ${cause?.code ?? ''}` })
+    }
+  }
+
+  // اختبار حقيقي: رسالة Ping فعلية للنموذج المختار — تقيس سرعة الاستجابة الحقيقية
+  if (action === 'ping_chat') {
+    const id = String(body.id ?? '')
+    const p = fleet.providers.find((x) => x.id === id)
+    if (!p) return NextResponse.json({ ok: false, message: 'المزود غير موجود' }, { status: 404 })
+    const key = resolveApiKey(p)
+    if (!key) return NextResponse.json({ ok: false, message: 'لا مفتاح متاح للمزود' })
+    const t0 = Date.now()
+    try {
+      const ctl = new AbortController()
+      const timer = setTimeout(() => ctl.abort(), 30_000)
+      const res = await fetch(`${p.base_url}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model: p.model,
+          messages: [{ role: 'user', content: 'Reply with the single word: Pong' }],
+          max_tokens: 400,
+          temperature: 0,
+        }),
+        cache: 'no-store',
+        signal: ctl.signal,
+      })
+      clearTimeout(timer)
+      const ms = Date.now() - t0
+      const text = await res.text()
+      if (!res.ok) {
+        const st2 = stateOf(loadUsage(), p.id)
+        st2.status = 'down'
+        st2.last_error = `ping ${res.status} ${text.slice(0, 120)}`
+        const u2 = loadUsage()
+        u2.providers[p.id] = st2
+        saveUsage(u2)
+        return NextResponse.json({ ok: false, message: `⚠️ فشل (${res.status}): ${text.slice(0, 120)}` })
+      }
+      const j = JSON.parse(text) as { choices?: { message?: { content?: string } }[] }
+      const reply = j.choices?.[0]?.message?.content?.trim() ?? ''
+      if (!reply) return NextResponse.json({ ok: false, message: '⚠️ رد بلا محتوى — جرّب موديلاً آخر أو ارفع Max Tokens' })
+      const u3 = loadUsage()
+      const st3 = stateOf(u3, p.id)
+      st3.status = 'up'
+      st3.calls += 1
+      st3.prompt_tokens += 15
+      st3.completion_tokens += Math.ceil(reply.length / 3)
+      u3.providers[p.id] = st3
+      saveUsage(u3)
+      return NextResponse.json({ ok: true, ms, reply: reply.slice(0, 120), message: `✅ رد حقيقي في ${ms}ms: «${reply.slice(0, 60)}»` })
+    } catch (e) {
+      return NextResponse.json({ ok: false, message: `⚠️ شبكة/مهلة: ${String(e).slice(0, 120)}` })
+    }
   }
 
   if (action === 'reset_usage') {

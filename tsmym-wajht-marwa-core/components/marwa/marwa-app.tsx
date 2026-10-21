@@ -10,6 +10,7 @@ import {
   type AgentId,
   type Message,
 } from '@/lib/marwa-data'
+import { NotebookPen, Users } from 'lucide-react'
 import { TopHeader } from './top-header'
 import { AgentControlBar } from './agent-control-bar'
 import { AgentsSidebar } from './agents-sidebar'
@@ -19,11 +20,12 @@ import { AgentRoom } from './agent-room'
 import { ReportsDialog } from './reports-dialog'
 import { AchievementsDialog } from './achievements-dialog'
 import { HandoverDialog } from './handover-dialog'
+import { SettingsDialog } from './settings-dialog'
 import { supabase, supabaseConfigured } from '@/lib/supabase'
 import { subscribeUrgentAlerts, buildAlertText, type AlertRow } from '@/lib/agent-alerts'
 
 type View = 'main' | AgentId
-type DialogId = 'reports' | 'achievements' | 'handover' | null
+type DialogId = 'reports' | 'achievements' | 'handover' | 'settings' | null
 
 const agentIds = agents.map((a) => a.id)
 
@@ -89,6 +91,9 @@ export function MarwaApp() {
   const [roomTyping, setRoomTyping] = useState(() => byAgent<Message['author'] | null>(() => null))
   const [guests, setGuests] = useState(() => byAgent<AgentId[]>(() => []))
   const [unread, setUnread] = useState(() => byAgent((id) => agentMap[id].unread))
+  // أمر المالك 2026-10-21: الأشرطة الجانبية قابلة للطي — الافتراضي مغلق لتوسيع الشات
+  const [rightOpen, setRightOpen] = useState(false)
+  const [leftOpen, setLeftOpen] = useState(false)
   const replyIndex = useRef(1)
 
   const nextReply = (id: AgentId) => {
@@ -372,10 +377,25 @@ export function MarwaApp() {
         onHandover={() => setDialog('handover')}
         onReports={() => setDialog('reports')}
         onAchievements={() => setDialog('achievements')}
+        onOpenSettings={() => setDialog('settings')}
       />
 
       <div className="flex min-h-0 flex-1">
-        <AgentsSidebar view={view} onNavigate={navigate} unread={unread} activeAgents={activeAgents} />
+        {/* البار الأيمن (الوكلاء) — قابل للطي، الافتراضي مغلق (أمر المالك 2026-10-21) */}
+        {rightOpen ? (
+          <AgentsSidebar view={view} onNavigate={navigate} unread={unread} activeAgents={activeAgents} onCollapse={() => setRightOpen(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRightOpen(true)}
+            aria-label="فتح قائمة الوكلاء"
+            title="قائمة الوكلاء"
+            className="flex w-9 shrink-0 flex-col items-center gap-3 border-e border-border bg-sidebar py-3 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Users className="size-4" aria-hidden="true" />
+            <span className="text-[10px] font-medium [writing-mode:vertical-rl]">الوكلاء</span>
+          </button>
+        )}
 
         <main className="flex min-w-0 flex-1 flex-col">
           {roomAgent ? (
@@ -411,11 +431,26 @@ export function MarwaApp() {
           )}
         </main>
 
-        <NotebookPanel onDelegate={delegateToMarwa} />
+        {/* البار الأيسر (النوت بوك) — قابل للطي، الافتراضي مغلق */}
+        {leftOpen ? (
+          <NotebookPanel onDelegate={delegateToMarwa} onCollapse={() => setLeftOpen(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setLeftOpen(true)}
+            aria-label="فتح النوت بوك"
+            title="النوت بوك"
+            className="flex w-9 shrink-0 flex-col items-center gap-3 border-s border-border bg-sidebar py-3 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <NotebookPen className="size-4" aria-hidden="true" />
+            <span className="text-[10px] font-medium [writing-mode:vertical-rl]">النوت بوك</span>
+          </button>
+        )}
       </div>
 
       <ReportsDialog open={dialog === 'reports'} onOpenChange={(v) => setDialog(v ? 'reports' : null)} />
       <AchievementsDialog open={dialog === 'achievements'} onOpenChange={(v) => setDialog(v ? 'achievements' : null)} />
+      <SettingsDialog open={dialog === 'settings'} onOpenChange={(v) => setDialog(v ? 'settings' : null)} />
       <HandoverDialog
         open={dialog === 'handover'}
         onOpenChange={(v) => setDialog(v ? 'handover' : null)}
