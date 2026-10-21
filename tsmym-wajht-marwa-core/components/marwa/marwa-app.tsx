@@ -120,6 +120,39 @@ export function MarwaApp() {
     setActiveAgents((prev) => Array.from(new Set([...prev, ...ids])))
   }
 
+  /** الشات الحي عبر بوابة الذكاء الاصطناعي (Enterprise AI Gateway).
+   * 'ai' = الرد من مزود حي • 'simulate' = لا مزودين — رجوع للمحاكاة القديمة • 'error' = فشل مُعلن */
+  async function askAI(
+    agentKey: AgentId | 'marwa',
+    history: Message[],
+    push: (m: Message) => void,
+  ): Promise<'ai' | 'simulate' | 'error'> {
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: agentKey,
+          messages: history.slice(-10).map((m) => ({
+            role: m.author === 'user' ? 'user' : 'assistant',
+            content: m.text,
+          })),
+        }),
+      })
+      const j = (await res.json()) as { ok?: boolean; text?: string; reason?: string; compacted?: boolean }
+      if (j.ok && j.text) {
+        push(make(agentKey as Message['author'], j.text))
+        if (j.compacted) push(make('system', '🗜️ السجل كان أطول من حد المزود — اتعمل له Auto-Compact تلقائياً (ملخص الحالة + آخر الرسائل)'))
+        return 'ai'
+      }
+      if ((j.reason ?? '').includes('لا مزودين')) return 'simulate'
+      push(make('system', `⚠️ ${j.reason ?? 'محرك الذكاء غير متاح'} — الشات الحي يحتاج مزوداً في «أسطول الذكاء» بغرفة فيجن`))
+      return 'error'
+    } catch {
+      return 'simulate'
+    }
+  }
+
   function runSequence(steps: { author: Message['author']; build: () => Message }[], setTyping: (a: Message['author'] | null) => void, push: (m: Message) => void) {
     let delay = 0
     steps.forEach((step, i) => {
@@ -168,27 +201,37 @@ export function MarwaApp() {
     const responders = Array.from(new Set([...detected, ...activeAgents])).slice(0, 3)
     if (newlyActivated.length) activate(newlyActivated)
 
-    const intro = newlyActivated.length
-      ? `وضع أوتو: فعّلت ${newlyActivated.map((id) => agentMap[id].name).join(' و')} تلقائياً. `
-      : ''
-    const actions = responders.map((id) => agentActions[id]).slice(0, 3)
+    // الشات الحي لمروة — والمحاكاة احتياط فقط عند غياب المزودين
+    const history = [...mainMessages, make('user', text)]
+    setMainTyping('marwa')
+    void (async () => {
+      const mode = await askAI('marwa', history, pushMain)
+      if (mode !== 'simulate') {
+        setMainTyping(null)
+        return
+      }
+      const intro = newlyActivated.length
+        ? `وضع أوتو: فعّلت ${newlyActivated.map((id) => agentMap[id].name).join(' و')} تلقائياً. `
+        : ''
+      const actions = responders.map((id) => agentActions[id]).slice(0, 3)
 
-    runSequence(
-      [
-        ...responders.map((id) => ({ author: id as Message['author'], build: () => make(id, nextReply(id)) })),
-        {
-          author: 'marwa' as const,
-          build: () =>
-            make(
-              'marwa',
-              intro + (responders.length ? marwaLines[replyIndex.current % marwaLines.length] : 'لا يوجد وكلاء مفعّلون. فعّل وكيلاً أو شغّل وضع أوتو وسأتولى التوزيع.'),
-              actions.length ? actions : undefined,
-            ),
-        },
-      ],
-      setMainTyping,
-      pushMain,
-    )
+      runSequence(
+        [
+          ...responders.map((id) => ({ author: id as Message['author'], build: () => make(id, nextReply(id)) })),
+          {
+            author: 'marwa' as const,
+            build: () =>
+              make(
+                'marwa',
+                intro + (responders.length ? marwaLines[replyIndex.current % marwaLines.length] : 'لا يوجد وكلاء مفعّلون. فعّل وكيلاً أو شغّل وضع أوتو وسأتولى التوزيع.'),
+                actions.length ? actions : undefined,
+              ),
+          },
+        ],
+        setMainTyping,
+        pushMain,
+      )
+    })()
   }
 
   function handleMainAction(messageId: string, actionId: string, label: string) {
@@ -270,11 +313,21 @@ export function MarwaApp() {
       return
     }
     const participants = [room, ...guests[room]]
-    runSequence(
-      participants.map((id) => ({ author: id, build: () => make(id, nextReply(id)) })),
-      (a) => setRoomTyping((prev) => ({ ...prev, [room]: a })),
-      (m) => pushRoom(room, m),
-    )
+    // الشات الحي أولاً — والمحاكاة احتياط فقط عند غياب المزودين
+    const history = [...roomMessages[room], make('user', text)]
+    setRoomTyping((prev) => ({ ...prev, [room]: agentMap[room].name }))
+    void (async () => {
+      const mode = await askAI(room, history, (m) => pushRoom(room, m))
+      if (mode !== 'simulate') {
+        setRoomTyping((prev) => ({ ...prev, [room]: null }))
+        return
+      }
+      runSequence(
+        participants.map((id) => ({ author: id, build: () => make(id, nextReply(id)) })),
+        (a) => setRoomTyping((prev) => ({ ...prev, [room]: a })),
+        (m) => pushRoom(room, m),
+      )
+    })()
   }
 
   function invite(room: AgentId, guest: AgentId) {

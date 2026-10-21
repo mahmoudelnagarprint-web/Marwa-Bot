@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { AlertTriangle, ArrowRight, FileText, LayoutDashboard, Lightbulb, ListTodo, Newspaper, UserPlus, Zap } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Bot, FileText, LayoutDashboard, Lightbulb, ListTodo, MessageCircle, Newspaper, UserPlus, Zap } from 'lucide-react'
 import { SalmaDashboard } from './salma-dashboard'
 import { BeboDashboard } from './bebo-dashboard'
 import { SasaDashboard } from './sasa-dashboard'
@@ -15,6 +15,8 @@ import { KokoDashboard } from './koko-dashboard'
 import { HakimDashboard } from './hakim-dashboard'
 import { VisionDashboard } from './vision-dashboard'
 import { AfkarDashboard } from './afkar-dashboard'
+import { AiFleet } from './ai-fleet'
+import { CustomerChat } from './customer-chat'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
@@ -25,7 +27,7 @@ import { FaresLiveCards } from './fares-live-cards'
 import { AgentTasksPanel } from './agent-tasks-panel'
 import { AgentUpdatesList } from './agent-updates-list'
 
-type TabId = 'news' | 'reports' | 'suggestions' | 'complaints' | 'tasks' | 'dashboard'
+type TabId = 'news' | 'reports' | 'suggestions' | 'complaints' | 'tasks' | 'dashboard' | 'fleet' | 'customers'
 
 const severityStyle = {
   عالي: 'border-rose-400/20 bg-rose-400/10 text-rose-300',
@@ -69,7 +71,7 @@ export function AgentRoom({
     if (!q) return
     if (q === 'tasks' && agent.id !== 'fares') return
     if (q === 'dashboard' && agent.id !== 'salma' && agent.id !== 'afkar') return
-    if ((['news', 'reports', 'suggestions', 'complaints', 'tasks', 'dashboard'] as const).includes(q as TabId)) {
+    if ((['news', 'reports', 'suggestions', 'complaints', 'tasks', 'dashboard', 'fleet', 'customers'] as const).includes(q as TabId)) {
       setTab(q as TabId)
     }
   }, [agent.id])
@@ -141,6 +143,14 @@ export function AgentRoom({
   // معمل الابتكار — حاضنة النوت بوك: أفكار + برومبتات + رادار مواسم + تحويل الفكرة لمشروع (أمر المالك 2026-10-21)
   if (agent.id === 'afkar') {
     tabs.push({ id: 'dashboard', label: 'معمل الابتكار', icon: Lightbulb, count: 0, preview: 'نوت بوك أفكار + برومبتات تصميم + رادار مواسم + تحويل الفكرة لمشروع 🚀' })
+  }
+  // أسطول الذكاء الاصطناعي — بوابة Enterprise AI Gateway: مزودين + عداد توكنز + failover (أمر المالك 2026-10-21)
+  if (agent.id === 'vision') {
+    tabs.push({ id: 'fleet', label: 'أسطول الذكاء', icon: Bot, count: 0, preview: 'مزودين + مؤشر استهلاك حي + Handover وتوجيه حسب الوكيل' })
+  }
+  // شات العملاء — صياغة رد ذكي من حالة الطلبات + إرسال واتساب (أمر المالك 2026-10-21)
+  if (agent.id === 'salma') {
+    tabs.push({ id: 'customers', label: 'شات العملاء', icon: MessageCircle, count: 0, preview: 'عملاء POS + ✨ صياغة رد ذكي + 📲 واتساب' })
   }
 
   const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
@@ -224,7 +234,7 @@ export function AgentRoom({
               role="tabpanel"
               className={cn(
                 'mt-2 overflow-y-auto rounded-xl border border-border bg-card p-3 scrollbar-thin',
-                tab === 'tasks' || tab === 'dashboard' ? 'max-h-[520px]' : 'max-h-60',
+                tab === 'tasks' || tab === 'dashboard' || tab === 'fleet' || tab === 'customers' ? 'max-h-[560px]' : 'max-h-60',
               )}
             >
               {tab === 'news' && (
@@ -259,6 +269,8 @@ export function AgentRoom({
               {tab === 'dashboard' && agent.id === 'hakim' && <HakimDashboard />}
               {tab === 'dashboard' && agent.id === 'vision' && <VisionDashboard />}
               {tab === 'dashboard' && agent.id === 'afkar' && <AfkarDashboard />}
+              {tab === 'fleet' && <AiFleet />}
+              {tab === 'customers' && <CustomerChat />}
 
               {tab === 'reports' && (
                 <ul className="flex flex-col divide-y divide-border">
