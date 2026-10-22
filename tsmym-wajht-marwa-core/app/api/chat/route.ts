@@ -1,13 +1,14 @@
-// app/api/chat/route.ts — الشات الحي المركزي لوكلاء مروة كور عبر بوابة الذكاء (Zero-Downtime)
-// بأمر المالك 2026-10-21:
-//   1. بناء System Prompt متخصص وديناميكي لكل وكيل بناءً على غرفته ودوره.
-//   2. حقن بيانات الورشة الحية (POS SQLite + board_state + hardware_state + inboxes).
-//   3. التقاط وتنفيذ أي أمر سلاش يصدره الوكيل عبر router_daemon.py آلياً.
-//   4. توجيه ذكي حسب دور الوكيل (Strong/Light) مع Auto-Fallback كامل.
-//   5. توثيق مستقل لكل وكيل في مجلد chats التابع له.
+// app/api/chat/route.ts — الشات الحي المركزي لوكلاء مروة كور (Active / Hot-Standby) — v3
+//
+// POST /api/chat   body: { agent, messages, maxTokens?, providerId?, strictProvider?, stream? }
+//   - providerId   : اختيار يدوي مطلق (يلغي Auto-Test ويجعل المزود Active).
+//   - strictProvider: مع providerId — بلا احتياطي آلي.
+//   - stream: true : رد NDJSON أحداث حية (plan / attempt / failover / tool) ثم سطر نهائي type:"done".
+//                    بدونه: رد JSON واحد كالسابق (متوافق مع الواجهة القديمة).
+// GET  /api/chat?agent=&providerId=  → قائمة المزودين + Active/Standby الحاليان (للقائمة المنسدلة وشريط الحالة).
 
 import { NextRequest, NextResponse } from 'next/server'
-import { chatWithFailover, type ChatMsg } from '@/lib/ai-gateway'
+import { chatWithFailover, describeFleet, type ChatMsg, type GatewayEvent } from '@/lib/ai-gateway'
 import {
   resolveAgentKey,
   buildAgentSystemPrompt,
@@ -16,113 +17,272 @@ import {
   POS_DB_TOOLS,
   logAgentChatTurn,
   AGENT_MAP,
+  type PosQueryResult,
 } from '@/lib/agent-intelligence'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
-export async function POST(req: NextRequest) {
-  let body: { agent?: unknown; messages?: unknown; maxTokens?: unknown; chatId?: unknown }
-  try {
-    body = (await req.json()) as typeof body
-  } catch {
-    return NextResponse.json({ ok: false, reason: 'جسم الطلب غير صالح' }, { status: 400 })
+const CONTEXT_WINDOW = 6
+const MAX_MESSAGE_CHARS = 5_000
+const MAX_BODY_BYTES = 256_000
+const DEFAULT_MAX_TOKENS = 2048
+const MAX_TOKENS_CAP = 4096
+const MAX_SQL_DIRECTIVES = 2
+const RESULT_PREVIEW_CHARS = 1_500
+const PROVIDER_ID_RE = /^[A-Za-z0-9._:\-]{1,80}$/
+
+type Payload = Record<string, unknown>
+type ChatBody = {
+  agent?: unknown
+  messages?: unknown
+  maxTokens?: unknown
+  providerId?: unknown
+  strictProvider?: unknown
+  stream?: unknown
+}
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
+}
+
+/** providerId قادم من المتصفح: نقبل معرّفاً بسيطاً فقط (الفراغ/auto = اختيار آلي) */
+function cleanProviderId(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined
+  const t = v.trim()
+  if (!t || t === 'auto') return undefined
+  return PROVIDER_ID_RE.test(t) ? t : undefined
+}
+
+function buildWindow(raw: unknown): ChatMsg[] {
+  if (!Array.isArray(raw)) return []
+  const clean: ChatMsg[] = []
+  for (const m of raw) {
+    if (typeof m !== 'object' || m === null) continue
+    const { role, content } = m as { role?: unknown; content?: unknown }
+    if ((role !== 'user' && role !== 'assistant') || typeof content !== 'string') continue
+    const text = content.trim().slice(0, MAX_MESSAGE_CHARS)
+    if (!text) continue
+    clean.push({ role, content: text })
   }
+  let win = clean.slice(-CONTEXT_WINDOW)
+  while (win.length > 1 && win[0].role === 'assistant') win = win.slice(1)
+  return win
+}
 
+function renderRows(res: PosQueryResult): string {
+  let body = JSON.stringify(res.data ?? [], null, 2).replace(/```/g, "'''")
+  if (body.length > RESULT_PREVIEW_CHARS) body = `${body.slice(0, RESULT_PREVIEW_CHARS)}\n… [مقتطع]`
+  return '```json\n' + body + '\n```'
+}
+
+function extractTextToolSql(text: string): string | null {
+  const t = text.trim()
+  if (!t.startsWith('{') || !t.endsWith('}')) return null
+  try {
+    const parsed = JSON.parse(t) as { name?: unknown; parameters?: unknown; arguments?: unknown }
+    if (parsed.name !== 'query_pos_db') return null
+    let args: unknown = parsed.parameters ?? parsed.arguments
+    if (typeof args === 'string') args = JSON.parse(args)
+    const sql = (args as { sql?: unknown } | null)?.sql
+    return typeof sql === 'string' && sql.trim() ? sql : null
+  } catch {
+    return null
+  }
+}
+
+function runSqlDirectives(text: string): string {
+  const re = /\[SQL:\s*(SELECT[^\]]*)\]/gi
+  const blocks: string[] = []
+  let m: RegExpExecArray | null
+  while (blocks.length < MAX_SQL_DIRECTIVES && (m = re.exec(text)) !== null) {
+    const res = executePosQuery(m[1])
+    if (res.ok && res.data && res.data.length > 0) {
+      blocks.push(`📊 **[نتائج استعلام قاعدة البيانات الحية - ${res.count} سجل]**:\n${renderRows(res)}`)
+    } else if (!res.ok && res.error) {
+      blocks.push(`⚠️ **[تنبيه أداة SQL]**: ${res.error}`)
+    }
+  }
+  return blocks.join('\n\n')
+}
+
+/** قلب المعالجة: يُستخدم للرد العادي ولرد البث معاً */
+async function handleChat(
+  body: ChatBody,
+  t0: number,
+  onEvent?: (e: GatewayEvent) => void,
+  signal?: AbortSignal,
+): Promise<{ status: number; payload: Payload }> {
   const agentKey = resolveAgentKey(body.agent)
   const agentWs = AGENT_MAP[agentKey]?.ws || 'marwa_maestro'
 
-  const rawMsgs = Array.isArray(body.messages) ? body.messages : []
-  const messages: ChatMsg[] = rawMsgs
-    .filter((m): m is { role: string; content: string } =>
-      typeof m === 'object' && m !== null && typeof (m as { content?: unknown }).content === 'string')
-    .map((m): ChatMsg => ({
-      role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
-      content: (m.content || '').slice(0, 5000),
-    }))
-    .slice(-16)
-
-  if (messages.length === 0) {
-    return NextResponse.json({ ok: false, reason: 'لا رسائل في المحادثة' }, { status: 400 })
+  const windowMsgs = buildWindow(body.messages)
+  const lastUserMsg = [...windowMsgs].reverse().find((m) => m.role === 'user')?.content ?? ''
+  if (!lastUserMsg) {
+    return { status: 400, payload: { ok: false, reason: 'لا رسائل في المحادثة', latency_ms: Date.now() - t0 } }
   }
 
-  // استخلاص آخر رسالة من المستخدم لتحليل الكلمات المفتاحية والبحث في الـ POS
-  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || ''
+  const requestedTokens =
+    typeof body.maxTokens === 'number' && Number.isFinite(body.maxTokens) ? Math.floor(body.maxTokens) : DEFAULT_MAX_TOKENS
+  const maxTokens = Math.min(Math.max(requestedTokens, 256), MAX_TOKENS_CAP)
 
-  // بناء البرومبت التخصصي الغني والمطعم بتدريب الوكيل الأصلي والأدوات الحية
-  const systemPromptContent = buildAgentSystemPrompt(agentKey, lastUserMsg)
-  const systemMsg: ChatMsg = {
-    role: 'system',
-    content: systemPromptContent,
-  }
+  const providerId = cleanProviderId(body.providerId)
+  const strictProvider = providerId ? body.strictProvider === true : false
 
-  // إرسال الطلب عبر بوابة الذكاء الاصطناعي مع تفعيل أداة استعلام قاعدة البيانات (Dynamic POS Tool)
-  const t0 = Date.now()
-  const result = await chatWithFailover(agentWs, [systemMsg, ...messages], {
-    maxTokens: typeof body.maxTokens === 'number' ? body.maxTokens : 2048,
+  const tPrompt = Date.now()
+  const systemMsg: ChatMsg = { role: 'system', content: buildAgentSystemPrompt(agentKey, lastUserMsg) }
+  const promptMs = Date.now() - tPrompt
+
+  const tLlm = Date.now()
+  const result = await chatWithFailover(agentWs, [systemMsg, ...windowMsgs], {
+    maxTokens,
     tools: POS_DB_TOOLS,
+    providerId, // (2) الاختيار اليدوي المطلق
+    strictProvider,
+    onEvent,
+    signal,
     toolExecutor: async (name: string, args: Record<string, unknown>) => {
       if (name === 'query_pos_db') {
-        const sql = String(args.sql || '')
-        return executePosQuery(sql)
+        return executePosQuery(typeof args.sql === 'string' ? args.sql : '')
       }
-      return { error: `أداة غير معروفة: ${name}` }
+      return { ok: false, error: `أداة غير معروفة: ${name}` }
     },
   })
+  const llmMs = Date.now() - tLlm
 
   if (!result.ok) {
-    return NextResponse.json(result, { status: 502 })
+    return { status: 502, payload: { ...result, latency_ms: Date.now() - t0 } }
   }
 
-  let finalReply = result.text
+  // أوامر السلاش تُنفَّذ على نص النموذج الأصلي فقط (لا على نتائج POS المُلحقة)
+  const modelText = result.text
+  let finalReply = modelText
 
-  // فحص إذا كان الرد عبارة عن JSON Tool Call ناتج مباشرة من النموذج بدلاً من نص طبيعي
-  const jsonToolMatch = /\{\s*"name"\s*:\s*"query_pos_db"\s*,\s*"parameters"\s*:\s*\{\s*"sql"\s*:\s*"([^"]+)"/i.exec(finalReply)
-  if (jsonToolMatch && jsonToolMatch[1]) {
-    try {
-      const sqlToExec = jsonToolMatch[1].replace(/\\"/g, '"').replace(/\\'/g, "'")
-      const qRes = executePosQuery(sqlToExec)
-      if (qRes.ok && qRes.data) {
-        finalReply = `📊 **[استعلام قاعدة البيانات الحية - ${qRes.count} سجل]**:\n` +
-          '```json\n' + JSON.stringify(qRes.data, null, 2).slice(0, 1500) + '\n```'
-      }
-    } catch { /* نتجاهل */ }
+  const textToolSql = extractTextToolSql(modelText)
+  if (textToolSql) {
+    const qRes = executePosQuery(textToolSql)
+    finalReply = qRes.ok
+      ? `📊 **[استعلام قاعدة البيانات الحية - ${qRes.count} سجل]**:\n${renderRows(qRes)}`
+      : `⚠️ **[تنبيه أداة SQL]**: ${qRes.error ?? 'فشل الاستعلام'}`
+  } else {
+    const sqlBlocks = runSqlDirectives(modelText)
+    if (sqlBlocks) finalReply += `\n\n${sqlBlocks}`
   }
 
-  // فحص إذا قام الوكيل بكتابة استعلام SQL نصي مثل [SQL: SELECT ...] لتنفيذه ديناميكياً
-  const sqlMatch = /\[SQL:\s*(SELECT[\s\S]*?)\]/i.exec(finalReply)
-  if (sqlMatch && sqlMatch[1]) {
-    try {
-      const qRes = executePosQuery(sqlMatch[1])
-      if (qRes.ok && qRes.data && qRes.data.length > 0) {
-        finalReply += `\n\n📊 **[نتائج استعلام قاعدة البيانات الحية - ${qRes.count} سجل]**:\n` +
-          '```json\n' + JSON.stringify(qRes.data, null, 2).slice(0, 1500) + '\n```'
-      } else if (qRes.error) {
-        finalReply += `\n\n⚠️ **[تنبيه أداة SQL]**: ${qRes.error}`
-      }
-    } catch { /* نتجاهل */ }
+  const slash = await executeSlashCommandsInText(modelText, agentKey)
+  if (slash.executed && slash.log.length > 0) {
+    finalReply += `\n\n⚡ **[تنفيذ آلي من محرك النظام]**:\n` + slash.log.map((l) => `• ${l}`).join('\n')
   }
 
-  // فحص استجابة الوكيل لتنفيذ أي أمر سلاش صادر منه (مثل /task @bebo أو /summon @salma)
-  const slashAction = await executeSlashCommandsInText(finalReply)
-  if (slashAction.executed && slashAction.log.length > 0) {
-    const confirmation = `\n\n⚡ **[تنفيذ آلي من محرك النظام]**:\n` + slashAction.log.map((l) => `• ${l}`).join('\n')
-    finalReply += confirmation
-  }
-
-  // تسجيل دور المحادثة في مجلد chats الخاص بالوكيل لاستقلالية وحفظ الجلسات
   logAgentChatTurn(agentKey, lastUserMsg, finalReply)
 
-  return NextResponse.json({
-    ok: true,
-    text: finalReply,
-    rawText: result.text,
-    agent: agentKey,
-    provider: result.provider,
-    handover: result.handover,
-    compacted: result.compacted,
-    usage: result.usage,
-    executedSlash: slashAction.executed ? slashAction.log : undefined,
-    latency_ms: Date.now() - t0,
-  })
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      text: finalReply,
+      rawText: modelText,
+      agent: agentKey,
+      provider: result.provider, // { id, name, model } — النموذج الذي أجاب فعلياً
+      model: result.provider.model,
+      standby: result.standby, // الاحتياطي بعد هذه المحاولة
+      manual: result.manual,
+      attempts: result.attempts, // عدد المحاولات المستهلكة (1 = بلا تحويل)
+      handover: result.handover,
+      compacted: result.compacted,
+      toolsFallback: result.toolsFallback,
+      usage: result.usage,
+      executedSlash: slash.executed ? slash.log : undefined,
+      tasks: slash.tasks.length > 0 ? slash.tasks : undefined,
+      latency_ms: Date.now() - t0,
+      timings: { prompt_ms: promptMs, llm_ms: llmMs },
+    },
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const t0 = Date.now()
+  try {
+    if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) {
+      return json({ ok: false, reason: 'حجم الطلب كبير جداً' }, 413)
+    }
+
+    let body: ChatBody
+    try {
+      body = (await req.json()) as ChatBody
+    } catch {
+      return json({ ok: false, reason: 'جسم الطلب غير صالح' }, 400)
+    }
+    if (!body || typeof body !== 'object') {
+      return json({ ok: false, reason: 'جسم الطلب غير صالح' }, 400)
+    }
+
+    // ───── وضع البث: NDJSON — كل سطر JSON مستقل ─────
+    if (body.stream === true) {
+      const enc = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let closed = false
+          const send = (obj: unknown) => {
+            if (closed) return
+            try {
+              controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'))
+            } catch {
+              closed = true // العميل أغلق الاتصال
+            }
+          }
+          try {
+            const { status, payload } = await handleChat(body, t0, (e) => send(e), req.signal)
+            send({ type: 'done', status, ...payload })
+          } catch (err) {
+            console.error('[api/chat] خطأ غير متوقع (stream):', err instanceof Error ? err.stack ?? err.message : err)
+            send({
+              type: 'done',
+              status: 500,
+              ok: false,
+              reason: 'خطأ داخلي غير متوقع في الشات — راجع سجل السيرفر',
+              latency_ms: Date.now() - t0,
+            })
+          } finally {
+            closed = true
+            try {
+              controller.close()
+            } catch {
+              /* أُغلق مسبقاً */
+            }
+          }
+        },
+      })
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/x-ndjson; charset=utf-8',
+          'Cache-Control': 'no-store, no-transform',
+          'X-Accel-Buffering': 'no', // يمنع Nginx من تجميع الأسطر
+        },
+      })
+    }
+
+    // ───── الوضع العادي: JSON واحد ─────
+    const { status, payload } = await handleChat(body, t0, undefined, req.signal)
+    return json(payload, status)
+  } catch (err) {
+    console.error('[api/chat] خطأ غير متوقع:', err instanceof Error ? err.stack ?? err.message : err)
+    return json({ ok: false, reason: 'خطأ داخلي غير متوقع في الشات — راجع سجل السيرفر', latency_ms: Date.now() - t0 }, 500)
+  }
+}
+
+/** حالة الأسطول للواجهة: القائمة المنسدلة + Active/Standby (بلا أي مفاتيح) */
+export async function GET(req: NextRequest) {
+  try {
+    const sp = req.nextUrl.searchParams
+    const agentKey = resolveAgentKey(sp.get('agent') ?? undefined)
+    const agentWs = AGENT_MAP[agentKey]?.ws || 'marwa_maestro'
+    const fleet = await describeFleet(agentWs, { providerId: cleanProviderId(sp.get('providerId')) })
+    return json({ ok: true, agent: agentKey, ...fleet })
+  } catch (err) {
+    console.error('[api/chat GET] خطأ:', err instanceof Error ? err.stack ?? err.message : err)
+    return json({ ok: false, reason: 'تعذر قراءة حالة الأسطول' }, 500)
+  }
 }

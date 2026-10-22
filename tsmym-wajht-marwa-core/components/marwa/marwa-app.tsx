@@ -19,6 +19,7 @@ import { AgentRoom } from './agent-room'
 import { ReportsDialog } from './reports-dialog'
 import { AchievementsDialog } from './achievements-dialog'
 import { SettingsDialog } from './settings-dialog'
+import { ChatLiveBar, ModelPicker, useLiveChat } from './chat-live'
 import { supabase, supabaseConfigured } from '@/lib/supabase'
 import { subscribeUrgentAlerts, buildAlertText, type AlertRow } from '@/lib/agent-alerts'
 
@@ -93,6 +94,9 @@ export function MarwaApp() {
   // أمر المالك 2026-10-21: الأشرطة الجانبية قابلة للطي — الافتراضي مغلق لتوسيع الشات
   const [rightOpen, setRightOpen] = useState(false)
   const [leftOpen, setLeftOpen] = useState(false)
+  // قناة الشات الحي للشات الرئيسي: مؤقت الرد + Active/Standby + اختيار النموذج يدوياً
+  // (أمر المالك 2026-10-22: دمج ModelPicker/ChatLiveBar وربط الإرسال بـ live.send)
+  const live = useLiveChat('marwa')
 
   const make = (author: Message['author'], text: string, actions?: string[], meta?: { model: string; ms: number }): Message => ({
     id: crypto.randomUUID(),
@@ -204,14 +208,30 @@ export function MarwaApp() {
     const newlyActivated = detected.filter((id) => !activeAgents.includes(id))
     if (newlyActivated.length) activate(newlyActivated)
 
-    // الشات الحي حصرياً (تطهير 2026-10-21): الرد من مزود الأسطول — لا محاكاة
+    // الشات الحي حصرياً عبر قناة البث live.send (NDJSON): مؤقت + Active/Standby + فشلول حي
+    // — نافذة منزلقة بآخر 6 رسائل فقط لثبات سرعة النموذج مهما طال الشات (أمر المالك 2026-10-22)
     const history = [...mainMessages, make('user', text)]
     setMainTyping('marwa')
     void (async () => {
-      const mode = await askAI('marwa', history, pushMain)
+      const done = await live.send(
+        history.slice(-6).map((m): { role: 'user' | 'assistant'; content: string } => ({
+          role: m.author === 'user' ? 'user' : 'assistant',
+          content: m.text,
+        })),
+      )
       setMainTyping(null)
-      if (mode === 'noprovider') {
+      if (done.ok && done.text) {
+        const meta = done.provider?.model ? { model: done.provider.model, ms: done.latency_ms ?? 0 } : undefined
+        pushMain(make('marwa', done.text, undefined, meta))
+        const compacted = (done as { compacted?: boolean }).compacted
+        if (compacted) pushMain(make('system', '🗜️ السجل كان أطول من حد المزود — اتعمل له Auto-Compact تلقائياً'))
+        return
+      }
+      const reason = String(done.reason ?? 'تعذر الحصول على رد')
+      if (reason.includes('لا مزودين')) {
         pushMain(make('system', 'لم يُضف مزود ذكاء اصطناعي بعد — افتح ⚙️ الإعدادات العامة وأضف مزوداً ليعمل الشات الحي.'))
+      } else {
+        pushMain(make('system', `⚠️ ${reason}`))
       }
     })()
   }
@@ -419,6 +439,7 @@ export function MarwaApp() {
                 onAction={handleMainAction}
                 onEdit={editMain}
                 autoMode={autoMode}
+                live={live}
               />
             </>
           )}
