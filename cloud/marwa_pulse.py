@@ -54,7 +54,7 @@ POLL_DB_S = 0.25          # استطلاع data_version (أرخص جاسوس ع�
 DEBOUNCE_S = 0.30         # هضم عواصف التغيير قبل الدفع
 LAN_PORT_DEFAULT = 51824
 LAN_PERIOD_S = 5
-THREAD_NAMES = ("dbpulse", "commandpump", "lanheart")
+THREAD_NAMES = ("dbpulse", "commandpump", "lanheart", "notebookpulse")
 
 
 def log(msg: str, level: str = "INFO") -> None:
@@ -336,6 +336,131 @@ class LANHeartbeat(threading.Thread):
             self.stop.wait(LAN_PERIOD_S)
 
 
+class NotebookPulse(threading.Thread):
+    """تكامل غرفة الوكيل (الميثاق المعماري — أمر المالك 2026-10-20):
+    أي كتابة وكيل في الدفتر المحلي (مهمة/اقتراح/شكوى عبر fast_ops أو النوتبوك)
+    تُدفع فوراً إلى جداول agent_tasks/agent_updates في السحابة.
+    - قراءة فقط على دفتر النوتبوك (mode=ro) — data_version كل ثانية (نفس درس DBPulse:
+      اتصال دائم معيش، الاتصالات المتجددة لا تُغيّر data_version).
+    - يلتقط ملاحظات tags تحوي cloud:agent_tasks / cloud:agent_updates فقط.
+    - upsert idempotent بـ op_id (meta.op_id يُحترم، وإلا "nb-<id>-<updated_at>").
+    - dry-run: لوج فقط، صفر كتابة سحابية. فشل السحابة لا يوقف النبض أبداً."""
+
+    def __init__(self, cfg: dict, state: PulseState, stop: StopFlag):
+        super().__init__(daemon=True, name="notebookpulse")
+        self.cfg, self.state, self.stop = cfg, state, stop
+        self._last: int | None = None
+
+    def run(self) -> None:
+        nb: Path = self.cfg["notebook_db"]
+        if not nb.exists():
+            log(f"دفتر النوتبوك غير موجود: {nb} — NotebookPulse معطّل (honest)", "WARN")
+            return
+        uri = f"file:{nb.as_posix()}?mode=ro"
+        con: sqlite3.Connection | None = None
+        log(f"NotebookPulse: مراقبة {nb.name} كل 1000ms (mode=ro) → agent_tasks/agent_updates")
+        while not self.stop.is_set():
+            try:
+                if con is None:
+                    con = sqlite3.connect(uri, uri=True, timeout=5)
+                    self._con = con
+                ver = con.execute("PRAGMA data_version").fetchone()[0]
+                if self._last is None:
+                    self._last = ver
+                elif ver != self._last:
+                    self._last = ver
+                    self._sync_agents()
+            except sqlite3.Error as exc:
+                log(f"notebook poll failed: {type(exc).__name__} — إعادة اتصال", "WARN")
+                try:
+                    if con is not None:
+                        con.close()
+                except sqlite3.Error:
+                    pass
+                con = None
+            self.stop.wait(1.0)
+        if con is not None:
+            try:
+                con.close()
+            except sqlite3.Error:
+                pass
+        log("NotebookPulse متوقف")
+
+    def _collect(self) -> list[dict]:
+        con = getattr(self, "_con", None)
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            "select id, kind, title, body, priority, status, source, tags, meta, updated_at "
+            "from notes where tags like '%cloud:agent_%' and status != 'archived' "
+            "order by id desc limit 200").fetchall()
+        return [dict(r) for r in rows]
+
+    def _sync_agents(self) -> None:
+        """تقاطع التغيير: ملاحظات الوكلاء → upsert سحابي idempotent."""
+        try:
+            from supabase_sync import HermesSyncManager  # العميل الرسمي — لا ازدواج
+            cli = HermesSyncManager()._get_client()
+        except Exception as exc:
+            log(f"NotebookPulse: عميل السحابة غير جاهز ({type(exc).__name__})", "WARN")
+            return
+        status_map = {"open": "pending", "done": "done", "rejected": "rejected"}
+        pushed = failed = 0
+        try:
+            notes = self._collect()
+        except Exception as exc:
+            log(f"NotebookPulse: فشل جمع الملاحظات ({type(exc).__name__})", "WARN")
+            return
+        for n in notes:
+            try:
+                meta = json.loads(n.get("meta") or "{}")
+            except Exception:
+                meta = {}
+            tags = n.get("tags") or ""
+            agent = (meta.get("agent_id")
+                     or next((t.split(":", 1)[1] for t in tags.split(",") if t.startswith("agent:")),
+                             None))
+            if not agent or not (n.get("title") or "").strip():
+                continue
+            op = meta.get("op_id") or f"nb-{n['id']}-{n.get('updated_at', '')}"
+            if self.state.seen(op):
+                continue
+            now_iso = datetime.now(timezone.utc).isoformat()
+            if "cloud:agent_tasks" in tags or n.get("kind") == "task":
+                table = "agent_tasks"
+                row = {
+                    "agent_id": agent, "title": n["title"].strip(),
+                    "description": n.get("body") or "",
+                    "status": status_map.get(n.get("status"), "pending"),
+                    "priority": n.get("priority") if n.get("priority") in
+                                ("low", "normal", "high", "urgent") else "normal",
+                    "source": "notebook", "created_by": meta.get("created_by") or "agent",
+                    "op_id": op, "updated_at": now_iso,
+                }
+            else:
+                kind = meta.get("update_kind") or ("suggestion" if n.get("kind") == "idea"
+                                                   else "report")
+                table = "agent_updates"
+                row = {
+                    "agent_id": agent, "kind": kind, "title": n["title"].strip(),
+                    "body": n.get("body") or "", "severity": meta.get("severity") or "متوسط",
+                    "status": "pending", "op_id": op, "created_at": now_iso,
+                }
+            if not self.cfg["live"]:
+                pushed += 1
+                log(f"[dry-run] NotebookPulse كان سيدفع ({table}): {n['title'][:40]}…")
+                continue
+            try:
+                cli.table(table).upsert(row, on_conflict="op_id").execute()
+                self.state.mark(op, f"notebook:{table}")
+                pushed += 1
+                log(f"NotebookPulse: دفع ({table}) op={op} — {n['title'][:40]}")
+            except Exception as exc:
+                failed += 1
+                log(f"NotebookPulse: فشل دفع op={op} ({type(exc).__name__}) — سيعاد لاحقاً", "WARN")
+        if pushed or failed:
+            log(f"NotebookPulse: دفعات={pushed} فاشلة={failed}")
+
+
 def run_diagnostic(cfg: dict) -> int:
     """--once: دورة قياس واحدة آمنة — أين نحن الآن؟ (لا كتابة إطلاقاً)."""
     db: Path = cfg["live_db"]
@@ -392,6 +517,8 @@ def main() -> int:
         "poll": float(env.get("PULSE_POLL_SECONDS", "3") or 3),
         "lan_udp": int(env.get("PULSE_LAN_UDP", str(LAN_PORT_DEFAULT)) or 0),
         "pull_cmd": env.get("PULSE_PULL_CMD", ""),   # للّابتوب: أمر السحب الفوري
+        "notebook_db": Path(env.get("NOTEBOOK_DB")
+                            or (WORKSPACE / "notebook" / "data" / "notebook.db")),
     }
     state = PulseState(STATE_DB)
     hlc = HLC(node)
@@ -452,6 +579,9 @@ def main() -> int:
         dbp = DBPulse(cfg, on_change=lambda: push_on_event("db_change"), stop=stop)
         dbp.start()
         threads.append(dbp)
+        nbp = NotebookPulse(cfg, state, stop=stop)   # غرفة الوكيل: الدفتر → السحابة فوراً
+        nbp.start()
+        threads.append(nbp)
     pump = CommandPump(cfg, state, hlc, stop=stop,
                        on_db_event=pull_now if role == "LAPTOP" else (lambda: None))
     pump.start()

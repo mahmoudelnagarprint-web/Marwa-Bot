@@ -22,6 +22,11 @@ client_secret_*.json
 firebase_service_account.json
 *.private.json
 
+# ---------- AI GATEWAY: مفاتيح مزودي الذكاء الاصطناعي + عداد الاستهلاك ----------
+# أمر المالك 2026-10-21 (Enterprise AI Gateway) — ممنوع دخولها المستودع نهائياً
+workspaces/vision_coder/active_workspaces/ai_providers.json
+workspaces/vision_coder/active_workspaces/ai_usage.json
+
 # ---------- DATABASES + BACKUPS: البيانات تُبنى من السحابة ولا تُرفع ----------
 *.db
 *.db-shm

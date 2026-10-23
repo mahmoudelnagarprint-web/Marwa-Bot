@@ -16,8 +16,8 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 import psycopg2.extras
 
-from nb import (ai_router, cache, config, db, ha, proactive, providers, prompt_vault,
-                retail, workshop)
+from nb import (ai_router, bebo, cache, config, db, ha, proactive, providers,
+                prompt_vault, retail, workshop)
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
@@ -637,6 +637,74 @@ def api_projects():
 @app.route("/api/ha/status")
 def api_ha_status():
     return jsonify(ha.status())
+
+
+# ------------------------------------------------------------------ bebo API
+# ملاحظة معماريّة: النقط دي بتقرا/تكتب **ملفات** في workspaces/ مش قاعدة
+# بيانات، فمفيش كاش ومفيش استعلام. المنطق كله في nb/bebo.py عشان الملف ده
+# يفضل مسؤول عن الـHTTP بس (نفس قاعدة nb/workshop.py مع الورشة).
+@app.route("/api/bebo/inbox")
+def api_bebo_inbox():
+    """صندوق وارد بيبو — قراءة من الملفات حصريًا.
+
+    ?status=pending|done لفلترة الحالة (الافتراضي: كل المهام).
+    """
+    try:
+        agent_dir = None
+        which = (request.args.get("agent") or "").strip().lower()
+        if which and which != "bebo":
+            # بنسمح بقراءة صناديق تانية للعرض، بس مسار آمن تحت workspaces
+            other = bebo.WORKSPACES_DIR / f"{which}" / "inbox_tasks"
+            agent_dir = other if other.is_dir() else None
+            if agent_dir is None:
+                return _err(f"صندوق وارد غير موجود: {which}", 404)
+        status = (request.args.get("status") or "").strip().lower() or None
+        if status and status not in {"pending", "done"}:
+            return _err("status لازم يكون pending أو done", 400)
+        tasks = bebo.list_inbox(agent_dir=agent_dir, status=status)
+        pending = sum(1 for t in tasks if t["status"] == "pending")
+        return jsonify({"ok": True, "count": len(tasks), "pending": pending,
+                        "agent": which or "bebo", "tasks": tasks})
+    except Exception as exc:
+        return _err(f"{type(exc).__name__}: {exc}")
+
+
+@app.route("/api/bebo/inbox/<op_id>/done", methods=["POST"])
+def api_bebo_done(op_id: str):
+    """ينجز مهمة: الحالة → done + صف audit + إشعار للمرسل."""
+    try:
+        d = request.get_json(silent=True) or {}
+        by = (d.get("by") or "bebo").strip() or "bebo"
+        res = bebo.complete_task(op_id, by=by)
+        if not res.get("ok"):
+            return _err(res.get("error") or "تعذّر الإنجاز", 404)
+        return jsonify(res)
+    except Exception as exc:
+        return _err(f"{type(exc).__name__}: {exc}")
+
+
+@app.route("/api/bebo/machines")
+def api_bebo_machines():
+    """حالة الماكينات — كائن ثابت بدئي (مفيش جدول DB لسه)."""
+    try:
+        return jsonify(bebo.machines())
+    except Exception as exc:
+        return _err(f"{type(exc).__name__}: {exc}")
+
+
+@app.route("/api/bebo/material-checkout", methods=["POST"])
+def api_bebo_material_checkout():
+    """سحب خامات → ملف مهمة في صندوق fares_cfo."""
+    d = request.get_json(silent=True) or {}
+    try:
+        res = bebo.material_checkout(material=d.get("material"), qty=d.get("qty"),
+                                     job_no=d.get("job_no"),
+                                     by=(d.get("by") or "bebo"))
+        if not res.get("ok"):
+            return _err(res.get("error") or "طلب غير صالح", 400)
+        return jsonify(res)
+    except Exception as exc:
+        return _err(f"{type(exc).__name__}: {exc}")
 
 
 @app.route("/health")

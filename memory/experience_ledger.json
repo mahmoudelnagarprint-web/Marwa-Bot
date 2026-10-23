@@ -3487,6 +3487,54 @@
         "payload"
       ],
       "error": null
+    },
+    {
+      "timestamp": "2026-10-19T21:24:40.350511+00:00",
+      "agent_id": "crm",
+      "input_text": "الطلبات المفتوحة والديون",
+      "matched_keywords": [
+        "الطلبات",
+        "طلبات"
+      ],
+      "result_action": "crm_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-19T21:31:58.578790+00:00",
+      "agent_id": "coder",
+      "input_text": "يا فيجن راجع كود الواجهة والحساب — تقرير مراجعة POS_UI في Vision-Lab\\VISION_REVIEW_2026-10-20_POS_UI.md",
+      "matched_keywords": [
+        "فيجن",
+        "vision"
+      ],
+      "result_action": "coder_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
+    },
+    {
+      "timestamp": "2026-10-19T21:49:29.693976+00:00",
+      "agent_id": "cfo",
+      "input_text": "الخزينة",
+      "matched_keywords": [
+        "الخزينة",
+        "خزينة"
+      ],
+      "result_action": "cfo_report",
+      "result_keys": [
+        "reply",
+        "action",
+        "payload"
+      ],
+      "error": null
     }
   ],
   "lessons": [
