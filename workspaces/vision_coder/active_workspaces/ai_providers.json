@@ -1,0 +1,37 @@
+{
+ "providers": [
+  {
+   "id": "dahl-primary",
+   "name": "Dahl Primary (GLM-5.3)",
+   "base_url": "https://inference.dahl.global/v1",
+   "model": "zai-org/GLM-5.3-Flash",
+   "max_tokens": 8000,
+   "env_key": "DAHL_API_KEY",
+   "enabled": true,
+   "role": "strong",
+   "added_at": "2026-10-23T00:15:18.649Z"
+  },
+  {
+   "id": "dahl-light",
+   "name": "Dahl Light (DeepSeek-V4)",
+   "base_url": "https://inference.dahl.global/v1",
+   "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+   "max_tokens": 8000,
+   "env_key": "DAHL_API_KEY",
+   "enabled": true,
+   "role": "light",
+   "added_at": "2026-10-23T00:15:18.649Z"
+  }
+ ],
+ "routing": {
+  "complex": [
+   "vision_coder",
+   "hakim_advisor"
+  ],
+  "executors": [
+   "bebo_production",
+   "sasa_devices"
+  ],
+  "default_role": "strong"
+ }
+}
