@@ -12,7 +12,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { LIVE_TAG, fetchFaresSummary, formatEGP, type FaresSummary } from '@/lib/live'
 import { agents } from '@/lib/marwa-data'
+import { fetchAgentUpdates, type AgentUpdate } from '@/lib/agent-tasks'
+import { supabase } from '@/lib/supabase'
 import { AgentAvatar } from './agent-avatar'
+import { ReportActions } from './report-actions'
 
 const barColor: Record<string, string> = {
   salma: 'bg-rose-300/70',
@@ -26,17 +29,22 @@ const barColor: Record<string, string> = {
 export function ReportsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [summary, setSummary] = useState<FaresSummary | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [savedReports, setSavedReports] = useState<AgentUpdate[]>([])
 
-  function loadOnce() {
+  async function loadOnce() {
     setErr(null)
-    fetchFaresSummary()
-      .then(setSummary)
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+    try {
+      const [summaryResult, reportResult] = await Promise.all([
+        fetchFaresSummary(),
+        supabase ? fetchAgentUpdates(supabase) : Promise.resolve({ items: [], error: null }),
+      ])
+      setSummary(summaryResult)
+      if (reportResult.error) throw new Error(reportResult.error.message)
+      setSavedReports(reportResult.items.filter((item) => item.kind === 'report').slice(0, 8))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
   }
-
-  const recent = agents
-    .flatMap((a) => a.reports.map((r) => ({ ...r, agent: a })))
-    .slice(0, 6)
 
   return (
     <Dialog
@@ -53,7 +61,7 @@ export function ReportsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             التقارير الموحدة
           </DialogTitle>
           <DialogDescription>
-            المؤشرات الرسمية من البرنامج — {LIVE_TAG}. بقية التقارير تُبنى عند تفعيل طبقات كل وكيل (task-3).
+            المؤشرات الرسمية من البرنامج — {LIVE_TAG}. تقارير الإنجاز تُسحب مباشرة من سجل الوكلاء.
           </DialogDescription>
         </DialogHeader>
 
@@ -95,21 +103,27 @@ export function ReportsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <section className="rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-medium">أحدث التقارير</h3>
             <ul className="mt-2 flex flex-col divide-y divide-border">
-              {recent.length === 0 && (
+              {savedReports.length === 0 && (
                 <li className="py-6 text-center text-xs text-muted-foreground">
-                  لا تقارير رسمية محفوظة بعد — تُبنى من الطبقة الحية عند اكتمال دفاتر الوكلاء.
+                  لا توجد تقارير إنجاز محفوظة بعد.
                 </li>
               )}
-              {recent.map((r) => (
-                <li key={r.title} className="flex items-center gap-2.5 py-2">
-                  <AgentAvatar agent={r.agent} size={22} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium">{r.title}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{r.summary}</p>
+              {savedReports.map((report) => {
+                const agent = agents.find((candidate) => candidate.id === report.agent_id) ?? agents[0]
+                return (
+                <li key={report.id} className="py-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <AgentAvatar agent={agent} size={22} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium">{report.title}</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">{report.body}</p>
+                      <ReportActions actions={report.payload?.actions} body={report.body || report.title} />
+                    </div>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">{report.created_at ? new Date(report.created_at).toLocaleDateString('ar-EG') : ''}</span>
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">{r.date}</span>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           </section>
 

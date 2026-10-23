@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import {
   AlertCircle,
+  Activity,
   ArrowUpRight,
   CheckCircle2,
   Clock,
@@ -11,6 +12,7 @@ import {
   FileText,
   Loader2,
   TrendingUp,
+  Send,
   XCircle,
   Zap,
 } from 'lucide-react'
@@ -25,15 +27,47 @@ export function OverviewDashboard({
   tasks,
   urgentAgents,
   onRefresh,
+  isScanning,
+  lastScanAt,
+  scanError,
 }: {
   onSelectAgent: (id: AgentId) => void
   pendingUpdates: AgentUpdate[]
   tasks: AgentTask[]
   urgentAgents: Set<string>
   onRefresh?: () => void
+  isScanning: boolean
+  lastScanAt: string | null
+  scanError: string | null
 }) {
   const [decidingId, setDecidingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [taskCommand, setTaskCommand] = useState('')
+  const [taskNotice, setTaskNotice] = useState<string | null>(null)
+  const [taskSending, setTaskSending] = useState(false)
+
+  async function submitDirectTask(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const command = taskCommand.trim()
+    if (!command || taskSending) return
+    setTaskSending(true)
+    setTaskNotice(null)
+    try {
+      const response = await fetch('/api/tasks/delegate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: command }),
+      })
+      const result = await response.json() as { ok?: boolean; message?: string }
+      setTaskNotice(result.message || (result.ok ? 'تم إسناد المهمة.' : 'تعذر إسناد المهمة.'))
+      if (result.ok) {
+        setTaskCommand('')
+        onRefresh?.()
+      }
+    } catch {
+      setTaskNotice('تعذر الاتصال بخدمة الإسناد.')
+    } finally {
+      setTaskSending(false)
+    }
+  }
 
   // احتساب المهام الجارية لحظياً والقرارات المعلقة
   const inProgressTasksCount = tasks.filter((t) => t.status === 'in_progress').length
@@ -74,8 +108,24 @@ export function OverviewDashboard({
             <span className="size-2 rounded-full bg-primary animate-pulse" />
             <span>{inProgressTasksCount} مهام جارية لحظياً</span>
           </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/80 px-2.5 py-0.5 text-xs font-medium text-foreground" title={scanError || undefined}>
+            <Activity className={cn('size-3.5', isScanning ? 'animate-pulse text-emerald-400' : scanError ? 'text-destructive' : 'text-muted-foreground')} />
+            <span>{isScanning ? 'محرك النبض يفحص البيانات الآن' : scanError ? 'تعذر آخر فحص' : lastScanAt ? `آخر فحص ${formatCairoDate(lastScanAt)}` : 'الفحص الاستباقي جاهز'}</span>
+          </span>
         </p>
       </div>
+
+      <form onSubmit={submitDirectTask} className="rounded-xl border border-primary/25 bg-card p-3 md:p-4">
+        <label htmlFor="main-direct-task" className="mb-2 block text-xs font-semibold text-foreground">إسناد مباشر من الشات الرئيسي</label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input id="main-direct-task" value={taskCommand} onChange={(event) => setTaskCommand(event.target.value)} placeholder="/task @salma تواصلي مع العميل زينب" className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground" />
+          <button type="submit" disabled={taskSending || !taskCommand.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+            {taskSending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+            إسناد فورًا
+          </button>
+        </div>
+        {taskNotice && <p role="status" className="mt-2 text-xs text-muted-foreground">{taskNotice}</p>}
+      </form>
 
       {/* 2. بطاقات المؤشرات المالية (KPI Cards) بالتأثير الذهبي */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

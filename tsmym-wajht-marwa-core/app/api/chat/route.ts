@@ -27,6 +27,7 @@ import {
   lookupAgentKey,
   type PosQueryResult,
 } from '@/lib/agent-intelligence'
+import { createDirectTask } from '@/lib/direct-task'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -256,6 +257,15 @@ async function handleChat(
   const lastUserMsg = [...windowMsgs].reverse().find((m) => m.role === 'user')?.content ?? ''
   if (!lastUserMsg) {
     return { status: 400, payload: { ok: false, reason: 'لا رسائل في المحادثة', latency_ms: Date.now() - t0 } }
+  }
+
+  // أمر المالك المباشر لا يمر عبر النموذج ولا يُترك لتفسيره؛ يُسجل مرة واحدة.
+  if (/^\s*\/task\b/i.test(lastUserMsg)) {
+    const result = await createDirectTask(lastUserMsg)
+    return {
+      status: result.ok ? 200 : 422,
+      payload: { ok: result.ok, text: result.message, direct_task: result.ok, task_id: result.taskId, agent: result.agentId, latency_ms: Date.now() - t0 },
+    }
   }
 
   const requestedTokens =

@@ -20,6 +20,14 @@ export type AgentTask = {
   result_note: string | null
   created_at: string
   updated_at: string
+  dependency_id?: string | null
+  archived_at?: string | null
+  schedule_type?: 'none' | 'daily' | 'weekly' | string
+  scheduled_time?: string | null
+  schedule_day_of_week?: number | null
+  schedule_timezone?: string
+  last_run_at?: string | null
+  attempt_count?: number
 }
 
 export type AgentUpdate = {
@@ -32,6 +40,7 @@ export type AgentUpdate = {
   status: 'pending' | 'approved' | 'rejected' | string
   decided_by: string | null
   created_at: string
+  payload?: { task_id?: string; category?: string; actions?: { type: string; label: string; href?: string }[] } | null
 }
 
 export type SupabaseError = { message: string; code?: string }
@@ -83,13 +92,22 @@ export async function fetchAgentTasks(
 
   const { data, error } = await query
   if (error) return { tasks: [], error }
-  return { tasks: (data ?? []) as AgentTask[], error: null }
+  return { tasks: ((data ?? []) as AgentTask[]).filter((task) => !task.archived_at), error: null }
 }
 
 /** إضافة مهمة من الواجهة — INSERT حقيقي في agent_tasks */
 export async function insertAgentTask(
   client: SupabaseClient,
-  payload: { agent_id: string; title: string; description?: string; priority?: 'low' | 'normal' | 'high' | 'urgent' },
+  payload: {
+    agent_id: string
+    title: string
+    description?: string
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
+    dependency_id?: string | null
+    schedule_type?: 'none' | 'daily' | 'weekly'
+    scheduled_time?: string | null
+    schedule_day_of_week?: number | null
+  },
 ): Promise<{ ok: boolean; error: SupabaseError | null; row?: AgentTask }> {
   const row = {
     agent_id: payload.agent_id,
@@ -98,8 +116,25 @@ export async function insertAgentTask(
     status: 'pending',
     priority: payload.priority || 'normal',
     source: 'ui' as const,
+    dependency_id: payload.dependency_id || null,
+    schedule_type: payload.schedule_type || 'none',
+    scheduled_time: payload.schedule_type === 'daily' || payload.schedule_type === 'weekly' ? payload.scheduled_time || null : null,
+    schedule_day_of_week: payload.schedule_type === 'weekly' ? payload.schedule_day_of_week ?? null : null,
+    schedule_timezone: 'Africa/Cairo',
   }
-  const { data, error } = await client.from('agent_tasks').insert(row).select().limit(1)
+  let { data, error } = await client.from('agent_tasks').insert(row).select().limit(1)
+  const migrationMissing = error?.message?.includes('schedule_type') || error?.message?.includes('dependency_id') || error?.message?.includes('schedule_day_of_week')
+  if (error && migrationMissing && !payload.dependency_id && payload.schedule_type === 'none') {
+    const legacyRow = { ...row }
+    delete (legacyRow as Partial<typeof legacyRow>).dependency_id
+    delete (legacyRow as Partial<typeof legacyRow>).schedule_type
+    delete (legacyRow as Partial<typeof legacyRow>).scheduled_time
+    delete (legacyRow as Partial<typeof legacyRow>).schedule_timezone
+    delete (legacyRow as Partial<typeof legacyRow>).schedule_day_of_week
+    const fallback = await client.from('agent_tasks').insert(legacyRow).select().limit(1)
+    data = fallback.data
+    error = fallback.error
+  }
   if (error) return { ok: false, error }
   return { ok: true, error: null, row: data?.[0] as AgentTask }
 }
@@ -110,12 +145,76 @@ export async function updateAgentTaskStatus(
   taskId: string,
   newStatus: 'pending' | 'in_progress' | 'done' | 'rejected',
 ): Promise<{ ok: boolean; error: SupabaseError | null }> {
-  const { error } = await client
-    .from('agent_tasks')
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .eq('id', taskId)
+  const patch: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }
+  if (newStatus === 'pending') patch.attempt_count = 0
+  let { error } = await client.from('agent_tasks').update(patch).eq('id', taskId)
+  if (error?.message?.includes('attempt_count')) {
+    const fallback = await client.from('agent_tasks')
+      .update({ status: newStatus, updated_at: patch.updated_at })
+      .eq('id', taskId)
+    error = fallback.error
+  }
   if (error) return { ok: false, error }
   return { ok: true, error: null }
+}
+
+export async function insertTaskCompletionReport(
+  client: SupabaseClient,
+  task: Pick<AgentTask, 'id' | 'agent_id' | 'title' | 'result_note'>,
+): Promise<{ ok: boolean; error: SupabaseError | null }> {
+  const now = new Date().toISOString()
+  const { error } = await client.from('agent_updates').upsert({
+    agent_id: task.agent_id,
+    kind: 'report',
+    title: `إنجاز المهمة: ${task.title}`,
+    body: task.result_note || `• المهمة «${task.title}» اتعلمت منجزة يدويًا.`,
+    severity: 'منخفض',
+    status: 'approved',
+    decided_by: 'mahmoud',
+    decided_at: now,
+    op_id: `manual-task-report:${task.id}:${now.slice(0, 10)}`,
+    payload: {
+      task_id: task.id,
+      category: task.agent_id,
+      actions: [
+        { type: 'navigate', label: 'فتح غرفة الوكيل', href: `/agent/${task.agent_id}` },
+        { type: 'copy', label: 'نسخ التقرير' },
+      ],
+    },
+  }, { onConflict: 'op_id', ignoreDuplicates: true })
+  return error ? { ok: false, error } : { ok: true, error: null }
+}
+
+/** تعديل بيانات المهمة مع فلترة الحقول المسموح بها؛ لا يوجد حذف فعلي. */
+export async function updateAgentTask(
+  client: SupabaseClient,
+  taskId: string,
+  values: Partial<Pick<AgentTask, 'title' | 'description' | 'priority' | 'dependency_id' | 'schedule_type' | 'scheduled_time' | 'schedule_day_of_week'>>,
+): Promise<{ ok: boolean; error: SupabaseError | null }> {
+  const patch: Record<string, unknown> = { ...values, updated_at: new Date().toISOString() }
+  if (values.title !== undefined) patch.title = values.title.trim()
+  if (values.description !== undefined) patch.description = values.description?.trim() || null
+  if (values.schedule_type === 'none') {
+    patch.scheduled_time = null
+    patch.schedule_day_of_week = null
+  }
+  if (values.schedule_type === 'daily') patch.schedule_day_of_week = null
+  if (values.schedule_type === 'daily' || values.schedule_type === 'weekly') patch.schedule_timezone = 'Africa/Cairo'
+  const { error } = await client.from('agent_tasks').update(patch).eq('id', taskId)
+  return error ? { ok: false, error } : { ok: true, error: null }
+}
+
+/** أرشفة المهمة بدل حذفها نهائيًا للحفاظ على سجل التدقيق. */
+export async function archiveAgentTask(
+  client: SupabaseClient,
+  taskId: string,
+): Promise<{ ok: boolean; error: SupabaseError | null }> {
+  const now = new Date().toISOString()
+  const { error } = await client.from('agent_tasks')
+    .update({ archived_at: now, updated_at: now })
+    .eq('id', taskId)
+    .is('archived_at', null)
+  return error ? { ok: false, error } : { ok: true, error: null }
 }
 
 export async function fetchAgentUpdates(

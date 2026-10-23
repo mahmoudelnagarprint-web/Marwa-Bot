@@ -45,6 +45,9 @@ export function MarwaApp({ initialAgentId }: { initialAgentId?: string }) {
   const [tasks, setTasks] = useState<AgentTask[]>([])
   const [updates, setUpdates] = useState<AgentUpdate[]>([])
   const [urgentAgents, setUrgentAgents] = useState<Set<string>>(new Set())
+  const [isScanning, setIsScanning] = useState(false)
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null)
+  const [scanError, setScanError] = useState<string | null>(null)
   const [activeToast, setActiveToast] = useState<{
     id: string
     agentId: string
@@ -94,6 +97,49 @@ export function MarwaApp({ initialAgentId }: { initialAgentId?: string }) {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  // نبض قراءة فقط؛ يعمل فور فتح الواجهة ثم كل 30 دقيقة ما دامت مرئية.
+  useEffect(() => {
+    let stopped = false
+    let busy = false
+    const scan = async () => {
+      if (stopped || busy || document.visibilityState !== 'visible') return
+      busy = true
+      setIsScanning(true)
+      setScanError(null)
+      try {
+        const response = await fetch('/api/tasks/heartbeat', { method: 'POST', cache: 'no-store' })
+        const data = await response.json() as {
+          ok?: boolean
+          scanned_at?: string
+          findings?: Record<string, unknown>[]
+          checks?: Record<string, string>
+        }
+        if (!response.ok || !data.ok) throw new Error('تعذر فحص مصدر البيانات المحلي.')
+        if (data.findings?.length && supabase) {
+          const { error } = await supabase.from('agent_updates').upsert(data.findings, {
+            onConflict: 'op_id', ignoreDuplicates: true,
+          })
+          if (error) throw new Error(`تم الفحص لكن تعذر حفظ المقترحات: ${error.message}`)
+        }
+        if (!stopped) setLastScanAt(data.scanned_at || new Date().toISOString())
+      } catch (error) {
+        if (!stopped) setScanError(error instanceof Error ? error.message : 'تعذر تشغيل الفحص.')
+      } finally {
+        busy = false
+        if (!stopped) setIsScanning(false)
+      }
+    }
+    const timer = window.setInterval(() => void scan(), 30 * 60 * 1000)
+    const onVisibility = () => { if (document.visibilityState === 'visible') void scan() }
+    document.addEventListener('visibilitychange', onVisibility)
+    void scan()
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
 
   // مستمع التنبيهات الاستباقية عبر Realtime مع تنبيه صوتي وToast
   useEffect(() => {
@@ -218,6 +264,8 @@ export function MarwaApp({ initialAgentId }: { initialAgentId?: string }) {
               key={roomAgent.id}
               agent={roomAgent}
               onBack={() => navigate('main')}
+              isScanning={isScanning}
+              lastScanAt={lastScanAt}
             />
           ) : (
             <OverviewDashboard
@@ -226,6 +274,9 @@ export function MarwaApp({ initialAgentId }: { initialAgentId?: string }) {
               tasks={tasks}
               urgentAgents={urgentAgents}
               onRefresh={loadData}
+              isScanning={isScanning}
+              lastScanAt={lastScanAt}
+              scanError={scanError}
             />
           )}
         </main>

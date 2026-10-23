@@ -448,7 +448,7 @@ export function AiFleet() {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3 p-4 md:p-5">{/* Edge-to-Edge: بلا صناديق متداخلة، الحواف هي حدود الشاشة */}
       {/* إشعارات النظام Flash */}
       {flash && (
         <div className="flex items-center justify-between gap-2 rounded-xl border border-sky-400/25 bg-sky-400/[0.08] px-3 py-2 text-sm text-sky-200">
@@ -489,10 +489,14 @@ export function AiFleet() {
         </div>
       )}
 
-      {/* شريط الإجراءات العلوي */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
+      {/* شريط الإجراءات العلوي — ثابت أثناء التمرير */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-background/85 px-4 py-3 backdrop-blur-xl md:-mx-5 md:-mt-5 md:px-5">
         <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Server className="size-4 text-sky-300" /> أسطول الذكاء الاصطناعي — {providers.length} نموذج في {groups.length} مزود
+          <Server className="size-4 text-sky-300" aria-hidden="true" />
+          <span>
+            أسطول الذكاء — <span className="font-mono tabular-nums text-sky-200">{providers.length}</span> نموذج في{' '}
+            <span className="font-mono tabular-nums text-sky-200">{groups.length}</span> مزود
+          </span>
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -542,118 +546,167 @@ export function AiFleet() {
         </div>
       </div>
 
-      {/* لوحة إضافة مزود جديد أو سحب مجمع */}
+      {/* لوحة إضافة مزود جديد — Edge-to-Edge بترويسة مميزة وشبكة حقول واضحة */}
       {adding && (
-        <div className="flex flex-col gap-2 rounded-xl border border-sky-400/25 bg-card p-3 shadow-lg">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-              اسم المزود
-              <input
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="مثال: Nvidia NIM أو Dahl أو Groq"
-                aria-label="اسم المزود"
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-sky-400/40"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-              Base URL
-              <input
-                value={form.base_url}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, base_url: e.target.value }))
-                  setModels([])
-                }}
-                placeholder="https://integrate.api.nvidia.com/v1"
-                dir="ltr"
-                aria-label="Base URL"
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-              مفتاح API (أو اسم متغير من .env)
-              <input
-                value={form.api_key || form.env_key}
-                onChange={(e) => {
-                  const v = e.target.value.trim()
-                  if (/^[A-Z][A-Z0-9_]{2,}$/.test(v)) {
-                    setForm((f) => ({ ...f, env_key: v, api_key: '' }))
-                  } else {
-                    setForm((f) => ({ ...f, api_key: v, env_key: '' }))
-                  }
-                  setModels([])
-                }}
-                placeholder="nvapi-... أو DAHL_API_KEY"
-                dir="ltr"
-                aria-label="API Key"
-                type="password"
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40"
-              />
-            </label>
+        <section
+          aria-label="إضافة مزود جديد"
+          className="overflow-hidden rounded-2xl border border-sky-400/25 bg-gradient-to-b from-sky-400/[0.07] to-transparent shadow-lg"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-400/20 bg-sky-400/[0.06] px-4 py-2.5">
+            <p className="flex items-center gap-2 text-sm font-semibold text-sky-100">
+              <Plus className="size-4" aria-hidden="true" />
+              مزود جديد
+              <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium text-sky-200">
+                خطوتان: بيانات الاتصال ثم النماذج
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setAdding(false)}
+              aria-label="إغلاق لوحة الإضافة"
+              className="rounded-lg p-1 text-sky-300/70 transition-colors hover:bg-sky-400/10 hover:text-sky-100"
+            >
+              <X className="size-4" />
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-end gap-2 pt-1">
-            <Button
-              type="button"
-              size="sm"
-              disabled={fetchingModels || busy || !form.base_url || (!form.env_key && !form.api_key)}
-              onClick={() => void bulkAddModels()}
-              className="gap-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-medium shadow-md transition-all"
-            >
-              <Zap className={cn('size-4', fetchingModels && 'animate-spin')} />
-              {fetchingModels ? 'جاري سحب وحفظ النماذج…' : 'سحب وإضافة كل النماذج دفعة واحدة ⚡'}
-            </Button>
+          <div className="grid gap-4 p-4 md:grid-cols-2">
+            {/* الخطوة 1: هوية المزود */}
+            <div className="flex flex-col gap-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="flex size-4 items-center justify-center rounded-full bg-sky-500/20 text-[10px] text-sky-300">1</span>
+                بيانات الاتصال
+              </p>
 
-            <span className="text-[11px] text-muted-foreground self-center px-1">أو إضافة مفردة:</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">اسم المزود</span>
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="مثال: Dahl أو Nvidia NIM أو Groq"
+                  aria-label="اسم المزود"
+                  className="w-full rounded-lg border border-border bg-background/80 px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-sky-400/50 focus:ring-1 focus:ring-sky-400/20"
+                />
+              </label>
 
-            <label className="flex min-w-44 flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
-              اسم الموديل
-              <input
-                value={form.model}
-                onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                placeholder="مثال: meta/llama-3.3-70b-instruct"
-                dir="ltr"
-                aria-label="الموديل"
-                className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40"
-              />
-            </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">Base URL</span>
+                <input
+                  value={form.base_url}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, base_url: e.target.value }))
+                    setModels([])
+                  }}
+                  placeholder="https://inference.dahl.global/v1"
+                  dir="ltr"
+                  aria-label="Base URL"
+                  className="w-full rounded-lg border border-border bg-background/80 px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-sky-400/50 focus:ring-1 focus:ring-sky-400/20"
+                />
+              </label>
 
-            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              Max Tokens
-              <input
-                value={form.max_tokens}
-                onChange={(e) => setForm((f) => ({ ...f, max_tokens: Number(e.target.value) || 8000 }))}
-                type="number"
-                dir="ltr"
-                aria-label="Max Tokens"
-                className="w-20 rounded-md border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground outline-none focus:border-sky-400/40"
-              />
-            </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">مفتاح API أو اسم متغير من .env</span>
+                <input
+                  value={form.api_key || form.env_key}
+                  onChange={(e) => {
+                    const v = e.target.value.trim()
+                    if (/^[A-Z][A-Z0-9_]{2,}$/.test(v)) {
+                      setForm((f) => ({ ...f, env_key: v, api_key: '' }))
+                    } else {
+                      setForm((f) => ({ ...f, api_key: v, env_key: '' }))
+                    }
+                    setModels([])
+                  }}
+                  placeholder="DAHL_API_KEY أو nvapi-..."
+                  dir="ltr"
+                  aria-label="API Key"
+                  type="password"
+                  className="w-full rounded-lg border border-border bg-background/80 px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-sky-400/50 focus:ring-1 focus:ring-sky-400/20"
+                />
+              </label>
 
-            <select
-              value={form.role}
-              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-              aria-label="دور المزود"
-              className="rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
-            >
-              <option value="strong">💪 قوي</option>
-              <option value="light">⚡ خفيف</option>
-            </select>
+              <p className="rounded-lg border border-border/50 bg-card/40 px-2.5 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
+                اكتب اسم المتغير بأحرف كبيرة (مثل <span className="font-mono" dir="ltr">DAHL_API_KEY</span>) ليُقرأ من ملف البيئة، أو الصق المفتاح مباشرة.
+              </p>
+            </div>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={busy || !form.name || !form.base_url || !form.model || (!form.api_key && !form.env_key)}
-              onClick={() => void post({ action: 'add_provider', ...form })}
-              className="gap-1.5 text-xs"
-            >
-              <Plus className="size-3.5" /> إضافة المفرد
-            </Button>
+            {/* الخطوة 2: النماذج */}
+            <div className="flex flex-col gap-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="flex size-4 items-center justify-center rounded-full bg-sky-500/20 text-[10px] text-sky-300">2</span>
+                النماذج
+              </p>
+
+              <Button
+                type="button"
+                size="sm"
+                disabled={fetchingModels || busy || !form.base_url || (!form.env_key && !form.api_key)}
+                onClick={() => void bulkAddModels()}
+                className="w-full gap-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 py-2 font-medium text-white shadow-md transition-all hover:from-sky-500 hover:to-indigo-500 disabled:opacity-45"
+              >
+                <Zap className={cn('size-4', fetchingModels && 'animate-spin')} />
+                {fetchingModels ? 'جاري سحب وحفظ النماذج…' : 'سحب وإضافة كل النماذج دفعة واحدة ⚡'}
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <span className="h-px flex-1 bg-border/60" />
+                <span className="text-[10px] text-muted-foreground">أو إضافة نموذج واحد</span>
+                <span className="h-px flex-1 bg-border/60" />
+              </div>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">اسم الموديل</span>
+                <input
+                  value={form.model}
+                  onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                  placeholder="مثال: deepseek-ai/DeepSeek-V4-Flash-0731"
+                  dir="ltr"
+                  aria-label="الموديل"
+                  className="w-full rounded-lg border border-border bg-background/80 px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-sky-400/50 focus:ring-1 focus:ring-sky-400/20"
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">Max Tokens</span>
+                  <input
+                    value={form.max_tokens}
+                    onChange={(e) => setForm((f) => ({ ...f, max_tokens: Number(e.target.value) || 8000 }))}
+                    type="number"
+                    dir="ltr"
+                    aria-label="Max Tokens"
+                    className="w-full rounded-lg border border-border bg-background/80 px-3 py-2 font-mono text-xs text-foreground outline-none transition-colors focus:border-sky-400/50"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">الدور</span>
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                    aria-label="دور المزود"
+                    className="w-full rounded-lg border border-border bg-background/80 px-3 py-2 text-xs text-foreground outline-none transition-colors focus:border-sky-400/50"
+                  >
+                    <option value="strong">💪 قوي</option>
+                    <option value="light">⚡ خفيف</option>
+                  </select>
+                </label>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy || !form.name || !form.base_url || !form.model || (!form.api_key && !form.env_key)}
+                onClick={() => void post({ action: 'add_provider', ...form })}
+                className="w-full gap-1.5 py-2 text-xs"
+              >
+                <Plus className="size-3.5" /> إضافة النموذج المفرد
+              </Button>
+
+              {modelsErr && <p className="text-[11px] text-amber-300">{modelsErr}</p>}
+            </div>
           </div>
-
-          {modelsErr && <p className="text-[11px] text-amber-300">{modelsErr}</p>}
-        </div>
+        </section>
       )}
 
       {/* قائمة المزودين مجمعة حسب الـ Base URL */}

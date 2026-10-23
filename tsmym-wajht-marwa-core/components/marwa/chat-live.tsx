@@ -1,6 +1,8 @@
 'use client'
 // components/marwa/chat-live.tsx — واجهة الشات الحية: مؤقت الانتظار + شريط Active/Standby + مؤشر التبديل الآلي + اختيار النموذج يدوياً
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   fetchFleet,
   streamChat,
@@ -138,64 +140,127 @@ export function ReplyTimer({ startedAt, running, finalSeconds }: { startedAt: nu
 }
 
 function Badge({ label, p, tone }: { label: string; p: ProviderBrief | null; tone: 'active' | 'standby' }) {
-  const dot = tone === 'active' ? 'bg-emerald-500' : 'bg-amber-400'
+  const active = tone === 'active'
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-neutral-700" title={p ? `${p.name} — ${p.model}` : undefined}>
-      <span className={`h-2 w-2 shrink-0 rounded-full ${dot} ${tone === 'active' ? 'animate-pulse' : ''}`} />
-      <span className="shrink-0 font-semibold">{label}:</span>
-      <span className="truncate">{p ? p.name : '—'}</span>
+    <span
+      className={cn(
+        'inline-flex min-w-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]',
+        active
+          ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+          : 'border-amber-400/25 bg-amber-400/10 text-amber-200',
+      )}
+      title={p ? `${p.name} — ${p.model}` : undefined}
+    >
+      <span
+        className={cn(
+          'size-1.5 shrink-0 rounded-full',
+          active ? 'bg-emerald-400' : 'bg-amber-400',
+          active && 'animate-pulse',
+        )}
+        aria-hidden="true"
+      />
+      <span className="shrink-0 font-semibold opacity-80">{label}</span>
+      <span className="max-w-40 truncate">{p ? p.name : '—'}</span>
     </span>
   )
 }
 
-/** شريط الحالة: Active / Standby + المؤقت + مؤشر التبديل الآلي. ضعه فوق صندوق الكتابة أو في رأس الشات. */
+/** شريط الحالة: Active / Standby + المؤقت + مؤشر التبديل الآلي — زجاجي داكن متناسق مع الواجهة */
 export function ChatLiveBar({ live }: { live: LiveChat }) {
   const { state } = live
   const showSwitch = state.loading && state.failures > 0
   return (
-    <div dir="rtl" className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-200 px-3 py-1.5">
-      <Badge label="النموذج النشط (Active)" p={state.active} tone="active" />
-      <Badge label="النموذج الاحتياطي (Standby)" p={state.standby} tone="standby" />
-      {state.manual && <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[11px] text-violet-800">اختيار يدوي</span>}
-      <span className="ms-auto">
+    <div
+      dir="rtl"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-border/50 bg-card/30 px-2.5 py-1.5 backdrop-blur-md"
+    >
+      <Badge label="النشط" p={state.active} tone="active" />
+      <Badge label="الاحتياطي" p={state.standby} tone="standby" />
+      {state.manual && (
+        <span className="rounded-full border border-violet-400/30 bg-violet-400/10 px-2 py-0.5 text-[10px] font-medium text-violet-200">
+          اختيار يدوي
+        </span>
+      )}
+      <span className="ms-auto flex items-center gap-1.5">
         <ReplyTimer startedAt={state.startedAt} running={state.loading} finalSeconds={state.finalSeconds} />
       </span>
       {showSwitch && (
-        <span role="status" aria-live="polite" className="basis-full text-xs text-amber-700">
-          جاري محاولة التبديل الآلي {state.failures}/{state.max}...
+        <span role="status" aria-live="polite" className="basis-full text-[11px] text-amber-300">
+          جاري التبديل الآلي {state.failures}/{state.max}…
         </span>
       )}
     </div>
   )
 }
 
-/** القائمة المنسدلة: «آلي» أو نموذج محدد (يُمرَّر providerId ويلغي الاختبار الآلي) */
+/** اختيار النموذج: «آلي» أو مزود محدد — يمرّر providerId فيلغي الاختبار الآلي */
 export function ModelPicker({ live }: { live: LiveChat }) {
   const providers = (live.fleet?.providers ?? []).filter((p) => p.enabled)
+  const selected = providers.find((p) => p.id === live.providerId)
+  const autoLabel = live.state.manual ? 'يدوي' : 'آلي'
+
   return (
-    <label dir="rtl" className="inline-flex items-center gap-2 text-xs text-neutral-700">
-      <span>النموذج:</span>
-      <select
-        value={live.providerId}
-        onChange={(e) => live.setProviderId(e.target.value)}
-        disabled={live.state.loading}
-        className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs"
+    <div dir="rtl" className="flex min-w-0 flex-wrap items-center gap-2">
+      <label
+        className={cn(
+          'inline-flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 transition-colors',
+          live.providerId
+            ? 'border-violet-400/35 bg-violet-400/10'
+            : 'border-primary/30 bg-primary/10',
+        )}
       >
-        <option value="">آلي (الأسرع والأكثر استقراراً)</option>
-        {providers.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-            {p.ping ? (p.ping.ok ? ` — ${p.ping.ms}ms` : ' — لا يستجيب') : ''}
-          </option>
-        ))}
-      </select>
-      {live.providerId && (
-        <label className="inline-flex items-center gap-1">
-          <input type="checkbox" checked={live.strictProvider} onChange={(e) => live.setStrictProvider(e.target.checked)} disabled={live.state.loading} />
-          <span>بلا احتياطي</span>
-        </label>
+        <Sparkles
+          className={cn('size-3.5 shrink-0', live.providerId ? 'text-violet-300' : 'text-primary')}
+          aria-hidden="true"
+        />
+        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">النموذج</span>
+        <select
+          value={live.providerId}
+          onChange={(e) => live.setProviderId(e.target.value)}
+          disabled={live.state.loading}
+          aria-label="اختيار نموذج الذكاء الاصطناعي"
+          className="max-w-56 min-w-0 cursor-pointer truncate rounded-lg border border-border/60 bg-background px-2 py-1 text-xs text-foreground outline-none transition-colors focus:border-primary/50 disabled:opacity-50"
+        >
+          <option value="">آلي — الأسرع والأكثر استقراراً ({autoLabel})</option>
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {`${p.name}${p.ping ? (p.ping.ok ? ` — ${p.ping.ms}ms` : ' — لا يستجيب') : ''}`}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {selected && (
+        <span className="flex min-w-0 items-center gap-1.5 rounded-full border border-border/50 bg-card/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground" dir="ltr">
+          <span
+            className={cn(
+              'size-1.5 shrink-0 rounded-full',
+              selected.status === 'up' ? 'bg-emerald-400' : selected.status === 'down' ? 'bg-rose-400' : 'bg-muted-foreground/50',
+            )}
+            aria-hidden="true"
+          />
+          <span className="max-w-40 truncate">{selected.model}</span>
+        </span>
       )}
-    </label>
+
+      {live.providerId && (
+        <button
+          type="button"
+          onClick={() => live.setStrictProvider(!live.strictProvider)}
+          disabled={live.state.loading}
+          aria-pressed={live.strictProvider}
+          className={cn(
+            'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50',
+            live.strictProvider
+              ? 'border-rose-400/35 bg-rose-400/10 text-rose-200'
+              : 'border-border/60 text-muted-foreground hover:bg-accent hover:text-foreground',
+          )}
+          title="بدون احتياطي: لو النموذج المختار فشل يتوقف الطلب بدل التحويل التلقائي"
+        >
+          بلا احتياطي
+        </button>
+      )}
+    </div>
   )
 }
 

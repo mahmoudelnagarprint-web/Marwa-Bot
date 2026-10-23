@@ -3,13 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
+  Archive,
   Bot,
+  Bell,
   CheckCircle2,
   Clock,
+  Copy,
   FileText,
+  Link2,
   ListTodo,
   Loader2,
   MessageSquare,
+  Pencil,
   Plus,
   Send,
   Square,
@@ -20,22 +25,27 @@ import {
 import { cn } from '@/lib/utils'
 import { type Agent } from '@/lib/marwa-data'
 import { supabase } from '@/lib/supabase'
+import { ReportActions } from './report-actions'
+import { ChatLiveBar, ModelPicker, useLiveChat } from './chat-live'
 import {
   fetchAgentTasks,
   fetchAgentUpdates,
   formatCairoDate,
+  archiveAgentTask,
+  insertTaskCompletionReport,
   insertAgentTask,
   isTableMissingErr,
   makeRoomLog,
   subscribeAgentTasks,
   subscribeAgentUpdates,
+  updateAgentTask,
   updateAgentTaskStatus,
   updateAgentUpdateStatus,
   type AgentTask,
   type AgentUpdate,
 } from '@/lib/agent-tasks'
 
-type TabId = 'chat' | 'tasks' | 'updates'
+type TabId = 'chat' | 'tasks' | 'notifications' | 'updates'
 
 type ChatMessage = {
   id: string
@@ -49,11 +59,18 @@ type ChatMessage = {
 export function AgentRoom({
   agent,
   onBack,
+  isScanning,
+  lastScanAt,
 }: {
   agent: Agent
   onBack: () => void
+  isScanning: boolean
+  lastScanAt: string | null
 }) {
   const [tab, setTab] = useState<TabId>('chat')
+
+  /** اختيار النموذج + التبديل الآلي/اليدوي + حالة Active/Standby لهذه الغرفة */
+  const live = useLiveChat(agent.id)
 
   /** طابع كل خطوة في هذه الغرفة — يُظهر للمالك ماذا يحدث بالضبط */
   const log = useMemo(() => makeRoomLog(agent.id), [agent.id])
@@ -62,9 +79,10 @@ export function AgentRoom({
   const storageKey = `marwa_chat_${agent.id}`
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [editTargetId, setEditTargetId] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const abortControllerRef = useRef<AbortController | null>(null)
   const chatBottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // تحميل الرسائل من localStorage عند فتح الغرفة
   useEffect(() => {
@@ -107,16 +125,19 @@ export function AgentRoom({
     const text = input.trim()
     if (!text || isGenerating) return
 
+    const editIndex = editTargetId ? messages.findIndex((message) => message.id === editTargetId) : -1
+    const beforeEdit = editIndex >= 0 ? messages.slice(0, editIndex) : messages
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: editIndex >= 0 ? messages[editIndex].id : crypto.randomUUID(),
       role: 'user',
       content: text,
       time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
     }
 
-    const nextHistory = [...messages, userMsg]
+    const nextHistory = [...beforeEdit, userMsg]
     setMessages(nextHistory)
     setInput('')
+    setEditTargetId(null)
     setIsGenerating(true)
 
     const botMsgId = crypto.randomUUID()
@@ -129,40 +150,49 @@ export function AgentRoom({
 
     setMessages((prev) => [...prev, tempBotMsg])
 
-    const abortCtrl = new AbortController()
-    abortControllerRef.current = abortCtrl
-
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: abortCtrl.signal,
-        body: JSON.stringify({
-          agent: agent.id,
-          messages: nextHistory.slice(-8).map((m) => ({
-            role: m.role === 'user' ? 'user' : 'assistant',
-            content: m.content,
-          })),
-        }),
-      })
-
-      const data = (await res.json()) as {
+      let scheduleResponse: Response | null = null
+      let scheduleData: {
         ok?: boolean
-        text?: string
-        reason?: string
-        provider?: { model?: string }
-        latency_ms?: number
+        scheduled?: boolean
+        error?: string
+        task?: { title?: string; agent_id?: string; scheduled_time?: string }
+      } | null = null
+      try {
+        scheduleResponse = await fetch('/api/tasks/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        })
+        scheduleData = await scheduleResponse.json()
+      } catch {
+        // مسار الجدولة اختياري؛ إذا تعذّر فحصه نكمل مسار الشات المعتاد.
       }
+      if (scheduleData?.scheduled) {
+        setMessages((prev) => prev.map((message) => message.id === botMsgId ? {
+          ...message,
+          content: `• تمام، اتسجلت مهمة «${scheduleData.task?.title || 'المهمة اليومية'}» لـ${scheduleData.task?.agent_id || 'الوكيل'} كل يوم الساعة ${scheduleData.task?.scheduled_time || 'المحددة'} بتوقيت القاهرة.\n• هتظهر في التقارير بعد تشغيل العامل الخلفي.`,
+        } : message))
+        return
+      }
+      if (scheduleResponse && !scheduleResponse.ok && scheduleData?.error) throw new Error(scheduleData.error)
 
-      if (data.ok && data.text) {
+      const res = await live.send(
+        nextHistory.slice(-8).map((m) => ({
+          role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+          content: m.content,
+        })),
+      )
+
+      if (res.ok && res.text) {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === botMsgId
               ? {
                   ...m,
-                  content: data.text || '',
-                  model: data.provider?.model,
-                  latency_ms: data.latency_ms,
+                  content: res.text || '',
+                  model: res.provider?.model,
+                  latency_ms: res.latency_ms,
                 }
               : m,
           ),
@@ -173,7 +203,7 @@ export function AgentRoom({
             m.id === botMsgId
               ? {
                   ...m,
-                  content: data.reason || 'تعذر الحصول على رد من الوكيل، يرجى المحاولة لاحقاً.',
+                  content: res.reason || 'تعذر الحصول على رد من الوكيل، يرجى المحاولة لاحقاً.',
                 }
               : m,
           ),
@@ -192,21 +222,18 @@ export function AgentRoom({
         setMessages((prev) =>
           prev.map((m) =>
             m.id === botMsgId
-              ? { ...m, content: 'حدث خطأ في الاتصال بنظام الذكاء الاصطناعي.' }
+              ? { ...m, content: err instanceof Error ? `تعذر تنفيذ الطلب: ${err.message}` : 'حدث خطأ في الاتصال بنظام الذكاء الاصطناعي.' }
               : m,
           ),
         )
       }
     } finally {
       setIsGenerating(false)
-      abortControllerRef.current = null
     }
   }
 
   const handleStopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
+    live.cancel()
   }
 
   const handleClearChat = () => {
@@ -224,10 +251,18 @@ export function AgentRoom({
 
   // ──────────────────────── 2. تبويب المهام (Tasks) ────────────────────────
   const [tasks, setTasks] = useState<AgentTask[]>([])
+  const [taskCandidates, setTaskCandidates] = useState<AgentTask[]>([])
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'done' | 'rejected'>('all')
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskDesc, setNewTaskDesc] = useState('')
   const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
+  const [newTaskDependencyId, setNewTaskDependencyId] = useState('')
+  const [newTaskDaily, setNewTaskDaily] = useState(false)
+  const [newTaskWeekly, setNewTaskWeekly] = useState(false)
+  const [newTaskTime, setNewTaskTime] = useState('18:00')
+  const [newTaskDay, setNewTaskDay] = useState(0)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editingDraft, setEditingDraft] = useState({ title: '', description: '', priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent', dependency_id: '', daily: false, weekly: false, time: '18:00', day: 0 })
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [tasksLoading, setTasksLoading] = useState(false)
   const [tasksError, setTasksError] = useState<string | null>(null)
@@ -239,7 +274,11 @@ export function AgentRoom({
     }
     log('المهام', 'بدء القراءة من agent_tasks')
     setTasksLoading(true)
-    const { tasks: items, error } = await fetchAgentTasks(supabase, agent.id)
+    const [{ tasks: items, error }, { tasks: candidates }] = await Promise.all([
+      fetchAgentTasks(supabase, agent.id),
+      fetchAgentTasks(supabase),
+    ])
+    setTaskCandidates(candidates)
     if (error) {
       log('المهام', 'فشل القراءة: ' + error.message)
       setTasksError(isTableMissingErr(error) ? 'جدول agent_tasks غير موجود في Supabase — طبّق الترحيل 006.' : error.message)
@@ -252,7 +291,7 @@ export function AgentRoom({
   }
 
   useEffect(() => {
-    if (tab === 'tasks') {
+    if (tab === 'tasks' || tab === 'notifications') {
       void loadTasks()
     }
   }, [tab, agent.id])
@@ -266,10 +305,12 @@ export function AgentRoom({
       onInsert: (row) => {
         log('Realtime/المهام', 'مهمة جديدة: ' + row.title)
         setTasks((prev) => (prev.some((t) => t.id === row.id) ? prev : [row, ...prev]))
+        setTaskCandidates((prev) => (prev.some((t) => t.id === row.id) ? prev : [row, ...prev]))
       },
       onUpdate: (row) => {
         log('Realtime/المهام', `تحديث حالة المهمة → ${row.status}`)
         setTasks((prev) => prev.map((t) => (t.id === row.id ? { ...t, ...row } : t)))
+        setTaskCandidates((prev) => prev.map((t) => (t.id === row.id ? { ...t, ...row } : t)))
       },
     })
     return () => {
@@ -291,6 +332,10 @@ export function AgentRoom({
       title: newTaskTitle,
       description: newTaskDesc,
       priority: newTaskPriority,
+      dependency_id: newTaskDependencyId || null,
+      schedule_type: newTaskDaily ? 'daily' : newTaskWeekly ? 'weekly' : 'none',
+      scheduled_time: newTaskDaily || newTaskWeekly ? newTaskTime : null,
+      schedule_day_of_week: newTaskWeekly ? newTaskDay : null,
     })
     setIsAddingTask(false)
     if (ok && row) {
@@ -298,6 +343,9 @@ export function AgentRoom({
       setTasks((prev) => (prev.some((t) => t.id === row.id) ? prev : [row, ...prev]))
       setNewTaskTitle('')
       setNewTaskDesc('')
+      setNewTaskDependencyId('')
+      setNewTaskDaily(false)
+      setNewTaskWeekly(false)
       setTasksError(null)
     } else {
       log('إسناد مهمة', 'فشل: ' + (error?.message ?? 'سبب غير معروف'))
@@ -305,17 +353,73 @@ export function AgentRoom({
     }
   }
 
+  const handleSaveTask = async (taskId: string) => {
+    if (!supabase || !editingDraft.title.trim()) return
+    let cursor = editingDraft.dependency_id
+    const visited = new Set<string>()
+    while (cursor) {
+      if (cursor === taskId || visited.has(cursor)) {
+        setTasksError('الاعتمادية هتعمل حلقة بين المهام؛ اختار مهمة سابقة مختلفة.')
+        return
+      }
+      visited.add(cursor)
+      cursor = taskCandidates.find((candidate) => candidate.id === cursor)?.dependency_id || ''
+    }
+    const { ok, error } = await updateAgentTask(supabase, taskId, {
+      title: editingDraft.title,
+      description: editingDraft.description,
+      priority: editingDraft.priority,
+      dependency_id: editingDraft.dependency_id || null,
+      schedule_type: editingDraft.daily ? 'daily' : editingDraft.weekly ? 'weekly' : 'none',
+      scheduled_time: editingDraft.daily || editingDraft.weekly ? editingDraft.time : null,
+      schedule_day_of_week: editingDraft.weekly ? editingDraft.day : null,
+    })
+    if (!ok) {
+      setTasksError(error?.message ?? 'تعذر حفظ تعديل المهمة')
+      return
+    }
+    setEditingTaskId(null)
+    setTasksError(null)
+    void loadTasks()
+  }
+
+  const handleArchiveTask = async (taskId: string) => {
+    if (!supabase || !window.confirm('أؤرشف المهمة؟ هتختفي من القائمة، لكن سجلها يفضل محفوظ.')) return
+    const { ok, error } = await archiveAgentTask(supabase, taskId)
+    if (!ok) {
+      setTasksError(error?.message ?? 'تعذر أرشفة المهمة')
+      return
+    }
+    setTasks((prev) => prev.filter((task) => task.id !== taskId))
+    setTaskCandidates((prev) => prev.filter((task) => task.id !== taskId))
+  }
+
   const handleUpdateTaskStatus = async (
     taskId: string,
     newStatus: 'pending' | 'in_progress' | 'done' | 'rejected',
   ) => {
     if (!supabase) return
+    const task = tasks.find((item) => item.id === taskId)
+    if (newStatus !== 'pending' && task?.dependency_id) {
+      const prerequisite = taskCandidates.find((item) => item.id === task.dependency_id)
+      if (!prerequisite || prerequisite.status !== 'done') {
+        setTasksError('المهمة مقفولة مؤقتًا لحد ما المهمة المعتمدة عليها تكتمل.')
+        return
+      }
+    }
     log('نقل حالة المهمة', `id=${taskId} → ${newStatus}`)
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t)),
     )
     const { ok, error } = await updateAgentTaskStatus(supabase, taskId, newStatus)
     log('نقل حالة المهمة', ok ? 'تم التثبيت في السحابة ✓' : 'فشل: ' + (error?.message ?? 'خطأ'))
+    if (ok) setTaskCandidates((prev) => prev.map((item) => item.id === taskId ? { ...item, status: newStatus } : item))
+    if (ok && newStatus === 'done') {
+      if (task) {
+        const report = await insertTaskCompletionReport(supabase, task)
+        if (!report.ok) setTasksError(report.error?.message ?? 'اتقفلت المهمة لكن تعذر حفظ تقرير الإنجاز')
+      }
+    }
     if (!ok) void loadTasks()
   }
 
@@ -423,8 +527,8 @@ export function AgentRoom({
               <h2 className="font-display text-xl md:text-2xl font-bold text-foreground">
                 {agent.name}
               </h2>
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/30">
-                متصل الآن
+              <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold border', isScanning && (agent.id === 'fares' || agent.id === 'salma') ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30')}>
+                {isScanning && (agent.id === 'fares' || agent.id === 'salma') ? 'Active / Scanning' : 'متصل — الفحص دوري'}
               </span>
             </div>
             <p className="text-xs text-muted-foreground line-clamp-1">{agent.role}</p>
@@ -463,6 +567,21 @@ export function AgentRoom({
 
           <button
             type="button"
+            onClick={() => setTab('notifications')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+              tab === 'notifications' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Bell className="size-3.5" />
+            <span>الإشعارات</span>
+            {tasks.filter((task) => task.status === 'pending' || task.status === 'in_progress').length > 0 && (
+              <span className="rounded-full bg-background/40 px-1.5 text-[10px]">{tasks.filter((task) => task.status === 'pending' || task.status === 'in_progress').length}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => setTab('updates')}
             className={cn(
               'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
@@ -482,21 +601,25 @@ export function AgentRoom({
         {/* 1. تبويب الشات (Live Streaming Chat) */}
         {tab === 'chat' && (
           <div className="flex flex-1 flex-col overflow-hidden">
-            {/* رأس الشات مع زر المسح */}
-            <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground bg-card/30">
-              <span className="flex items-center gap-1.5">
-                <Bot className="size-3.5 text-primary" />
-                <span>محادثة مباشرة مع النموذج الخاص بـ {agent.name} (محفوظة محلياً)</span>
+            {/* رأس الشات: اختيار النموذج (آلي/يدوي) + شريط Active/Standby + المؤقت */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-card/30 px-3 py-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <Bot className="size-3.5 shrink-0 text-primary" />
+                <span className="truncate">محادثة مباشرة مع {agent.name} (محفوظة محلياً)</span>
               </span>
-              <button
-                type="button"
-                onClick={handleClearChat}
-                className="flex items-center gap-1 text-muted-foreground hover:text-destructive transition-colors"
-                title="مسح محادثة الوكيل"
-              >
-                <Trash2 className="size-3.5" />
-                <span>مسح</span>
-              </button>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <ModelPicker live={live} />
+                <ChatLiveBar live={live} />
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  className="flex shrink-0 items-center gap-1 rounded-lg px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  title="مسح محادثة الوكيل"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>مسح</span>
+                </button>
+              </div>
             </div>
 
             {/* نافذة الرسائل مع خاصية التمرير التلقائي */}
@@ -549,6 +672,16 @@ export function AgentRoom({
                       >
                         {msg.time}
                       </span>
+                      {isUser && (
+                        <div className="mt-2 flex items-center justify-end gap-1 border-t border-primary-foreground/15 pt-1.5">
+                          <button type="button" onClick={() => void navigator.clipboard.writeText(msg.content).catch(() => undefined)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground" title="نسخ الرسالة">
+                            <Copy className="size-3" /> نسخ
+                          </button>
+                          <button type="button" onClick={() => { setInput(msg.content); setEditTargetId(msg.id); inputRef.current?.focus() }} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-primary-foreground/75 hover:bg-primary-foreground/10 hover:text-primary-foreground" title="تعديل وإعادة إرسال">
+                            <Pencil className="size-3" /> تعديل
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -572,8 +705,10 @@ export function AgentRoom({
 
             {/* شريط كتابة الرسالة مع Enter للإرسال وزر إيقاف التوليد */}
             <div className="border-t border-border bg-card/60 p-3 md:p-4">
+              {editTargetId && <div className="mb-2 flex items-center justify-between text-[11px] text-primary"><span>بتعدّل رسالة قديمة؛ الردود اللي بعدها هتتولد من جديد.</span><button type="button" onClick={() => { setEditTargetId(null); setInput('') }} className="rounded p-1 hover:bg-secondary">إلغاء التعديل</button></div>}
               <div className="relative flex items-center gap-2">
                 <textarea
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -611,6 +746,43 @@ export function AgentRoom({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {tab === 'notifications' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin">
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-foreground"><Bell className="size-4 text-primary" /> إشعارات {agent.name} المباشرة</h3>
+                <span className="text-[11px] text-muted-foreground">Realtime من سجل المهام — {lastScanAt ? `آخر فحص ${formatCairoDate(lastScanAt)}` : 'الفحص الاستباقي ينتظر'}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">تظهر هنا المهام الواردة من المالك أو مروة أو وكيل آخر، ثم تتحدث حالتها فور وصول تغيير من قاعدة المهام.</p>
+            </div>
+            {tasksLoading ? (
+              <div className="flex items-center justify-center p-8 text-sm text-muted-foreground"><Loader2 className="me-2 size-4 animate-spin" />جاري تحميل الإشعارات…</div>
+            ) : tasks.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">لا توجد مهام واردة لهذا الوكيل حتى الآن.</div>
+            ) : (
+              <div className="space-y-2">
+                {tasks.slice().sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at)).map((task) => {
+                  const sender = task.source === 'marwa' ? 'مروة' : task.source === 'agent' ? `وكيل — ${task.created_by}` : task.created_by === 'mahmoud' ? 'المالك' : task.source === 'ui' ? 'إسناد يدوي' : task.source
+                  const state = task.status === 'done' ? 'مكتملة' : task.status === 'in_progress' ? 'جاري العمل' : task.status === 'rejected' ? 'مرفوضة' : 'تم الاستلام'
+                  return (
+                    <article key={task.id} className="rounded-xl border border-border bg-card p-3.5">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-semibold text-foreground">{task.title}</h4>
+                          <p className="mt-1 text-[11px] text-muted-foreground">المرسل: {sender} · أُرسلت {formatCairoDate(task.created_at)}</p>
+                        </div>
+                        <span className={cn('rounded-full px-2 py-1 text-[10px] font-semibold', task.status === 'done' ? 'bg-emerald-500/15 text-emerald-400' : task.status === 'in_progress' ? 'bg-sky-500/15 text-sky-300' : task.status === 'rejected' ? 'bg-destructive/15 text-destructive' : 'bg-amber-500/15 text-amber-300')}>{state}</span>
+                      </div>
+                      {task.description && <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{task.description}</p>}
+                      <div className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground"><Clock className="size-3" />آخر تحديث: {formatCairoDate(task.updated_at || task.created_at)}</div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -669,6 +841,28 @@ export function AgentRoom({
                     <span>إسناد</span>
                   </button>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 border-t border-border/60 pt-3 md:grid-cols-3">
+                <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                  تعتمد على مهمة
+                  <select value={newTaskDependencyId} onChange={(e) => setNewTaskDependencyId(e.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground">
+                    <option value="">بدون اعتماد</option>
+                    {taskCandidates.filter((candidate) => candidate.status !== 'done' && candidate.status !== 'rejected').map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>{candidate.agent_id} — {candidate.title}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground">
+                  <input type="checkbox" checked={newTaskDaily} onChange={(e) => { setNewTaskDaily(e.target.checked); if (e.target.checked) setNewTaskWeekly(false) }} />
+                  تكرار يومي بتوقيت القاهرة
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground">
+                  <input type="checkbox" checked={newTaskWeekly} onChange={(e) => { setNewTaskWeekly(e.target.checked); if (e.target.checked) setNewTaskDaily(false) }} />
+                  تكرار أسبوعي بتوقيت القاهرة
+                </label>
+                {(newTaskDaily || newTaskWeekly) && <input aria-label="وقت التكرار" type="time" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground" />}
+                {newTaskWeekly && <select aria-label="يوم التكرار الأسبوعي" value={newTaskDay} onChange={(e) => setNewTaskDay(Number(e.target.value))} className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground"><option value={0}>الأحد</option><option value={1}>الاثنين</option><option value={2}>الثلاثاء</option><option value={3}>الأربعاء</option><option value={4}>الخميس</option><option value={5}>الجمعة</option><option value={6}>السبت</option></select>}
               </div>
             </form>
 
@@ -731,7 +925,7 @@ export function AgentRoom({
                 {filteredTasks.map((t) => (
                   <div
                     key={t.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-border/80"
+                    className={cn('flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-border/80', (t.priority === 'high' || t.priority === 'urgent') && t.status !== 'done' && 'border-rose-400/50 bg-rose-400/[0.04] motion-safe:animate-pulse')}
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -751,7 +945,7 @@ export function AgentRoom({
                         </span>
 
                         <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          أولوية: {t.priority}
+                          أولوية: {t.priority === 'urgent' ? 'عاجلة' : t.priority === 'high' ? 'عالية' : t.priority === 'low' ? 'منخفضة' : 'عادية'}
                         </span>
 
                         <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
@@ -764,10 +958,51 @@ export function AgentRoom({
                       {t.description && (
                         <p className="text-xs text-muted-foreground">{t.description}</p>
                       )}
+                      {t.schedule_type === 'daily' && t.scheduled_time && (
+                        <p className="flex items-center gap-1 text-[11px] text-sky-300"><Clock className="size-3" /> يوميًا {t.scheduled_time.slice(0, 5)} بتوقيت القاهرة</p>
+                      )}
+                      {t.schedule_type === 'weekly' && t.scheduled_time && (
+                        <p className="flex items-center gap-1 text-[11px] text-sky-300"><Clock className="size-3" /> أسبوعيًا — {['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][t.schedule_day_of_week ?? 0]} الساعة {t.scheduled_time.slice(0, 5)} بتوقيت القاهرة</p>
+                      )}
+                      {t.dependency_id && (() => {
+                        const prerequisite = taskCandidates.find((candidate) => candidate.id === t.dependency_id)
+                        return <p className={cn('flex items-center gap-1 text-[11px]', prerequisite?.status === 'done' ? 'text-emerald-300' : 'text-amber-300')}><Link2 className="size-3" /> {prerequisite?.status === 'done' ? 'الاعتمادية اكتملت' : `مقفولة حتى اكتمال: ${prerequisite?.title ?? 'المهمة السابقة'}`}</p>
+                      })()}
+                      {editingTaskId === t.id && (
+                        <div className="mt-2 grid gap-2 rounded-lg border border-primary/20 bg-background/70 p-3 md:grid-cols-2">
+                          <input value={editingDraft.title} onChange={(e) => setEditingDraft((draft) => ({ ...draft, title: e.target.value }))} className="rounded-md border border-border bg-background px-2.5 py-2 text-xs" aria-label="عنوان المهمة" />
+                          <input value={editingDraft.description} onChange={(e) => setEditingDraft((draft) => ({ ...draft, description: e.target.value }))} className="rounded-md border border-border bg-background px-2.5 py-2 text-xs" aria-label="تفاصيل المهمة" placeholder="تفاصيل المهمة" />
+                          <select value={editingDraft.priority} onChange={(e) => setEditingDraft((draft) => ({ ...draft, priority: e.target.value as typeof draft.priority }))} className="rounded-md border border-border bg-background px-2.5 py-2 text-xs">
+                            <option value="low">منخفضة</option><option value="normal">عادية</option><option value="high">عالية</option><option value="urgent">عاجلة</option>
+                          </select>
+                          <select value={editingDraft.dependency_id} onChange={(e) => setEditingDraft((draft) => ({ ...draft, dependency_id: e.target.value }))} className="rounded-md border border-border bg-background px-2.5 py-2 text-xs">
+                            <option value="">بدون اعتماد</option>
+                            {taskCandidates.filter((candidate) => candidate.id !== t.id && candidate.status !== 'done' && candidate.status !== 'rejected').map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.agent_id} — {candidate.title}</option>)}
+                          </select>
+                          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={editingDraft.daily} onChange={(e) => setEditingDraft((draft) => ({ ...draft, daily: e.target.checked, weekly: e.target.checked ? false : draft.weekly }))} /> تكرار يومي</label>
+                          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={editingDraft.weekly} onChange={(e) => setEditingDraft((draft) => ({ ...draft, weekly: e.target.checked, daily: e.target.checked ? false : draft.daily }))} /> تكرار أسبوعي</label>
+                          {(editingDraft.daily || editingDraft.weekly) && <input type="time" value={editingDraft.time} onChange={(e) => setEditingDraft((draft) => ({ ...draft, time: e.target.value }))} className="rounded-md border border-border bg-background px-2.5 py-2 text-xs" />}
+                          {editingDraft.weekly && <select value={editingDraft.day} onChange={(e) => setEditingDraft((draft) => ({ ...draft, day: Number(e.target.value) }))} className="rounded-md border border-border bg-background px-2.5 py-2 text-xs"><option value={0}>الأحد</option><option value={1}>الاثنين</option><option value={2}>الثلاثاء</option><option value={3}>الأربعاء</option><option value={4}>الخميس</option><option value={5}>الجمعة</option><option value={6}>السبت</option></select>}
+                          <div className="flex gap-2 md:col-span-2">
+                            <button type="button" onClick={() => void handleSaveTask(t.id)} className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">حفظ</button>
+                            <button type="button" onClick={() => setEditingTaskId(null)} className="rounded-md border border-border px-3 py-1.5 text-xs">إلغاء</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* تغيير حالة المهمة بسلاسة (لا حذف نهائياً) */}
                     <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                      <button
+                        type="button"
+                        title="تعديل المهمة"
+                        onClick={() => {
+                          setEditingTaskId(t.id)
+                          setEditingDraft({ title: t.title, description: t.description || '', priority: t.priority, dependency_id: t.dependency_id || '', daily: t.schedule_type === 'daily', weekly: t.schedule_type === 'weekly', time: t.scheduled_time?.slice(0, 5) || '18:00', day: t.schedule_day_of_week ?? 0 })
+                        }}
+                        className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-primary"
+                      ><Pencil className="size-3.5" /></button>
+                      <button type="button" title="أرشفة المهمة" onClick={() => void handleArchiveTask(t.id)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-destructive"><Archive className="size-3.5" /></button>
                       <select
                         value={t.status}
                         onChange={(e) =>
@@ -895,6 +1130,7 @@ export function AgentRoom({
                           {item.body}
                         </p>
                       )}
+                      {item.kind === 'report' && <ReportActions actions={item.payload?.actions} body={item.body || item.title} />}
 
                       {/* أزرار القرار المباشر إذا كان معلقاً */}
                       {isPending && (
