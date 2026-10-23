@@ -1,0 +1,27 @@
+{
+ "day": "2026-10-23",
+ "providers": {
+  "dahl-primary": {
+   "status": "down",
+   "prompt_tokens": 0,
+   "completion_tokens": 0,
+   "calls": 0,
+   "last_error": "network: انتهت مهلة المزود (15000ms)",
+   "fp": "92272012647c",
+   "fail_streak": 3,
+   "cooldown_until": "2026-10-23T00:32:13.825Z",
+   "cooldown_kind": "network"
+  },
+  "dahl-light": {
+   "status": "down",
+   "prompt_tokens": 0,
+   "completion_tokens": 0,
+   "calls": 0,
+   "last_error": "network: انتهت مهلة المزود (15000ms)",
+   "fp": "a072f59372c9",
+   "fail_streak": 2,
+   "cooldown_until": "2026-10-23T00:30:58.393Z",
+   "cooldown_kind": "network"
+  }
+ }
+}

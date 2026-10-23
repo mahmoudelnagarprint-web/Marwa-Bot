@@ -1,11 +1,18 @@
-// app/api/chat/route.ts — الشات الحي المركزي لوكلاء مروة كور (Active / Hot-Standby) — v3
+// app/api/chat/route.ts — الشات الحي المركزي لوكلاء مروة كور (Active / Hot-Standby) — v3.1
 //
 // POST /api/chat   body: { agent, messages, maxTokens?, providerId?, strictProvider?, stream? }
 //   - providerId   : اختيار يدوي مطلق (يلغي Auto-Test ويجعل المزود Active).
 //   - strictProvider: مع providerId — بلا احتياطي آلي.
 //   - stream: true : رد NDJSON أحداث حية (plan / attempt / failover / tool) ثم سطر نهائي type:"done".
 //                    بدونه: رد JSON واحد كالسابق (متوافق مع الواجهة القديمة).
-// GET  /api/chat?agent=&providerId=  → قائمة المزودين + Active/Standby الحاليان (للقائمة المنسدلة وشريط الحالة).
+// GET  /api/chat?agent=&providerId=  → قائمة المزودين + Active/Standby الحاليان (للقائمة المنسدلة وشريط الحالة)
+//
+// 🆕 v3.1 — Inline Agent Chaining / Auto-Orchestration (أمر المالك 2026-10-23):
+//   بعد تنفيذ أوامر السلاش في رد مروة (/summon @salma ... / @task @fares ...)،
+//   يُستدعى الوكيل المستهدف فوراً داخلياً عبر chatWithFailover بمساحة عمله
+//   وsystemPrompt الخاص به + POS_DB_TOOLS (قراءة قاعدة الأعمال)، وتفاصيل المهمة
+//   تُمرر كرسالة user — ويُدمج رده أسفل رد مروة بفاصل جمالي واضح في finalReply.
+//   عمق السلسلة = مستوى واحد (لا إعادة سلاش على ردود السلسلة) — منع الحلقات.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { chatWithFailover, describeFleet, type ChatMsg, type GatewayEvent } from '@/lib/ai-gateway'
@@ -17,6 +24,7 @@ import {
   POS_DB_TOOLS,
   logAgentChatTurn,
   AGENT_MAP,
+  lookupAgentKey,
   type PosQueryResult,
 } from '@/lib/agent-intelligence'
 
@@ -32,6 +40,8 @@ const MAX_TOKENS_CAP = 4096
 const MAX_SQL_DIRECTIVES = 2
 const RESULT_PREVIEW_CHARS = 1_500
 const PROVIDER_ID_RE = /^[A-Za-z0-9._:\-]{1,80}$/
+/** الحد الأقصى للمهام المتسلسلة داخلياً في الرد الواحد (حماية تكلفة/زمن) */
+const MAX_CHAINED_CALLS = 3
 
 type Payload = Record<string, unknown>
 type ChatBody = {
@@ -107,6 +117,16 @@ function runSqlDirectives(text: string): string {
   return blocks.join('\n\n')
 }
 
+/** منفذ الأدوات المشترك — نفس سلوك الاستدعاء الرئيسي (قراءة قاعدة الأعمال فقط) */
+function makeToolExecutor() {
+  return async (name: string, args: Record<string, unknown>) => {
+    if (name === 'query_pos_db') {
+      return executePosQuery(typeof args.sql === 'string' ? args.sql : '')
+    }
+    return { ok: false, error: `أداة غير معروفة: ${name}` }
+  }
+}
+
 /** قلب المعالجة: يُستخدم للرد العادي ولرد البث معاً */
 async function handleChat(
   body: ChatBody,
@@ -142,12 +162,7 @@ async function handleChat(
     strictProvider,
     onEvent,
     signal,
-    toolExecutor: async (name: string, args: Record<string, unknown>) => {
-      if (name === 'query_pos_db') {
-        return executePosQuery(typeof args.sql === 'string' ? args.sql : '')
-      }
-      return { ok: false, error: `أداة غير معروفة: ${name}` }
-    },
+    toolExecutor: makeToolExecutor(),
   })
   const llmMs = Date.now() - tLlm
 
@@ -175,6 +190,65 @@ async function handleChat(
     finalReply += `\n\n⚡ **[تنفيذ آلي من محرك النظام]**:\n` + slash.log.map((l) => `• ${l}`).join('\n')
   }
 
+  // ─── Inline Agent Chaining (أمر المالك 2026-10-23): الرد الفوري للوكيل المستدعى ───
+  // بعد تسجيل مهام السلاش: أي مهمة/استدعاء موجّه لوكيل آخر (@salma / @fares / @bebo ...)
+  // يُستدعى فوراً داخلياً عبر chatWithFailover بمساحة عمل الوكيل المستهدف وsystemPrompt
+  // الخاص به + POS_DB_TOOLS (قراءة قاعدة الأعمال)، وتفاصيل المهمة تُمرر كرسالة user —
+  // ويُدمج رده أسفل رد مروة بفاصل واضح. عمق السلسلة = مستوى واحد (بلا إعادة سلاش).
+  const chainedAgents: string[] = []
+  if (slash.executed && slash.tasks.length > 0) {
+    // استخراج تفاصيل الأوامر من نص النموذج (نفس منطق محرك السلاش) لتمريرها كرسالة user
+    const reDetails = /^[ \t]*\/(task|summon)[ \t]+@(\S+)[ \t]*(.*)$/gm
+    const queueByTarget = new Map<string, string[]>()
+    let mm: RegExpExecArray | null
+    while ((mm = reDetails.exec(modelText)) !== null) {
+      const target = lookupAgentKey(mm[2])
+      const detail = (mm[3] || '').trim()
+      if (!target || !detail || target === agentKey) continue
+      const label = mm[1] === 'summon' ? 'استدعاء فوري' : 'مهمة رسمية'
+      const userMsg =
+        `مهمة مُسندة إليك من ${AGENT_MAP[agentKey].name} (${label}) — تفاصيلها:\n` +
+        `${detail}\n\n` +
+        `نفّذها الآن وأجب بنتيجة مباشرة ومختصرة — استخدم أداة قاعدة البيانات الحية (query_pos_db) إن احتجت أرقاماً، ولا تخترع أي رقم غير موجود.`
+      const q = queueByTarget.get(target) ?? []
+      if (q.length < 2) q.push(userMsg) // مهمتان كحد أقصى لكل وكيل في السلسلة
+      queueByTarget.set(target, q)
+    }
+
+    // الترتيب نفسه الذي سُجّلت به المهام في slash.tasks (target/fileName)
+    for (const taskRef of slash.tasks.slice(0, MAX_CHAINED_CALLS)) {
+      const target = lookupAgentKey(taskRef.split('/')[0])
+      if (!target) continue
+      const taskUser = queueByTarget.get(target)?.shift()
+      if (!taskUser) continue
+      const targetWs = AGENT_MAP[target]?.ws || 'marwa_maestro'
+      const targetName = AGENT_MAP[target]?.name ?? target
+      try {
+        const chainSystem: ChatMsg = { role: 'system', content: buildAgentSystemPrompt(target, taskUser) }
+        const chainRes = await chatWithFailover(
+          targetWs,
+          [chainSystem, { role: 'user', content: taskUser }],
+          {
+            maxTokens: Math.min(maxTokens, 2048),
+            tools: POS_DB_TOOLS,
+            signal,
+            toolExecutor: makeToolExecutor(),
+          },
+        )
+        if (chainRes.ok && chainRes.text && chainRes.text.trim()) {
+          finalReply += `\n\n---\n🤖 **[استجابة فورية من: ${targetName}]**\n${chainRes.text.trim()}`
+          chainedAgents.push(target)
+        } else {
+          const errTxt = String(chainRes.error ?? 'رد فارغ')
+          finalReply += `\n\n---\n⚠️ **[استجابة فورية من: ${targetName}]** تعذر الحصول على الرد (${errTxt}) — المهمة مسجلة في صندوقه وستُنفَّذ من جلسته.`
+        }
+      } catch (chainErr) {
+        const errTxt = chainErr instanceof Error ? chainErr.message : String(chainErr)
+        finalReply += `\n\n---\n⚠️ **[استجابة فورية من: ${targetName}]** فشل الاستدعاء الداخلي: ${errTxt} — المهمة مسجلة في صندوقه وستُنفَّذ من جلسته.`
+      }
+    }
+  }
+
   logAgentChatTurn(agentKey, lastUserMsg, finalReply)
 
   return {
@@ -195,6 +269,7 @@ async function handleChat(
       usage: result.usage,
       executedSlash: slash.executed ? slash.log : undefined,
       tasks: slash.tasks.length > 0 ? slash.tasks : undefined,
+      chainedAgents: chainedAgents.length > 0 ? chainedAgents : undefined, // الوكلاء الذين استُدعوا فوراً
       latency_ms: Date.now() - t0,
       timings: { prompt_ms: promptMs, llm_ms: llmMs },
     },
