@@ -16,12 +16,18 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
-const REQUEST_TIMEOUT_MS = envInt('AI_GATEWAY_TIMEOUT_MS', 15_000) // مهلة صارمة لكل طلب HTTP
+const REQUEST_TIMEOUT_MS = envInt('AI_GATEWAY_TIMEOUT_MS', 10_000) // مهلة صارمة لكل طلب HTTP (قاطع الدائرة عند 10ث)
 const TOTAL_BUDGET_MS = envInt('AI_GATEWAY_BUDGET_MS', 90_000) // سقف زمني كلي للطلب
 const PING_TIMEOUT_MS = envInt('AI_GATEWAY_PING_TIMEOUT_MS', 4_000)
 const PING_TTL_MS = envInt('AI_GATEWAY_PING_TTL_MS', 60_000) // عمر نتيجة الـ Ping قبل التحديث الخلفي
 export const MAX_ATTEMPTS = 5
 const NO_TOOLS_TTL_MS = 30 * 60_000
+
+/** قاطع الدائرة: كل عطل «مهلة أو تجاوز حد» يبرّد المزود 5 دقائق كاملة بلا تصاعد. */
+export const CIRCUIT_BREAKER_MS = envInt('AI_GATEWAY_BREAKER_MS', 5 * 60_000)
+
+/** سقف أحرف تعليمات الخلفية بعد التقليم (التعليمات الأساسية فقط، بلا سجل دردشة). */
+const BACKGROUND_SYSTEM_CAP = envInt('AI_GATEWAY_BACKGROUND_SYSTEM_CAP', 12_000)
 
 // ───────────────────────────── المسارات ─────────────────────────────
 
@@ -75,7 +81,10 @@ export type RoutingConfig = {
   default_role: 'strong' | 'light'
 }
 
-export type ErrorKind = 'overflow' | 'auth' | 'quota' | 'rate' | 'server' | 'network' | 'gone' | 'unknown'
+export type ErrorKind = 'overflow' | 'auth' | 'quota' | 'rate' | 'timeout' | 'server' | 'network' | 'gone' | 'unknown'
+
+/** أسباب فشل الطلب كاملاً — تُمكّن عامل الخلفية من معرفة متى يُرجئ المهمة بدل إعادة المحاولة */
+export type ExhaustReason = 'no_providers' | 'all_cooling' | 'all_failed'
 
 export type ProviderState = {
   status: 'up' | 'down' | 'unknown'
@@ -88,6 +97,8 @@ export type ProviderState = {
   fail_streak?: number
   fp?: string
   no_tools_until?: string
+  /** عدد مرات ضرب القاطع لهذا المزود اليوم — يظهر في مركز الأسطول */
+  breaker_hits?: number
 }
 
 export type UsageFile = { day: string; providers: Record<string, ProviderState> }
@@ -480,11 +491,21 @@ function isCooling(usage: UsageFile, p: AiProvider): boolean {
   return !!st.cooldown_until && Date.parse(st.cooldown_until) > Date.now()
 }
 
+/** أقرب وقت يعود فيه مزود للخدمة — يُستخدم لتحديد مدة إرجاء مهام الخلفية. */
+export function earliestCooldownRemaining(usage: UsageFile, providers: AiProvider[]): number {
+  const now = Date.now()
+  const ends = providers
+    .map((p) => Date.parse(stateOf(usage, p.id).cooldown_until ?? ''))
+    .filter((t) => Number.isFinite(t) && t > now)
+  if (ends.length === 0) return 0
+  return Math.min(...ends) - now
+}
+
 async function buildPlan(
   agentWs: string,
   fleet: { providers: AiProvider[]; routing: RoutingConfig },
   usage: UsageFile,
-  o?: { providerId?: string; strictProvider?: boolean },
+  o?: { providerId?: string; strictProvider?: boolean; patient?: boolean },
 ): Promise<GatewayPlan> {
   const role = roleForAgent(agentWs, fleet.routing)
   const enabled = fleet.providers.filter((p) => p.enabled)
@@ -521,8 +542,9 @@ async function buildPlan(
     role,
     usage,
   )
-  if (queue.length === 0 && cooling.length > 0) {
+  if (queue.length === 0 && cooling.length > 0 && !o?.patient) {
     // كل المزودين مبرّدون: محاولة أخيرة للأقرب انتهاءً (عدا الذين «اختفوا» 404/410)
+    // patient=true (مهمة خلفية): لا نحاول إطلاقاً — نُرجع النفاد فوراً ليجدول العامل إرجاعاً متزايداً
     queue = cooling
       .filter((p) => stateOf(usage, p.id).cooldown_kind !== 'gone')
       .sort((a, b) => Date.parse(stateOf(usage, a.id).cooldown_until ?? '') - Date.parse(stateOf(usage, b.id).cooldown_until ?? ''))
@@ -574,15 +596,18 @@ export function classifyFailure(status: number | null, body: string): ErrorKind 
   if (status === 402) return 'quota'
   if (status === 429) return 'rate'
   if (status !== null && status >= 500) return 'server'
-  if (status === null) return 'network'
+  // مهلة داخلية بلا استجابة HTTP = قاطع الدائرة (لا خطأ شبكة عابر)
+  if (status === null) return /انتهت (مهلة|المهلة)|timeout|timed out|aborted/i.test(body || '') ? 'timeout' : 'network'
   return 'unknown'
 }
 
 const COOLDOWN_RULES: Partial<Record<ErrorKind, { base: number; max: number }>> = {
   gone: { base: 10 * 60_000, max: 24 * 3600_000 },
   auth: { base: 2 * 60_000, max: 30 * 60_000 },
-  quota: { base: 10 * 60_000, max: 6 * 3600_000 },
-  rate: { base: 60_000, max: 15 * 60_000 },
+  quota: { base: CIRCUIT_BREAKER_MS, max: 6 * 3600_000 },
+  // قاطع الدائرة: المهلة و429 يبرّدان 5 دقائق ثابتة (بلا تصاعد) عشان الاختيار الآلي يعديهم فوراً
+  rate: { base: CIRCUIT_BREAKER_MS, max: CIRCUIT_BREAKER_MS },
+  timeout: { base: CIRCUIT_BREAKER_MS, max: CIRCUIT_BREAKER_MS },
   server: { base: 30_000, max: 10 * 60_000 },
   network: { base: 30_000, max: 10 * 60_000 },
 }
@@ -590,10 +615,14 @@ const COOLDOWN_RULES: Partial<Record<ErrorKind, { base: number; max: number }>> 
 function cooldownFor(kind: ErrorKind, status: number | null, streak: number, retryAfterMs?: number): number {
   const rule = COOLDOWN_RULES[kind]
   if (!rule) return 0
+  // القاطع الثابت: تجاوز الحد أو المهلة → 5 دقائق دائماً، ولو طلب المزود Retry-After أقل
+  if (kind === 'rate' || kind === 'timeout') {
+    return Math.max(rule.base, Math.min(retryAfterMs ?? 0, rule.max))
+  }
   let base = rule.base
   if (status === 410) base = Math.max(base, 60 * 60_000)
   let ms = Math.min(rule.max, base * Math.pow(2, Math.min(Math.max(streak - 1, 0), 10)))
-  if (retryAfterMs && (kind === 'rate' || kind === 'server' || kind === 'quota')) {
+  if (retryAfterMs && (kind === 'server' || kind === 'quota')) {
     ms = Math.min(rule.max, Math.max(retryAfterMs, 5_000))
   }
   return ms
@@ -618,6 +647,62 @@ export function compactMessages(
     (userGoals.length ? `كانت حول: ${userGoals.join(' ؛ ').slice(0, 300)}. ` : '') +
     'المهام الأخيرة في الرسائل التالية.'
   return { messages: [...system, { role: 'user', content: summary }, ...keep], dropped, summary }
+}
+
+/**
+ * التقليم الذكي للسياق — لمهام الخلفية فقط (العامل المجدول والنبض الاستباقي).
+ * مهمة خلفية لا تحتاج سجل دردشة إطلاقاً: نُبقي «التعليمات الأساسية + بيانات المهمة» فقط،
+ * ونحذف الرسائل السابقة وكتل البيانات الحية المحقونة في الـ System Prompt (POS والغرف)
+ * لأن الوكيل يستدعيها بنفسه عبر الأداة عند الحاجة. النتيجة: Payload أصغر وتوفير مباشر في التوكنز.
+ */
+const BACKGROUND_BLOCK_MARK = '--- بيانات '
+
+/** يحذف كتلة بيانات حية محقونة: من سطر العنوان حتى أول فاصل سطرين فارغين. */
+function stripInjectedBlocks(text: string): string {
+  let out = text
+  let guard = 0
+  while (guard++ < 8) {
+    const i = out.indexOf(BACKGROUND_BLOCK_MARK)
+    if (i === -1) break
+    const end = out.indexOf('\n\n', i + BACKGROUND_BLOCK_MARK.length)
+    out = end === -1 ? out.slice(0, i) : out.slice(0, i) + out.slice(end)
+  }
+  return out
+}
+
+export function trimBackgroundMessages(
+  messages: ChatMsg[],
+  o?: { systemCap?: number; taskCap?: number },
+): { messages: ChatMsg[]; dropped: number; savedChars: number; systemChars: number } {
+  const systemCap = o?.systemCap ?? BACKGROUND_SYSTEM_CAP
+  const taskCap = o?.taskCap ?? 4000
+  const before = messages.reduce((s, m) => s + m.content.length, 0)
+
+  const system = messages
+    .filter((m) => m.role === 'system')
+    .map((m) => stripInjectedBlocks(m.content).trim())
+    .filter(Boolean)
+    .join('\n\n')
+  const cappedSystem =
+    system.length > systemCap ? `${system.slice(0, systemCap)}\n[اقتُطع السياق لتوفير التوكنز]` : system
+
+  const userMsgs = messages.filter((m) => m.role === 'user')
+  const taskMsg = userMsgs[userMsgs.length - 1] // بيانات المهمة المطلوبة فقط
+
+  const out: ChatMsg[] = []
+  if (cappedSystem) out.push({ role: 'system', content: cappedSystem })
+  if (taskMsg) {
+    const content = taskMsg.content.length > taskCap ? `${taskMsg.content.slice(0, taskCap)}\n[اقتُطعت المهمة]` : taskMsg.content
+    out.push({ role: 'user', content })
+  }
+
+  const after = out.reduce((s, m) => s + m.content.length, 0)
+  return {
+    messages: out,
+    dropped: messages.length - out.length,
+    savedChars: Math.max(0, before - after),
+    systemChars: cappedSystem.length,
+  }
 }
 
 export function roleForAgent(agentWs: string, routing: RoutingConfig): 'strong' | 'light' {
@@ -862,7 +947,8 @@ async function callOnce(
         : e instanceof Error
           ? e.message.slice(0, 200)
           : 'شبكة'
-    return { ok: false, status: null, body, kind: 'network' }
+    // المهلة عطل مستقل (قاطع الدائرة): لا يُخلط مع أخطاء الشبكة العابرة
+    return { ok: false, status: null, body, kind: timedOut ? 'timeout' : 'network' }
   } finally {
     clearTimeout(timer)
   }
@@ -883,7 +969,7 @@ function isToolsRejection(status: number | null, body: string): boolean {
 type AttemptCtx = { toolsOff: boolean; fellBack: boolean; deadline: number }
 
 function timeLeftFail(): CallFail {
-  return { ok: false, status: null, body: 'انتهت مهلة المحاولة', kind: 'network' }
+  return { ok: false, status: null, body: 'انتهت مهلة المحاولة', kind: 'timeout' }
 }
 
 async function callProvider(
@@ -931,8 +1017,18 @@ export type ChatResult =
       compacted: boolean
       usage: { prompt: number; completion: number }
       toolsFallback?: boolean
+      /** السياق المقتطع (مهام الخلفية) — أرقام للتحقق من التوفير */
+      trimmed?: { dropped: number; savedChars: number }
     }
-  | { ok: false; reason: string; attempts: number; handover: HandoverStep[] }
+  | {
+      ok: false
+      reason: string
+      attempts: number
+      handover: HandoverStep[]
+      /** سبب النفاد: يمكّن عامل الخلفية من قرار الإرجاء بدل المحاولة الفورية */
+      exhausted?: ExhaustReason
+      retryAfterMs?: number
+    }
 
 export type ChatOptions = {
   maxTokens?: number
@@ -942,11 +1038,16 @@ export type ChatOptions = {
   providerId?: string
   /** مع providerId: لا انتقال لمزود آخر عند الفشل (الافتراضي false = يبقى احتياطي آلي) */
   strictProvider?: boolean
+  /**
+   * مهمة خلفية (عامل مجدول / نبض استباقي): يُقلَّم السياق تلقائياً —
+   * تعليمات أساسية + بيانات المهمة فقط، بلا سجل دردشة ولا كتل بيانات محقونة.
+   */
+  background?: boolean
   onEvent?: (e: GatewayEvent) => void
   signal?: AbortSignal
 }
 
-/** أنواع أعطال يستحق معها إعادة المحاولة على نفس المزود لاحقاً ضمن الـ 5 محاولات (مهلة/شبكة/5xx) */
+/** أنواع أعطال يستحق معها إعادة المحاولة على نفس المزود لاحقاً ضمن الـ 5 محاولات (شبكة/5xx فقط) */
 const RETRYABLE: ErrorKind[] = ['server', 'network']
 
 /** المحرك الكامل: Active/Hot-Standby + failover (حد أقصى 5) + مهلة صارمة + auto-compact + tool calling + tools fallback */
@@ -957,6 +1058,20 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
   const note = (provider: string, action: HandoverStep['action'], detail: string) => {
     handover.push({ at: new Date().toISOString(), provider, action, detail })
   }
+
+  // (0) التقليم الذكي للسياق: مهام الخلفية تُرسل التعليمات + المهمة فقط
+  let trimmed: { dropped: number; savedChars: number } | undefined
+  let effectiveMessages = messages
+  if (opts?.background) {
+    const t = trimBackgroundMessages(messages)
+    effectiveMessages = t.messages
+    trimmed = { dropped: t.dropped, savedChars: t.savedChars }
+    if (t.dropped > 0 || t.savedChars > 0) {
+      note('gateway', 'compact', `تقليم خلفي: ${t.dropped} رسالة محذوفة، توفير ${t.savedChars} حرف`)
+    }
+  } else {
+    trimmed = undefined
+  }
   const emit = (e: GatewayEvent) => {
     try {
       opts?.onEvent?.(e)
@@ -966,7 +1081,13 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
   }
 
   if (fleet.providers.length === 0) {
-    return { ok: false, reason: 'لا مزودين — أضفهم من أسطول الذكاء في مركز القيادة التقنية', attempts: 0, handover }
+    return {
+      ok: false,
+      reason: 'لا مزودين — أضفهم من أسطول الذكاء في مركز القيادة التقنية',
+      attempts: 0,
+      handover,
+      exhausted: 'no_providers',
+    }
   }
 
   const maxTokens = Math.max(opts?.maxTokens ?? 2048, 2048)
@@ -975,21 +1096,34 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
   const usage = loadUsage()
   const enabledProviders = fleet.providers.filter((p) => p.enabled)
   if (enabledProviders.length === 0) {
-    return { ok: false, reason: 'كل المزودين معطّلون (enabled=false) — فعّل مزوداً واحداً على الأقل', attempts: 0, handover }
+    return {
+      ok: false,
+      reason: 'كل المزودين معطّلون (enabled=false) — فعّل مزوداً واحداً على الأقل',
+      attempts: 0,
+      handover,
+      exhausted: 'no_providers',
+    }
   }
   for (const p of enabledProviders) syncStateWithConfig(p, usage)
 
   // (1) الخطة: Auto-Test → Active + Hot Standby، أو اختيار يدوي مطلق
-  const plan = await buildPlan(agentWs, fleet, usage, { providerId: opts?.providerId, strictProvider: opts?.strictProvider })
+  const plan = await buildPlan(agentWs, fleet, usage, {
+    providerId: opts?.providerId,
+    strictProvider: opts?.strictProvider,
+    // مهام الخلفية صبورة: لو الأسطول كله في تبريد نُرجع النفاد فوراً بدل انتظار محاولة فاشلة
+    patient: !!opts?.background,
+  })
   for (const n of plan.notes) note('gateway', 'call', n)
   for (const s of plan.skipped) note(s.name, 'skip', s.detail)
 
   if (plan.queue.length === 0) {
     return {
       ok: false,
-      reason: 'جميع مزودي الذكاء الاصطناعي في فترة تبريد مؤقتة (نماذج غير موجودة/مفاتيح مرفوضة) — راجع أسطول الذكاء وسجل الكونسول',
+      reason: 'جميع مزودي الذكاء الاصطناعي في فترة تبريد مؤقتة (مهلة/تجاوز حد/أعطال) — راجع أسطول الذكاء وسجل الكونسول',
       attempts: 0,
       handover,
+      exhausted: 'all_cooling',
+      retryAfterMs: earliestCooldownRemaining(usage, fleet.providers.filter((p) => p.enabled)),
     }
   }
 
@@ -1038,10 +1172,10 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
     }
 
     let attemptCompacted = false
-    let msgs = [...messages]
+    let msgs = [...effectiveMessages]
     const estPrompt = msgs.reduce((s, m) => s + estimateTokens(m.content), 0)
     if (estPrompt > (p.max_tokens || 8000) * 0.9) {
-      const c = compactMessages(messages)
+      const c = compactMessages(effectiveMessages)
       attemptCompacted = c.dropped > 0
       msgs = c.messages
       note(p.name, 'compact', `استباق Context Overflow — حُذف ${c.dropped} رسالة`)
@@ -1051,7 +1185,7 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
     let r: CallResult = await callProvider(p, msgs, maxTokens, opts?.tools, ctx, note)
 
     if (!r.ok && (r.kind ?? classifyFailure(r.status, r.body)) === 'overflow') {
-      const c = compactMessages(messages)
+      const c = compactMessages(effectiveMessages)
       attemptCompacted = c.dropped > 0
       msgs = c.messages
       note(p.name, 'compact', `ضُغط السجل — حُذف ${c.dropped} رسالة`)
@@ -1125,10 +1259,11 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
         compacted: attemptCompacted,
         usage: { prompt: okR.prompt_tokens, completion: okR.completion_tokens },
         toolsFallback: ctx.fellBack || undefined,
+        trimmed,
       }
     }
 
-    // فشل → تصنيف + تبريد تصاعدي + تحويل فوري للـ Standby (المستخدم لا يرى خطأ)
+    // فشل → تصنيف + قاطع دائرة (مهلة/429 = 5 دقائق) + تحويل فوري للـ Standby (المستخدم لا يرى خطأ)
     const failR = r
     const kind = failR.kind ?? classifyFailure(failR.status, failR.body)
     let appliedMs = 0
@@ -1142,6 +1277,7 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
         ps.fail_streak = streak
         ps.cooldown_until = new Date(Date.now() + ms).toISOString()
         ps.cooldown_kind = kind
+        if (kind === 'rate' || kind === 'timeout') ps.breaker_hits = (ps.breaker_hits ?? 0) + 1
         appliedMs = ms
       }
     })
@@ -1152,7 +1288,11 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
     lastError = `${p.name}: ${kind} ${failR.status ?? ''} ${failR.body.slice(0, 80)}`.trim()
     console.warn(
       `[AI Gateway] failover من [${p.name}] (محاولة ${attempt}/${MAX_ATTEMPTS}): ${kind} HTTP ${failR.status ?? '—'} → ` +
-        (appliedMs > 0 ? `تبريد ${Math.round(appliedMs / 1000)} ثانية` : 'بدون تبريد (خطأ خاص بالطلب)'),
+        (appliedMs > 0
+          ? kind === 'rate' || kind === 'timeout'
+            ? `قاطع الدائرة: تنحية ${Math.round(appliedMs / 1000)} ثانية`
+            : `تبريد ${Math.round(appliedMs / 1000)} ثانية`
+          : 'بدون تبريد (خطأ خاص بالطلب)'),
     )
     note(p.name, 'fail', `${kind} ${failR.status ?? ''} ${failR.body.slice(0, 80)}`.trim())
 
@@ -1171,10 +1311,16 @@ export async function chatWithFailover(agentWs: string, messages: ChatMsg[], opt
     })
   }
 
+  // نفاد كل المحاولات: نُبلّغ الحالة بدقة حتى يقرر عامل الخلفية الإرجاء بدل الحرق
+  const finalUsage = loadUsage()
+  const stillCooling = enabledProviders.filter((p) => isCooling(finalUsage, p))
+  const allCooling = stillCooling.length === enabledProviders.length && enabledProviders.length > 0
   return {
     ok: false,
     reason: `جميع مزودي الذكاء الاصطناعي غير متاحين حالياً — تحقق من الاتصال${lastError ? ` (آخر خطأ: ${lastError})` : ''}`,
     attempts: attempt,
     handover,
+    exhausted: allCooling ? 'all_cooling' : 'all_failed',
+    retryAfterMs: earliestCooldownRemaining(finalUsage, enabledProviders) || undefined,
   }
 }

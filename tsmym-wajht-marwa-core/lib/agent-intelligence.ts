@@ -896,12 +896,21 @@ function safeCall<T>(fn: () => T, fallback: T): T {
   }
 }
 
-/** بناء الـ System Prompt المخصص والديناميكي لكل وكيل مع حقن تدريبه الأصلي والأدوات الحية */
-export function buildAgentSystemPrompt(agentKey: AgentKey, userQuery: string): string {
+/**
+ * بناء الـ System Prompt المخصص والديناميكي لكل وكيل مع حقن تدريبه الأصلي والأدوات الحية.
+ * background=true (مهمة مجدولة/نبض خلفي): تعليمات أساسية فقط — بلا حقن بيانات حية ولا استعلامات،
+ * لأن الوكيل يستدعي الأداة بنفسه عند الحاجة. يقلّل الـ Payload بشكل كبير ويوفّر التوكنز.
+ */
+export function buildAgentSystemPrompt(
+  agentKey: AgentKey,
+  userQuery: string,
+  options?: { background?: boolean },
+): string {
   const info = AGENT_MAP[agentKey] || AGENT_MAP.marwa
   const trainingDoc = safeCall(() => loadAgentTrainingDoc(agentKey), '')
-  const livePos = safeCall(() => queryPosData(userQuery, agentKey), '')
-  const liveWs = safeCall(() => buildAgentWorkspaceContext(agentKey, userQuery), '')
+  const background = !!options?.background
+  const livePos = background ? '' : safeCall(() => queryPosData(userQuery, agentKey), '')
+  const liveWs = background ? '' : safeCall(() => buildAgentWorkspaceContext(agentKey, userQuery), '')
 
   let roleInstructions = ''
   switch (agentKey) {

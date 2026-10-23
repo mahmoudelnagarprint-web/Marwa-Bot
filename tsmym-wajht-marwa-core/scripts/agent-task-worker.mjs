@@ -31,12 +31,19 @@ while (!stopping) {
       body: '{}',
       signal: AbortSignal.timeout(120_000),
     })
-    if (!response.ok) {
+    if (!response.ok && response.status !== 202) {
       console.error(`Worker API returned HTTP ${response.status}`)
     } else {
       const result = await response.json()
-      if (result.claimed) console.log(`Scheduled task processed: ${result.claimed}`)
-      else if (result.error) console.error(`Scheduled task failed: ${result.error}`)
+      if (result.claimed && result.deferred_ms) {
+        // إرجاء متزايد: لا نموذج متاح — المهمة مؤجلة بلا حرق محاولات ولا أرصدة
+        const minutes = Math.round(Number(result.deferred_ms) / 60_000)
+        console.log(`Scheduled task deferred ${minutes}m (level ${result.backoff_level}): ${result.claimed}`)
+      } else if (result.claimed) {
+        console.log(`Scheduled task processed: ${result.claimed}`)
+      } else if (result.error) {
+        console.error(`Scheduled task failed: ${result.error}`)
+      }
     }
   } catch (error) {
     console.error(`Worker request failed: ${error instanceof Error ? error.message : String(error)}`)
