@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   Bot,
@@ -25,6 +25,10 @@ import {
   fetchAgentUpdates,
   formatCairoDate,
   insertAgentTask,
+  isTableMissingErr,
+  makeRoomLog,
+  subscribeAgentTasks,
+  subscribeAgentUpdates,
   updateAgentTaskStatus,
   updateAgentUpdateStatus,
   type AgentTask,
@@ -50,6 +54,9 @@ export function AgentRoom({
   onBack: () => void
 }) {
   const [tab, setTab] = useState<TabId>('chat')
+
+  /** طابع كل خطوة في هذه الغرفة — يُظهر للمالك ماذا يحدث بالضبط */
+  const log = useMemo(() => makeRoomLog(agent.id), [agent.id])
 
   // ──────────────────────── 1. تبويب الشات (Live Streaming Chat) ────────────────────────
   const storageKey = `marwa_chat_${agent.id}`
@@ -223,11 +230,23 @@ export function AgentRoom({
   const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
   const [isAddingTask, setIsAddingTask] = useState(false)
   const [tasksLoading, setTasksLoading] = useState(false)
+  const [tasksError, setTasksError] = useState<string | null>(null)
 
   const loadTasks = async () => {
-    if (!supabase) return
+    if (!supabase) {
+      log('المهام', 'تخطّي — Supabase غير مهيأ في .env.local')
+      return
+    }
+    log('المهام', 'بدء القراءة من agent_tasks')
     setTasksLoading(true)
-    const { tasks: items } = await fetchAgentTasks(supabase, agent.id)
+    const { tasks: items, error } = await fetchAgentTasks(supabase, agent.id)
+    if (error) {
+      log('المهام', 'فشل القراءة: ' + error.message)
+      setTasksError(isTableMissingErr(error) ? 'جدول agent_tasks غير موجود في Supabase — طبّق الترحيل 006.' : error.message)
+    } else {
+      setTasksError(null)
+      log('المهام', `تم تحميل ${items.length} مهمة`)
+    }
     setTasks(items)
     setTasksLoading(false)
   }
@@ -238,11 +257,36 @@ export function AgentRoom({
     }
   }, [tab, agent.id])
 
+  // اشتراك حي على مهام هذا الوكيل — أي مهمة جديدة أو تغيير حالة يظهر فوراً
+  useEffect(() => {
+    if (!supabase) return
+    log('Realtime/المهام', 'طلب اشتراك')
+    const sub = subscribeAgentTasks(supabase, agent.id, {
+      onStatus: (s) => log('Realtime/المهام', 'حالة القناة: ' + s),
+      onInsert: (row) => {
+        log('Realtime/المهام', 'مهمة جديدة: ' + row.title)
+        setTasks((prev) => (prev.some((t) => t.id === row.id) ? prev : [row, ...prev]))
+      },
+      onUpdate: (row) => {
+        log('Realtime/المهام', `تحديث حالة المهمة → ${row.status}`)
+        setTasks((prev) => prev.map((t) => (t.id === row.id ? { ...t, ...row } : t)))
+      },
+    })
+    return () => {
+      log('Realtime/المهام', 'إلغاء الاشتراك')
+      sub.unsubscribe()
+    }
+  }, [agent.id])
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTaskTitle.trim() || !supabase) return
+    if (!newTaskTitle.trim() || !supabase) {
+      log('إسناد مهمة', 'تخطّي — العنوان فارغ أو Supabase غير مهيأ')
+      return
+    }
+    log('إسناد مهمة', 'إرسال: ' + newTaskTitle.trim())
     setIsAddingTask(true)
-    const { ok, row } = await insertAgentTask(supabase, {
+    const { ok, error, row } = await insertAgentTask(supabase, {
       agent_id: agent.id,
       title: newTaskTitle,
       description: newTaskDesc,
@@ -250,9 +294,14 @@ export function AgentRoom({
     })
     setIsAddingTask(false)
     if (ok && row) {
-      setTasks((prev) => [row, ...prev])
+      log('إسناد مهمة', 'تم الحفظ في السحابة ✓ id=' + row.id)
+      setTasks((prev) => (prev.some((t) => t.id === row.id) ? prev : [row, ...prev]))
       setNewTaskTitle('')
       setNewTaskDesc('')
+      setTasksError(null)
+    } else {
+      log('إسناد مهمة', 'فشل: ' + (error?.message ?? 'سبب غير معروف'))
+      setTasksError(error ? (isTableMissingErr(error) ? 'جدول agent_tasks غير موجود في Supabase.' : error.message) : 'تعذر الحفظ')
     }
   }
 
@@ -261,10 +310,13 @@ export function AgentRoom({
     newStatus: 'pending' | 'in_progress' | 'done' | 'rejected',
   ) => {
     if (!supabase) return
+    log('نقل حالة المهمة', `id=${taskId} → ${newStatus}`)
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t)),
     )
-    await updateAgentTaskStatus(supabase, taskId, newStatus)
+    const { ok, error } = await updateAgentTaskStatus(supabase, taskId, newStatus)
+    log('نقل حالة المهمة', ok ? 'تم التثبيت في السحابة ✓' : 'فشل: ' + (error?.message ?? 'خطأ'))
+    if (!ok) void loadTasks()
   }
 
   const filteredTasks = tasks.filter((t) => {
@@ -276,12 +328,24 @@ export function AgentRoom({
   const [updates, setUpdates] = useState<AgentUpdate[]>([])
   const [updateKindFilter, setUpdateKindFilter] = useState<'all' | 'complaint' | 'suggestion' | 'alert' | 'report'>('all')
   const [updatesLoading, setUpdatesLoading] = useState(false)
+  const [updatesError, setUpdatesError] = useState<string | null>(null)
   const [decidingId, setDecidingId] = useState<string | null>(null)
 
   const loadUpdates = async () => {
-    if (!supabase) return
+    if (!supabase) {
+      log('التحديثات', 'تخطّي — Supabase غير مهيأ في .env.local')
+      return
+    }
+    log('التحديثات', 'بدء القراءة من agent_updates')
     setUpdatesLoading(true)
-    const { items } = await fetchAgentUpdates(supabase, agent.id)
+    const { items, error } = await fetchAgentUpdates(supabase, agent.id)
+    if (error) {
+      log('التحديثات', 'فشل القراءة: ' + error.message)
+      setUpdatesError(isTableMissingErr(error) ? 'جدول agent_updates غير موجود في Supabase — طبّق الترحيل 006.' : error.message)
+    } else {
+      setUpdatesError(null)
+      log('التحديثات', `تم تحميل ${items.length} تحديث`)
+    }
     setUpdates(items)
     setUpdatesLoading(false)
   }
@@ -292,15 +356,41 @@ export function AgentRoom({
     }
   }, [tab, agent.id])
 
+  // اشتراك حي على تحديثات هذا الوكيل — أي اقتراح/شكوى/بلاغ يظهر فوراً
+  useEffect(() => {
+    if (!supabase) return
+    log('Realtime/التحديثات', 'طلب اشتراك')
+    const sub = subscribeAgentUpdates(supabase, agent.id, {
+      onStatus: (s) => log('Realtime/التحديثات', 'حالة القناة: ' + s),
+      onInsert: (row) => {
+        log('Realtime/التحديثات', `وصل تحديث جديد (${row.kind}): ` + row.title)
+        setUpdates((prev) => (prev.some((u) => u.id === row.id) ? prev : [row, ...prev]))
+      },
+      onUpdate: (row) => {
+        log('Realtime/التحديثات', 'قرار على تحديث → ' + row.status)
+        setUpdates((prev) => prev.map((u) => (u.id === row.id ? { ...u, ...row } : u)))
+      },
+    })
+    return () => {
+      log('Realtime/التحديثات', 'إلغاء الاشتراك')
+      sub.unsubscribe()
+    }
+  }, [agent.id])
+
   const handleUpdateDecision = async (id: string, decision: 'approved' | 'rejected') => {
     if (!supabase) return
+    log('قرار التحديث', `id=${id} → ${decision}`)
     setDecidingId(id)
-    const { ok } = await updateAgentUpdateStatus(supabase, id, decision)
+    const { ok, error } = await updateAgentUpdateStatus(supabase, id, decision)
     setDecidingId(null)
     if (ok) {
+      log('قرار التحديث', 'تم التثبيت في السحابة ✓')
       setUpdates((prev) =>
         prev.map((u) => (u.id === id ? { ...u, status: decision, decided_by: 'mahmoud' } : u)),
       )
+    } else {
+      log('قرار التحديث', 'فشل: ' + (error?.message ?? 'خطأ'))
+      setUpdatesError(error?.message ?? 'تعذر تسجيل القرار')
     }
   }
 
@@ -621,6 +711,11 @@ export function AgentRoom({
             </div>
 
             {/* قائمة المهام */}
+            {tasksError && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive">
+                {tasksError}
+              </div>
+            )}
             {tasksLoading ? (
               <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin me-2" />
@@ -733,6 +828,11 @@ export function AgentRoom({
               })}
             </div>
 
+            {updatesError && (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive">
+                {updatesError}
+              </div>
+            )}
             {updatesLoading ? (
               <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin me-2" />

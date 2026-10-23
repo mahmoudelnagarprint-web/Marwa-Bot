@@ -137,6 +137,62 @@ export async function fetchAgentUpdates(
   return { items: (data ?? []) as AgentUpdate[], error: null }
 }
 
+/** سجل خطوات موحد لغرفة الوكيل — يُطبع كل خطوة في الكونسول ويرجع النص للعرض */
+export type RoomLog = (step: string, detail?: string) => void
+
+export const makeRoomLog =
+  (agentId: string): RoomLog =>
+  (step, detail) => {
+    const line = `[غرفة ${agentId}] ${step}${detail ? ' — ' + detail : ''}`
+    if (typeof console !== 'undefined') console.info(line)
+  }
+
+/** اشتراك حي على مهام وكيل واحد: INSERT و UPDATE تظهر فوراً بلا تحديث الصفحة */
+export function subscribeAgentTasks(
+  client: SupabaseClient,
+  agentId: string,
+  handlers: { onInsert?: (row: AgentTask) => void; onUpdate?: (row: AgentTask) => void; onStatus?: (s: string) => void },
+): { unsubscribe: () => void } {
+  const ch = client
+    .channel(`agent-tasks-${agentId}-${Math.random().toString(36).slice(2, 8)}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'agent_tasks', filter: `agent_id=eq.${agentId}` },
+      (p) => handlers.onInsert?.(p.new as AgentTask),
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'agent_tasks', filter: `agent_id=eq.${agentId}` },
+      (p) => handlers.onUpdate?.(p.new as AgentTask),
+    )
+    .subscribe((status) => handlers.onStatus?.(status))
+
+  return { unsubscribe: () => void ch.unsubscribe() }
+}
+
+/** اشتراك حي على تحديثات وكيل واحد: أي إدراج/قرار يظهر فوراً */
+export function subscribeAgentUpdates(
+  client: SupabaseClient,
+  agentId: string,
+  handlers: { onInsert?: (row: AgentUpdate) => void; onUpdate?: (row: AgentUpdate) => void; onStatus?: (s: string) => void },
+): { unsubscribe: () => void } {
+  const ch = client
+    .channel(`agent-updates-${agentId}-${Math.random().toString(36).slice(2, 8)}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'agent_updates', filter: `agent_id=eq.${agentId}` },
+      (p) => handlers.onInsert?.(p.new as AgentUpdate),
+    )
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'agent_updates', filter: `agent_id=eq.${agentId}` },
+      (p) => handlers.onUpdate?.(p.new as AgentUpdate),
+    )
+    .subscribe((status) => handlers.onStatus?.(status))
+
+  return { unsubscribe: () => void ch.unsubscribe() }
+}
+
 export const statusLabel: Record<string, string> = {
   pending: 'معلقة',
   in_progress: 'جارية',
