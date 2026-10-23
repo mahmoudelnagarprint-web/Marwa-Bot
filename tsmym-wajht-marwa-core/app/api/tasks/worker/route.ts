@@ -7,7 +7,7 @@ import {
   runAgentTask,
   type RunFailure,
 } from '@/lib/agent-task-runner'
-import { runSupervisorSweep } from '@/lib/agent-task-supervisor'
+import { releaseOrphanedTasks, runSupervisorSweep } from '@/lib/agent-task-supervisor'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
@@ -71,6 +71,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'إعدادات Supabase الخادمية غير مكتملة' }, { status: 503 })
   }
 
+  // ═══ 1) تحرير المهام العالقة — أول خطوة في كل نبضة، قبل أي قراءة للطابور ═══
+  // المهمة اللي عاملها مات ترجع 'pending' هنا فوراً (حد 15 دقيقة)، فتُلتقط في نفس
+  // النبضة بالأسفل بدل أن تبقى «جارية» للأبد. deterministic بالكامل — بلا استهلاك نموذج.
+  let orphans: { released: number; poisoned: number; scanned: number } = { released: 0, poisoned: 0, scanned: 0 }
+  try {
+    const report = await releaseOrphanedTasks(admin)
+    orphans = { released: report.released.length, poisoned: report.poisoned.length, scanned: report.scanned }
+    if (orphans.released || orphans.poisoned) {
+      console.log(`[Worker] تحرير مهام عالقة: ${orphans.released} رجعت للطابور، ${orphans.poisoned} أُرشفت`)
+    }
+  } catch {
+    // فشل التحرير لا يوقف النبضة — يُعاد في النبضة التالية
+  }
+
   // المشرف العام (مروة) يعمل مع كل نبضة عامل: مرة واحدة يومياً، وقراراته deterministic
   // فلا تستهلك أي نموذج وتصلح حتى لو كل المزودين في فترة تبريد.
   let supervisor: { ran: boolean; decisions: number; day: string } = { ran: false, decisions: 0, day: cairoDay() }
@@ -88,9 +102,26 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date()
-  const { data: candidates, error: readError } = await admin
+  // ═══ 2) قراءة الطابور: مهام الإسناد السريع (schedule_type='none') + المهام المجدولة ═══
+  // سابقاً كان الاستعلام محصوراً في daily/weekly فقط، فمهام أزرار الوكلاء (none) كانت
+  // تُحفظ 'pending' ولا يلتقطها أحد أبداً. الآن الطابوران يُقرآن معاً في نبضة واحدة.
+  const CANDIDATE_COLUMNS = 'id,agent_id,title,description,status,priority,dependency_id,schedule_type,scheduled_time,schedule_day_of_week,schedule_timezone,last_run_at,attempt_count,archived_at,deferred_until,backoff_level,created_at'
+
+  const { data: adhocRows, error: adhocError } = await admin
     .from('agent_tasks')
-    .select('id,agent_id,title,description,status,priority,dependency_id,schedule_type,scheduled_time,schedule_day_of_week,schedule_timezone,last_run_at,attempt_count,archived_at,deferred_until,backoff_level')
+    .select(CANDIDATE_COLUMNS)
+    .eq('schedule_type', 'none')
+    .eq('status', 'pending')
+    .is('archived_at', null)
+    .lt('attempt_count', 3)
+    .order('created_at', { ascending: true })   // الأقدم أولاً — لا تجويع للمهام القديمة
+    .limit(50)
+
+  if (adhocError) return NextResponse.json({ ok: false, error: 'تعذر قراءة طابور الإسناد السريع' }, { status: 503 })
+
+  const { data: scheduledRows, error: readError } = await admin
+    .from('agent_tasks')
+    .select(CANDIDATE_COLUMNS)
     .in('schedule_type', ['daily', 'weekly'])
     .in('status', ['pending', 'done'])
     .is('archived_at', null)
@@ -99,12 +130,16 @@ export async function POST(req: NextRequest) {
     .limit(100)
 
   if (readError) return NextResponse.json({ ok: false, error: 'تعذر قراءة قائمة المهام المجدولة' }, { status: 503 })
+
+  const candidates = [...(adhocRows ?? []), ...(scheduledRows ?? [])]
   // الإرجاء المتزايد: أي مهمة داخل فترة الإرجاء لا تُلمس قبل انتهائها
-  const notDeferred = (candidates ?? []).filter(
+  const notDeferred = candidates.filter(
     (task) => !task.deferred_until || Date.parse(task.deferred_until) <= now.getTime(),
   )
-  const deferredCount = (candidates ?? []).length - notDeferred.length
-  const dueCandidates = notDeferred.filter((task) => dueToday(task.scheduled_time, task.last_run_at, now, task.schedule_type, task.schedule_day_of_week))
+  const deferredCount = candidates.length - notDeferred.length
+  // الإسناد السريع مستحق دائماً؛ المجدول يُفحص بموعده فقط
+  const dueCandidates = notDeferred.filter((task) => task.schedule_type === 'none'
+    || dueToday(task.scheduled_time, task.last_run_at, now, task.schedule_type, task.schedule_day_of_week))
   const dependencyIds = [...new Set(dueCandidates.flatMap((task) => task.dependency_id ? [task.dependency_id] : []))]
   let readyDependencies = new Set<string>()
   let blockedDependencies = new Set<string>()
@@ -132,14 +167,21 @@ export async function POST(req: NextRequest) {
   }
   if (!due) return NextResponse.json({
     ok: true, claimed: null, waiting_for_dependency: waitingForDependency, deferred: deferredCount,
-    blocked_dependencies: [...blockedDependencies], supervisor,
+    blocked_dependencies: [...blockedDependencies], supervisor, orphans,
   })
 
+  // الحجز يُثبت هوية الحاجز ولحظته (claimed_by/claimed_at) — بهما يعرف المُحرِّر
+  // مَن كان يملك المهمة ومتى بدأ الحجز، فيتحرر من مالك ميت لا من عامل شغّال.
   const { data: claimed, error: claimError } = await admin.from('agent_tasks')
-    .update({ status: 'in_progress', updated_at: now.toISOString() })
+    .update({
+      status: 'in_progress',
+      claimed_by: 'worker',
+      claimed_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    })
     .eq('id', due.id).eq('status', due.status).is('archived_at', null)
     .select('id,agent_id,title,description,schedule_type,scheduled_time,last_run_at,attempt_count,backoff_level').maybeSingle()
-  if (claimError || !claimed) return NextResponse.json({ ok: true, claimed: null, supervisor })
+  if (claimError || !claimed) return NextResponse.json({ ok: true, claimed: null, supervisor, orphans })
 
   try {
     // التنفيذ الحقيقي: استدعاء نموذج الوكيل نفسه — لا تقرير جاهز ولا إغلاق صوري
@@ -153,7 +195,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true, claimed: claimed.id, completed: true,
       agent: result.agentName, provider: result.provider, latency_ms: result.latencyMs,
-      trimmed: result.trimmed ?? null, supervisor,
+      trimmed: result.trimmed ?? null, supervisor, orphans,
     })
   } catch (error) {
     const failure = error as RunFailure
@@ -169,6 +211,8 @@ export async function POST(req: NextRequest) {
       const deferredUntil = new Date(Date.now() + waitMs).toISOString()
       await admin.from('agent_tasks').update({
         status: 'pending',
+        claimed_by: null,        // الحجز انتهى — المهمة رجعت للطابور بلا مالك
+        claimed_at: null,
         backoff_level: Math.min(level + 1, MAX_BACKOFF_LEVEL),
         deferred_until: deferredUntil,
         last_failure_reason: `لا نموذج متاح (قاطع الدائرة) — إرجاء ${backoffLabel(waitMs)}`,
@@ -178,17 +222,19 @@ export async function POST(req: NextRequest) {
       console.warn(`[Worker] إرجاء مهمة ${claimed.id} لمدة ${backoffLabel(waitMs)} (المستوى ${level + 1})`)
       return NextResponse.json({
         ok: false, claimed: claimed.id, deferred_ms: waitMs, deferred_until: deferredUntil,
-        backoff_level: level + 1, error: message,
+        backoff_level: level + 1, error: message, orphans,
       }, { status: 202 })
     }
 
     // فشل آخر: يبقى محاولة عادية بلا إرجاء طويل
     await admin.from('agent_tasks').update({
       status: 'pending', attempt_count: attempts,
+      claimed_by: null,
+      claimed_at: null,
       last_failure_reason: message.slice(0, 200),
       result_note: message.slice(0, 500),
       updated_at: new Date().toISOString(),
     }).eq('id', claimed.id).eq('status', 'in_progress')
-    return NextResponse.json({ ok: false, claimed: claimed.id, error: message }, { status: 502 })
+    return NextResponse.json({ ok: false, claimed: claimed.id, error: message, orphans }, { status: 502 })
   }
 }

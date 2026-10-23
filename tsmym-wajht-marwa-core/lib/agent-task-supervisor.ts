@@ -1,8 +1,9 @@
 // lib/agent-task-supervisor.ts — المشرف العام (مروة) داخل محرك المهام
 // ⚠️ التعيين برمجي: مروة هي المشرفة العامة، ولا تُطلب موافقة بشرية على أي قرار.
 // مهامها الآلية:
-//  1. مسح دوري للمهام المتعطلة والمتأخرة بلا قرار → إلغاء / أرشفة / إعادة توجيه.
-//  2. التحقق من الاعتماديات قبل السماح للوكيل التالي بالبدء، وفكّ الأقفال الميتة.
+//  1. تحرير المهام العالقة (Zombie / Orphaned) — تعمل مع كل نبضة عامل، لا مرة يومياً.
+//  2. مسح دوري للمهام المتعطلة والمتأخرة بلا قرار → إلغاء / أرشفة / إعادة توجيه.
+//  3. التحقق من الاعتماديات قبل السماح للوكيل التالي بالبدء، وفكّ الأقفال الميتة.
 // كل قرار يُوثَّق في agent_updates بسجل تدقيق كامل (لا حذف).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -25,6 +26,28 @@ export type SupervisorTask = {
   updated_at: string
   last_run_at: string | null
   deferred_until: string | null
+  claimed_by?: string | null
+  claimed_at?: string | null
+  release_count?: number | null
+}
+
+/** مهمة عالقة أُعيدت للطابور — تُبلَّغ للمالك وللعامل المجدول */
+export type ReleasedTask = {
+  taskId: string
+  agentId: string
+  agentName: string
+  title: string
+  idleMinutes: number
+  releaseCount: number
+  poisoned: boolean
+}
+
+export type ReleaseReport = {
+  ok: boolean
+  scanned: number
+  released: ReleasedTask[]
+  poisoned: ReleasedTask[]
+  error?: string
 }
 
 export type SupervisorDecision = {
@@ -32,7 +55,7 @@ export type SupervisorDecision = {
   agentId: string
   agentName: string
   title: string
-  action: 'archive' | 'cancel' | 'redirect' | 'resume' | 'remind'
+  action: 'archive' | 'cancel' | 'redirect' | 'resume' | 'remind' | 'release'
   reason: string
 }
 
@@ -55,6 +78,14 @@ const STUCK_HOURS = Number(process.env.SUPERVISOR_STUCK_HOURS || 24)
 /** مهمة مجدولة لم تعمل أطول من كذا يوم = ميتة */
 const DEAD_SCHEDULE_DAYS = Number(process.env.SUPERVISOR_DEAD_SCHEDULE_DAYS || 3)
 
+// ── تحرير المهام العالقة (Orphaned / Zombie Recovery) ──────────────────────────
+/** مهمة «جارية» بلا أي نبضة أطول من كذا دقيقة = عاملها مات ⇒ تُحرَّر فوراً للطابور */
+const ORPHAN_MINUTES = Math.max(1, Number(process.env.ORPHAN_RELEASE_MINUTES || 15))
+/** كم مرة تُحرَّر نفس المهمة قبل اعتبارها مسمومة (تُسقِط العامل كل مرة) */
+const MAX_RELEASES = Math.max(2, Number(process.env.ORPHAN_MAX_RELEASES || 5))
+/** عامل لا ينبض ومهمته جارية: مانع من تحريرها وهي بين إيديه فعلاً */
+const MINUTE = 60_000
+
 function ageHours(iso: string | null, now: number): number {
   if (!iso) return Number.POSITIVE_INFINITY
   const t = Date.parse(iso)
@@ -64,6 +95,129 @@ function ageHours(iso: string | null, now: number): number {
 
 function agentName(agentId: string): string {
   return AGENT_MAP[agentId as keyof typeof AGENT_MAP]?.name || agentId
+}
+
+/**
+ * ═══ تحرير المهام العالقة (Orphaned Task Recovery) ═══
+ *
+ * المشكلة: العامل يحجز المهمة بـ status='in_progress' ثم يموت (خطأ قاتل غير مُلتقَط،
+ * إعادة تشغيل السيرفر، انقطاع الشبكة، قتل العملية). المهمة تبقى «جارية» للأبد،
+ * وطابور العامل لا يقرأ إلا 'pending' — فالمهمة تختفي من المنظومة نهائياً.
+ *
+ * الحل: فحص لا يستهلك أي نموذج (deterministic 100%) يعمل مع كل نبضة عامل:
+ *   1. يلتقط كل مهمة in_progress عمرها (updated_at/claimed_at) ≥ 15 دقيقة.
+ *   2. يرجّعها 'pending' فوراً ويُصفّر الحجز: claimed_by/claimed_at = null،
+ *      deferred_until = null، backoff_level = 0 (ترجع للطابور فوراً لا بعد إرجاء قديم).
+ *   3. يزيد release_count: المهمة اللي تُسقط العامل 5 مرات تُؤرشف كمسمومة
+ *      بدل ما تفضل تدور في حلقة تكسر النظام.
+ *
+ * لا حذف إطلاقاً — كل شيء انتقال حالة + سجل تدقيق.
+ */
+export async function releaseOrphanedTasks(admin: SupabaseClient): Promise<ReleaseReport> {
+  const now = Date.now()
+  const thresholdMs = ORPHAN_MINUTES * MINUTE
+  const cutoffIso = new Date(now - thresholdMs).toISOString()
+  const released: ReleasedTask[] = []
+  const poisoned: ReleasedTask[] = []
+
+  // فحص واحد مفهرس (idx_agent_tasks_stuck) — المهام الجارية وحدها
+  const { data: rows, error } = await admin
+    .from('agent_tasks')
+    .select('id,agent_id,title,status,updated_at,created_at,claimed_by,claimed_at,release_count,attempt_count,schedule_type')
+    .eq('status', 'in_progress')
+    .is('archived_at', null)
+    .lt('updated_at', cutoffIso)
+    .order('updated_at', { ascending: true })
+    .limit(100)
+
+  if (error) return { ok: false, scanned: 0, released, poisoned, error: error.message }
+
+  const stuck = (rows ?? []) as SupervisorTask[]
+  if (!stuck.length) return { ok: true, scanned: 0, released, poisoned }
+
+  for (const task of stuck) {
+    // العمر الحقيقي = أحدث إشارة حياة: updated_at أو claimed_at أوّل حجز
+    const heartbeat = Math.max(
+      Date.parse(task.updated_at || '') || 0,
+      task.claimed_at ? Date.parse(task.claimed_at) || 0 : 0,
+    )
+    const idleMs = heartbeat ? now - heartbeat : thresholdMs
+    const idleMinutes = Math.max(1, Math.round(idleMs / MINUTE))
+    const name = agentName(task.agent_id)
+    const releases = Number(task.release_count || 0)
+
+    // (1) مهمة تكرر إسقاط العامل: أرشفة كمسمومة — لا تدور للأبد في الطابور
+    if (releases >= MAX_RELEASES) {
+      const { error: poisonError } = await admin.from('agent_tasks').update({
+        status: 'rejected',
+        archived_at: new Date().toISOString(),
+        claimed_by: null,
+        claimed_at: null,
+        deferred_until: null,
+        backoff_level: 0,
+        result_note: `المشرف العام أرشف المهمة كمهمة مسمومة — حرَّرها ${releases} مرات وكل مرة يُسقط العامل. تحتاج إعادة صياغة من المالك.`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', task.id).eq('status', 'in_progress').is('archived_at', null)
+      if (!poisonError) {
+        const item: ReleasedTask = {
+          taskId: task.id, agentId: task.agent_id, agentName: name, title: task.title,
+          idleMinutes, releaseCount: releases, poisoned: true,
+        }
+        poisoned.push(item)
+        console.warn(`[Orphan] أرشفة مهمة مسمومة ${task.id} بعد ${releases} تحرير`)
+      }
+      continue
+    }
+
+    // (2) التحرير الفعلي: ترجع للطابور بحجزٍ ممسوح — أي عامل يقدر يلتقطها في نفس النبضة
+    const { data: updated, error: releaseError } = await admin.from('agent_tasks').update({
+      status: 'pending',
+      claimed_by: null,
+      claimed_at: null,
+      deferred_until: null,     // لا نترك إرجاء قديم يخفيها
+      backoff_level: 0,         // ترجع فوراً، العطل كان في العامل لا في المزود
+      release_count: releases + 1,
+      last_failure_reason: `تحرير تلقائي: العامل توقف والمهمة جارية ${idleMinutes} دقيقة بلا نبضة`,
+      result_note: `المشرف العام حرَّر المهمة من العامل المتوقف بعد ${idleMinutes} دقيقة — رجعت للطابور ليلتقطها عامل آخر.`.slice(0, 500),
+      updated_at: new Date().toISOString(),
+    }).eq('id', task.id).eq('status', 'in_progress').is('archived_at', null)
+      .select('id').maybeSingle()
+
+    // فشل التحديث = عامل آخر حرّرها/أنهاها في نفس اللحظة — لا مشكلة
+    if (releaseError || !updated?.id) continue
+
+    released.push({
+      taskId: task.id, agentId: task.agent_id, agentName: name, title: task.title,
+      idleMinutes, releaseCount: releases + 1, poisoned: false,
+    })
+    console.log(`[Orphan] تحرير مهمة ${task.id} (${name}) — جارية ${idleMinutes} دقيقة بلا نبضة`)
+  }
+
+  // تقرير تدقيق: يُحدَّث في نفس سجل المشرف (op_id واحد) بدل تلويث الغرفة بسطور كثيرة
+  if (released.length || poisoned.length) {
+    const day = cairoDay(new Date(now))
+    const body = [
+      ...released.map((r) => `• حرّرت مهمة «${r.title}» من ${r.agentName} — كانت جارية ${r.idleMinutes} دقيقة بلا نبضة ورجعت للطابور (تحرير #${r.releaseCount}).`),
+      ...poisoned.map((r) => `• أرشفت مهمة «${r.title}» لـ${r.agentName} — تكرر إسقاط العامل ${r.releaseCount} مرات، محتاجة إعادة صياغة.`),
+    ].join('\n')
+    await admin.from('agent_updates').upsert({
+      agent_id: SUPERVISOR_AGENT_ID,
+      kind: 'alert',
+      title: `تحرير مهام عالقة — ${released.length} محرَّرة / ${poisoned.length} مؤرشفة (${day})`,
+      body,
+      severity: poisoned.length ? 'عالي' : 'منخفض',
+      status: 'approved',
+      decided_by: SUPERVISOR_AGENT_ID,
+      decided_at: new Date().toISOString(),
+      op_id: `orphans:${day}:${Math.floor(now / (5 * MINUTE))}`,
+      payload: {
+        released: released.map((r) => ({ task_id: r.taskId, agent: r.agentId, idle_minutes: r.idleMinutes, release_count: r.releaseCount })),
+        poisoned: poisoned.map((r) => ({ task_id: r.taskId, agent: r.agentId, release_count: r.releaseCount })),
+      },
+    }, { onConflict: 'op_id' }).select('id').maybeSingle()
+  }
+
+  return { ok: true, scanned: stuck.length, released, poisoned }
 }
 
 /**
@@ -77,7 +231,7 @@ export async function runSupervisorSweep(admin: SupabaseClient): Promise<SweepRe
 
   const { data: rows, error } = await admin
     .from('agent_tasks')
-    .select('id,agent_id,title,status,dependency_id,schedule_type,archived_at,attempt_count,created_at,updated_at,last_run_at,deferred_until')
+    .select('id,agent_id,title,status,dependency_id,schedule_type,archived_at,attempt_count,created_at,updated_at,last_run_at,deferred_until,claimed_by,claimed_at,release_count')
     .is('archived_at', null)
     .in('status', ['pending', 'in_progress'])
     .order('updated_at', { ascending: true })
@@ -129,17 +283,23 @@ export async function runSupervisorSweep(admin: SupabaseClient): Promise<SweepRe
       }
     }
 
-    // (ب) مهمة جارية عالقة: المصنع توقف عنها — نرجعها للطابور بدل تجميدها للأبد
+    // (ب) مهمة جارية عالقة: التحرير الفوري (15 دقيقة) يتولاّه releaseOrphanedTasks
+    //     مع كل نبضة عامل. هنا شبكة أمان فقط للمهام اللي فاتتها النبضات (عامل متوقف تماماً).
     if (task.status === 'in_progress' && idleHours >= STUCK_HOURS) {
       const { error: resumeError } = await admin.from('agent_tasks').update({
         status: 'pending',
+        claimed_by: null,
+        claimed_at: null,
+        deferred_until: null,
+        backoff_level: 0,
+        release_count: Number(task.release_count || 0) + 1,
         result_note: `المشرف العام أعاد المهمة للطابور بعد ${Math.round(idleHours)} ساعة بلا حركة.`,
         updated_at: new Date().toISOString(),
       }).eq('id', task.id).eq('status', 'in_progress')
       if (!resumeError) {
         decisions.push({
           taskId: task.id, agentId: task.agent_id, agentName: name, title: task.title,
-          action: 'resume',
+          action: 'release',
           reason: `عالقة ${Math.round(idleHours)} ساعة في التنفيذ بلا تحديث`,
         })
       }
@@ -218,7 +378,7 @@ export async function runSupervisorSweep(admin: SupabaseClient): Promise<SweepRe
   // تقرير المشرف العام: سجل تدقيق يومي واحد (idempotent بنفس op_id)
   const body = decisions.length
     ? decisions.map((d) => {
-        const verb = d.action === 'cancel' ? 'ألغيت' : d.action === 'archive' ? 'أرشفت' : d.action === 'resume' ? 'أعدت للطابور' : d.action === 'remind' ? 'ذكّرت' : 'أعدت توجيه'
+        const verb = d.action === 'cancel' ? 'ألغيت' : d.action === 'archive' ? 'أرشفت' : d.action === 'release' ? 'حرّرت' : d.action === 'remind' ? 'ذكّرت' : 'أعدت توجيه'
         return `• ${verb} مهمة «${d.title}» لـ${d.agentName} — ${d.reason}`
       }).join('\n')
     : '• لا مهام متعطلة ولا معلّقة ولا اعتماديات ميتة — المنظومة انسيابية.'

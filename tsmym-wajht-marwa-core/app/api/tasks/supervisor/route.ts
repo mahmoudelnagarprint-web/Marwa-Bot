@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cairoDay } from '@/lib/agent-task-runner'
-import { runSupervisorSweep, SUPERVISOR_AGENT_ID } from '@/lib/agent-task-supervisor'
+import { releaseOrphanedTasks, runSupervisorSweep, SUPERVISOR_AGENT_ID } from '@/lib/agent-task-supervisor'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const runtime = 'nodejs'
@@ -24,9 +24,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'إعدادات Supabase الخادمية غير مكتملة' }, { status: 503 })
   }
 
-  let body: { force?: unknown } = {}
-  try { body = await req.json() as { force?: unknown } } catch { /* جسم فارغ مقبول */ }
+  let body: { force?: unknown; release_only?: unknown } = {}
+  try { body = await req.json() as { force?: unknown; release_only?: unknown } } catch { /* جسم فارغ مقبول */ }
   const force = body.force === true
+  const releaseOnly = body.release_only === true
+
+  // وضع التحرير الفوري: فحص المهام العالقة فقط، بلا مسح يومي ولا قرارات إلغاء
+  if (releaseOnly) {
+    try {
+      const report = await releaseOrphanedTasks(admin)
+      return NextResponse.json({
+        ok: report.ok, release_only: true, scanned: report.scanned,
+        released: report.released, poisoned: report.poisoned,
+        released_count: report.released.length, poisoned_count: report.poisoned.length,
+        error: report.error,
+      }, { headers: { 'Cache-Control': 'no-store' } })
+    } catch (error) {
+      return NextResponse.json({
+        ok: false, error: error instanceof Error ? error.message : 'تعذر تحرير المهام العالقة',
+      }, { status: 500 })
+    }
+  }
 
   if (!force && await alreadySweptToday(admin)) {
     const { data: existing } = await admin
@@ -41,6 +59,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // التحرير يسبق المسح دائماً: المهام العالقة تُرجَّع للطابور قبل أي قرار عليها
+    const orphans = await releaseOrphanedTasks(admin)
     const report = await runSupervisorSweep(admin)
     if (!report.ok) return NextResponse.json({ ok: false, error: report.error || 'تعذر المسح' }, { status: 503 })
     return NextResponse.json({
@@ -52,6 +72,8 @@ export async function POST(req: NextRequest) {
       decisions: report.decisions,
       decision_count: report.decisions.length,
       report_id: report.reportId,
+      orphaned_released: orphans.released.length,
+      orphaned_poisoned: orphans.poisoned.length,
     })
   } catch (error) {
     return NextResponse.json({
@@ -61,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** حالة المشرف العام: هل مسح اليوم؟ وكم قرار؟ */
+/** حالة المشرف العام: هل مسح اليوم؟ وكم قرار؟ وكم مهمة عالقة الآن؟ */
 export async function GET() {
   let admin: ReturnType<typeof getSupabaseAdmin>
   try { admin = getSupabaseAdmin() } catch {
@@ -73,6 +95,18 @@ export async function GET() {
     .select('id,title,body,created_at,payload')
     .eq('op_id', `supervisor:${day}`)
     .maybeSingle()
+
+  // عدّاد المهام العالقة الحية: in_progress بلا نبضة أطول من الحد — للمراقبة من الواجهة
+  const orphanMinutes = Math.max(1, Number(process.env.ORPHAN_RELEASE_MINUTES || 15))
+  const cutoff = new Date(Date.now() - orphanMinutes * 60_000).toISOString()
+  const { data: stuckRows } = await admin
+    .from('agent_tasks')
+    .select('id,agent_id,title,updated_at,release_count')
+    .eq('status', 'in_progress')
+    .is('archived_at', null)
+    .lt('updated_at', cutoff)
+    .limit(50)
+
   return NextResponse.json({
     ok: true,
     supervisor: SUPERVISOR_AGENT_ID,
@@ -83,5 +117,8 @@ export async function GET() {
     report_title: data?.title ?? null,
     report_body: data?.body ?? null,
     ran_at: data?.created_at ?? null,
+    orphan_threshold_minutes: orphanMinutes,
+    stuck_now: (stuckRows ?? []).length,
+    stuck_tasks: stuckRows ?? [],
   }, { headers: { 'Cache-Control': 'no-store' } })
 }

@@ -213,8 +213,9 @@ export async function persistTaskCompletion(
     status: 'done',
     result_note: outcome.body.slice(0, 4000),
     last_run_at: finishedAt.toISOString(),
-    // نجاح: تصفير الإرجاء والمحاولات — دورة جديدة نظيفة
+    // نجاح: تصفير الإرجاء والمحاولات وعدّاد التحرير — دورة جديدة نظيفة
     attempt_count: 0, backoff_level: 0, deferred_until: null, last_failure_reason: null,
+    claimed_by: null, claimed_at: null, release_count: 0,
     updated_at: finishedAt.toISOString(),
   }).eq('id', task.id).eq('status', 'in_progress')
 
@@ -238,7 +239,12 @@ export async function executeTaskById(
   if (task.archived_at) return { ok: false, error: 'المهمة مؤرشفة — لا يمكن تنفيذها.' }
 
   const { data: claimed } = await admin.from('agent_tasks')
-    .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+    .update({
+      status: 'in_progress',
+      claimed_by: 'manual',
+      claimed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', taskId).in('status', ['pending', 'done']).is('archived_at', null)
     .select('id,agent_id,title,description,attempt_count,backoff_level')
     .maybeSingle()
@@ -257,6 +263,8 @@ export async function executeTaskById(
     await admin.from('agent_tasks').update({
       status: 'pending',
       attempt_count: Number(claimed.attempt_count || 0) + 1,
+      claimed_by: null,
+      claimed_at: null,
       last_failure_reason: message.slice(0, 200),
       result_note: `لم تُنفَّذ — ${message}`.slice(0, 500),
       updated_at: new Date().toISOString(),
