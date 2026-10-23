@@ -42,30 +42,84 @@ export function OverviewDashboard({
 }) {
   const [decidingId, setDecidingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [taskCommand, setTaskCommand] = useState('')
+  const [taskText, setTaskText] = useState('')
+  const [pickedAgents, setPickedAgents] = useState<string[]>([])
   const [taskNotice, setTaskNotice] = useState<string | null>(null)
   const [taskSending, setTaskSending] = useState(false)
+  const [busyAction, setBusyAction] = useState<'cleanup' | 'supervisor' | null>(null)
 
-  async function submitDirectTask(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const command = taskCommand.trim()
-    if (!command || taskSending) return
+  // أزرار الوكلاء: ضغطة تضيف/تشيل الوكيل من الاختيار — والمتعدد مسموح
+  const toggleAgent = (id: string) => {
+    setPickedAgents((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]))
+  }
+
+  async function submitQuickDelegate() {
+    const text = taskText.trim()
+    if (!text || !pickedAgents.length || taskSending) return
     setTaskSending(true)
     setTaskNotice(null)
     try {
       const response = await fetch('/api/tasks/delegate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: command }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_ids: pickedAgents, text }),
       })
       const result = await response.json() as { ok?: boolean; message?: string }
       setTaskNotice(result.message || (result.ok ? 'تم إسناد المهمة.' : 'تعذر إسناد المهمة.'))
       if (result.ok) {
-        setTaskCommand('')
+        setTaskText('')
+        setPickedAgents([])
         onRefresh?.()
       }
     } catch {
       setTaskNotice('تعذر الاتصال بخدمة الإسناد.')
     } finally {
       setTaskSending(false)
+    }
+  }
+
+  // تنظيف قاعدة البيانات من بيانات الاختبار: أرشفة افتراضية، والحذف الفعلي بتأكيد صريح
+  async function runCleanup() {
+    if (busyAction) return
+    const purge = window.confirm('حذف كل المهام والتقارير نهائياً؟\nموافق = حذف فعلي كامل. إلغاء = أرشفة فقط (سجل التدقيق يبقى).')
+    setBusyAction('cleanup')
+    setTaskNotice(null)
+    try {
+      const response = await fetch('/api/tasks/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(purge ? { mode: 'purge', confirm: 'امسح' } : { mode: 'archive' }),
+      })
+      const result = await response.json() as { ok?: boolean; message?: string; error?: string }
+      setTaskNotice(result.message || result.error || 'تم التنظيف.')
+      onRefresh?.()
+    } catch {
+      setTaskNotice('تعذر الاتصال بخدمة التنظيف.')
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  // المشرف العام (مروة): مسح المتعطل والمتأخر واتخاذ القرار آلياً
+  async function runSupervisor() {
+    if (busyAction) return
+    setBusyAction('supervisor')
+    setTaskNotice(null)
+    try {
+      const response = await fetch('/api/tasks/supervisor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      })
+      const result = await response.json() as { ok?: boolean; decision_count?: number; scanned?: number; error?: string }
+      setTaskNotice(result.ok
+        ? `مروة راجعت ${result.scanned ?? 0} مهمة واتخذت ${result.decision_count ?? 0} قرار.`
+        : result.error || 'تعذر تشغيل المشرف العام.')
+      onRefresh?.()
+    } catch {
+      setTaskNotice('تعذر الاتصال بالمشرف العام.')
+    } finally {
+      setBusyAction(null)
     }
   }
 
@@ -91,6 +145,13 @@ export function OverviewDashboard({
     return acc
   }, {})
 
+  // أزرار الإسناد السريع: الخمسة المعتمدون أولاً، وباقي الأسطول بعدهم
+  const QUICK_AGENT_ORDER: AgentId[] = ['marwa', 'salma', 'fares', 'bebo', 'koko']
+  const quickAgents: Agent[] = [...QUICK_AGENT_ORDER, ...agents.map((a) => a.id)]
+    .filter((id, index, list) => list.indexOf(id) === index)
+    .map((id) => agents.find((a) => a.id === id))
+    .filter((a): a is Agent => !!a)
+
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin">
       {/* 1. الترويسة الترحيبية */}
@@ -115,17 +176,87 @@ export function OverviewDashboard({
         </p>
       </div>
 
-      <form onSubmit={submitDirectTask} className="rounded-xl border border-primary/25 bg-card p-3 md:p-4">
-        <label htmlFor="main-direct-task" className="mb-2 block text-xs font-semibold text-foreground">إسناد مباشر من الشات الرئيسي</label>
+      {/* أزرار الإسناد السريع: اختيار وكيل أو أكثر بضغطة — بلا كتابة أوامر سلاش */}
+      <div className="rounded-xl border border-primary/25 bg-card p-3 md:p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-foreground">إسناد سريع — اختار وكيل أو أكثر</span>
+          <span className="text-[11px] text-muted-foreground">
+            {pickedAgents.length ? `${pickedAgents.length} مختار` : 'لم تختَر أحد'}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="اختيار الوكلاء">
+          {quickAgents.map((agent) => {
+            const active = pickedAgents.includes(agent.id)
+            return (
+              <button
+                key={agent.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleAgent(agent.id)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all',
+                  active
+                    ? 'border-primary bg-primary/20 text-primary shadow-sm'
+                    : 'border-border bg-secondary/60 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                )}
+              >
+                <span className={cn(
+                  'flex size-4 items-center justify-center rounded-full text-[9px] font-bold',
+                  active ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground',
+                )}>
+                  {agent.glyph}
+                </span>
+                {agent.name}
+                {openTasksByAgent[agent.id] > 0 && (
+                  <span className="rounded-full bg-background/70 px-1 font-mono text-[9px]">{openTasksByAgent[agent.id]}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
         <div className="flex flex-col gap-2 sm:flex-row">
-          <input id="main-direct-task" value={taskCommand} onChange={(event) => setTaskCommand(event.target.value)} placeholder="/task @salma تواصلي مع العميل زينب" className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground" />
-          <button type="submit" disabled={taskSending || !taskCommand.trim()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+          <input
+            value={taskText}
+            onChange={(event) => setTaskText(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') void submitQuickDelegate() }}
+            placeholder="اكتب المهمة هنا… واضغط الوكيل اللي تنفّذها"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+          />
+          <button
+            type="button"
+            onClick={() => void submitQuickDelegate()}
+            disabled={taskSending || !taskText.trim() || !pickedAgents.length}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          >
             {taskSending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
             إسناد فورًا
           </button>
         </div>
-        {taskNotice && <p role="status" className="mt-2 text-xs text-muted-foreground">{taskNotice}</p>}
-      </form>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
+          <button
+            type="button"
+            onClick={() => void runSupervisor()}
+            disabled={busyAction !== null}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary disabled:opacity-50"
+          >
+            {busyAction === 'supervisor' ? <Loader2 className="size-3 animate-spin" /> : <Zap className="size-3" />}
+            مسح المشرف العام (مروة)
+          </button>
+          <button
+            type="button"
+            onClick={() => void runCleanup()}
+            disabled={busyAction !== null}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1 text-[11px] font-semibold text-destructive disabled:opacity-50"
+          >
+            {busyAction === 'cleanup' ? <Loader2 className="size-3 animate-spin" /> : <XCircle className="size-3" />}
+            تنظيف بيانات الاختبار
+          </button>
+          {taskNotice && <span role="status" className="text-[11px] text-muted-foreground">{taskNotice}</span>}
+        </div>
+      </div>
 
       {/* 2. بطاقات المؤشرات المالية (KPI Cards) بالتأثير الذهبي */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
