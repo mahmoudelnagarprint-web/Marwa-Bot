@@ -91,3 +91,7 @@ desktop.ini
 # ---------- LEAD/VISION SCRATCH (اختبارات مؤقّتة — مرجع تشخيص، لا تُرفع) ----------
 Vision-Lab/projects/notebook-v2/tmp_lead/
 Vision-Lab/tmp_vision/
+
+# Live runtime state — local only (workshop decision 21b52ef: stay local, never tracked)
+workspaces/**/chats/
+workspaces/**/active_workspaces/
