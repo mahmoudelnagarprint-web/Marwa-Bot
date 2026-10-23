@@ -81,10 +81,61 @@ function buildWindow(raw: unknown): ChatMsg[] {
   return win
 }
 
+/** أسماء الأعمدة الإنجليزية → عربية (أمر المالك: يُحظر عرض أي كلمة إنجليزية أو JSON) */
+const COLUMN_AR: Record<string, string> = {
+  id: 'الرقم',
+  client_id: 'رقم العميل',
+  name: 'الاسم',
+  phone: 'الهاتف',
+  type: 'النوع',
+  balance: 'الرصيد',
+  notes: 'ملاحظات',
+  custom_notes: 'ملاحظات إضافية',
+  total_amount: 'الإجمالي',
+  status: 'الحالة',
+  date: 'التاريخ',
+  delivery_date: 'تاريخ التسليم',
+  order_id: 'رقم الطلب',
+  product_id: 'رقم الصنف',
+  product_name: 'الصنف',
+  qty: 'الكمية',
+  price: 'السعر',
+  total: 'الإجمالي',
+  amount: 'المبلغ',
+  category: 'التصنيف',
+  unit: 'الوحدة',
+  stock: 'المخزون',
+  cost: 'التكلفة',
+  created_at: 'تاريخ الإضافة',
+}
+
+/** قيم الحالات الإنجليزية → عربية */
+const VALUE_AR: Record<string, string> = {
+  Delivered: 'تم التسليم',
+  'Under Preparation': 'تحت التجهيز',
+  Pending: 'قيد الانتظار',
+  Cancelled: 'ملغي',
+  Ready: 'جاهز للتسليم',
+  InProgress: 'جاري التنفيذ',
+}
+
+function translateValue(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'string' && VALUE_AR[v]) return VALUE_AR[v]
+  return String(v)
+}
+
+/** عرض نتائج الاستعلام بالعربية كنقاط (•) — بلا JSON وبلا أي كلمة إنجليزية */
 function renderRows(res: PosQueryResult): string {
-  let body = JSON.stringify(res.data ?? [], null, 2).replace(/```/g, "'''")
-  if (body.length > RESULT_PREVIEW_CHARS) body = `${body.slice(0, RESULT_PREVIEW_CHARS)}\n… [مقتطع]`
-  return '```json\n' + body + '\n```'
+  const rows = (res.data ?? []) as Record<string, unknown>[]
+  if (!rows.length) return '• مفيش بيانات مطابقة.'
+  const out: string[] = []
+  for (const row of rows.slice(0, 12)) {
+    const pairs = Object.entries(row).map(([k, v]) => `${COLUMN_AR[k] ?? 'قيمة'}: ${translateValue(v)}`)
+    out.push(`• ${pairs.join(' — ')}`)
+  }
+  if (rows.length > 12) out.push(`• وفيه ${rows.length - 12} صف كمان مقتطعين للاختصار.`)
+  return out.join('\n')
 }
 
 function extractTextToolSql(text: string): string | null {
@@ -125,6 +176,70 @@ function makeToolExecutor() {
     }
     return { ok: false, error: `أداة غير معروفة: ${name}` }
   }
+}
+
+/** كلمات إنجليزية للحالات والأرقام الشائعة تُستبدل عربياً في نص الرد النهائي */
+const TEXT_AR: [RegExp, string][] = [
+  [/Under Preparation/gi, 'تحت التجهيز'],
+  [/Ready for Delivery/gi, 'جاهز للتسليم'],
+  [/Ready\b/gi, 'جاهز للتسليم'],
+  [/Delivered\b/gi, 'تم التسليم'],
+  [/In ?Progress/gi, 'جاري التنفيذ'],
+  [/Pending\b/gi, 'قيد الانتظار'],
+  [/Cancelled\b/gi, 'ملغي'],
+  [/\bEGP\b/g, 'جنيه'],
+]
+
+/** تطهير نص الرد من أي كلمة إنجليزية للحالات + توحيد العملة */
+function scrubEnglish(text: string): string {
+  let out = text
+  for (const [re, ar] of TEXT_AR) out = out.replace(re, ar)
+  return out
+}
+
+/**
+ * قص سرد التفكير الذي يسبق النقاط (أمر المالك: الرد نقاط (•) فقط بلا رغي).
+ * إن وُجدت أي نقطة (•) في الرد، يُحذف كل ما قبل أول نقطة من سطر مستقل.
+ */
+function stripMonologue(text: string): string {
+  const lines = text.split('\n')
+  const firstBullet = lines.findIndex((l) => /^\s*•/.test(l))
+  if (firstBullet <= 0) return text
+  return lines.slice(firstBullet).join('\n')
+}
+
+/** تطهير ردود الوكلاء من وسوم الأدوات الخام (بعض النماذج يطبع tool_call كنص):
+ *  1) ينفذ أي SQL مدفون داخل <parameter name="sql">...</parameter> ويعرض النتائج بالعربية.
+ *  2) يشيل كل وسوم الأدوات الإنجليزية (<minimax:tool_call>، <invoke>، <parameter>)
+ *     حتى لا تسرّب للواجهة — مخالفة قواعد الخنق الجذري (أمر المالك 2026-10-23). */
+function sanitizeChainText(raw: string): string {
+  let text = raw
+  let sqlOut = ''
+  let executed = false
+  const sqlRe = /<parameter\s+name="sql">\s*([\s\S]*?)<\/parameter>/gi
+  let m: RegExpExecArray | null
+  while ((m = sqlRe.exec(raw)) !== null) {
+    const sql = m[1].trim()
+    if (!/^select/i.test(sql)) continue
+    const qRes = executePosQuery(sql)
+    executed = true
+    sqlOut += qRes.ok
+      ? `\n📊 **[استعلام قاعدة البيانات الحية - ${qRes.count} سجل]**:\n${renderRows(qRes)}`
+      : `\n⚠️ **[تنبيه أداة SQL]**: ${qRes.error ?? 'فشل الاستعلام'}`
+  }
+  text = text
+    // إزالة كتل التفكير التي تطبعها بعض النماذج (MiniMax / DeepSeek) قبل الرد النهائي
+    .replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '')
+    .replace(/<reasoning[^>]*>[\s\S]*?<\/reasoning>/gi, '')
+    .replace(/<minimax:tool_call>[\s\S]*?<\/minimax:tool_call>/gi, '')
+    .replace(/<invoke[\s\S]*?<\/invoke>/gi, '')
+    .replace(/<\/?(?:minimax:[\w-]+|invoke|parameter|think|reasoning)[^>]*>/gi, '')
+    // إزالة أي كتلة كود (JSON أو غيره) — ممنوع عرضها للمالك
+    .replace(/```[\s\S]*?```/g, '')
+    .trim()
+  if (executed && sqlOut) text = (text ? text + '\n\n' : '') + sqlOut.trim()
+  text = stripMonologue(scrubEnglish(text))
+  return text || raw.trim()
 }
 
 /** قلب المعالجة: يُستخدم للرد العادي ولرد البث معاً */
@@ -236,7 +351,8 @@ async function handleChat(
           },
         )
         if (chainRes.ok && chainRes.text && chainRes.text.trim()) {
-          finalReply += `\n\n---\n🤖 **[استجابة فورية من: ${targetName}]**\n${chainRes.text.trim()}`
+          // تطهير رد السلسلة: تنفيذ SQL مدفون في وسوم خام + منع تسريب أي وسم إنجليزي للواجهة
+          finalReply += `\n\n---\n🤖 **[استجابة فورية من: ${targetName}]**\n${sanitizeChainText(chainRes.text.trim())}`
           chainedAgents.push(target)
         } else {
           const errTxt = String(('reason' in chainRes && chainRes.reason) || 'رد فارغ')
@@ -248,6 +364,9 @@ async function handleChat(
       }
     }
   }
+
+  // تطهير الرد الرئيسي أيضاً من أي وسوم أدوات خام (بعض النماذج يطبعها كنص)
+  finalReply = sanitizeChainText(finalReply)
 
   logAgentChatTurn(agentKey, lastUserMsg, finalReply)
 
