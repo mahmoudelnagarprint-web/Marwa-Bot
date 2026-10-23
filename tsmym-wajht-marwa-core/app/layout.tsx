@@ -1,12 +1,19 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from 'next/font/google'
+import { IBM_Plex_Sans_Arabic, IBM_Plex_Mono, Reem_Kufi } from 'next/font/google'
 import './globals.css'
 
 const plexArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-plex-arabic',
+  display: 'swap',
+})
+
+const reemKufi = Reem_Kufi({
+  subsets: ['arabic', 'latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-reem-kufi',
   display: 'swap',
 })
 
@@ -18,8 +25,8 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'مروة المايسترو — MARWA CORE',
-  description: 'منظومة ذكاء اصطناعي لتنسيق الوكلاء: سلمى، فارس، بيبو، كوكو، راصد، وفيجن.',
+  title: 'مروة كور — غرفة القيادة',
+  description: 'لوحة تحكم ذكية بإدارة مركزية لورشة النجار برنت بربط 10 وكلاء ذكاء اصطناعي متخصصين.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -33,7 +40,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#18181b',
+  themeColor: '#171926',
 }
 
 export default function RootLayout({
@@ -42,8 +49,13 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={`dark ${plexArabic.variable} ${plexMono.variable}`} suppressHydrationWarning>
-      <body className="antialiased" suppressHydrationWarning>
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`dark ${plexArabic.variable} ${reemKufi.variable} ${plexMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="antialiased font-sans bg-background text-foreground" suppressHydrationWarning>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

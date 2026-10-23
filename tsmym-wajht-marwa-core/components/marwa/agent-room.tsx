@@ -1,389 +1,833 @@
 'use client'
 
-// components/marwa/agent-room.tsx — غرفة الوكيل (MARWA CORE)
-// task-2 (فيجن): غرفة فارس تعرض الأرقام الحية «محسوب من البرنامج» بدل الإحصائيات
-// الوهمية + قسم المهام الجارية (Supabase agent_tasks + Realtime).
-// كل المصفوفات (news/reports/suggestions/complaints) فارغة افتراضياً — بلا بيانات متخيلة.
-
-import { useEffect, useState } from 'react'
-import Image from 'next/image'
-import { AlertTriangle, ArrowRight, FileText, LayoutDashboard, Lightbulb, ListTodo, MessageCircle, Newspaper, UserPlus, Zap } from 'lucide-react'
-import { SalmaDashboard } from './salma-dashboard'
-import { BeboDashboard } from './bebo-dashboard'
-import { SasaDashboard } from './sasa-dashboard'
-import { KokoDashboard } from './koko-dashboard'
-import { HakimDashboard } from './hakim-dashboard'
-import { VisionDashboard } from './vision-dashboard'
-import { AfkarDashboard } from './afkar-dashboard'
-import { FaresDashboard } from './fares-dashboard'
-import { CustomerChat } from './customer-chat'
-import { Button } from '@/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
+import {
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  Clock,
+  FileText,
+  ListTodo,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Send,
+  Square,
+  Trash2,
+  User,
+  XCircle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { agents, type Agent, type AgentId, type Message } from '@/lib/marwa-data'
-import { AgentAvatar } from './agent-avatar'
-import { MessageList } from './main-chat'
-import { ChatComposer } from './chat-composer'
-import { FaresLiveCards } from './fares-live-cards'
-import { AgentTasksPanel } from './agent-tasks-panel'
-import { AgentUpdatesList } from './agent-updates-list'
+import { type Agent } from '@/lib/marwa-data'
+import { supabase } from '@/lib/supabase'
+import {
+  fetchAgentTasks,
+  fetchAgentUpdates,
+  formatCairoDate,
+  insertAgentTask,
+  updateAgentTaskStatus,
+  updateAgentUpdateStatus,
+  type AgentTask,
+  type AgentUpdate,
+} from '@/lib/agent-tasks'
 
-type TabId = 'news' | 'reports' | 'suggestions' | 'complaints' | 'tasks' | 'dashboard' | 'customers'
+type TabId = 'chat' | 'tasks' | 'updates'
 
-const severityStyle = {
-  عالي: 'border-rose-400/20 bg-rose-400/10 text-rose-300',
-  متوسط: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
-  منخفض: 'border-zinc-400/20 bg-zinc-400/10 text-zinc-300',
-} as const
-
-const statusLabel = { online: 'متصل الآن', busy: 'مشغول بمهمة', idle: 'خامل' } as const
-
-const EMPTY_STATE = 'لا توجد بيانات هنا بعد — القسم يُملأ من الطبقة الحية عند تفعيله (لا بيانات وهمية).'
+type ChatMessage = {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  time: string
+  model?: string
+  latency_ms?: number
+}
 
 export function AgentRoom({
   agent,
-  messages,
-  typing,
-  guests,
-  isActive,
   onBack,
-  onSend,
-  onInvite,
-  onToggleActive,
-  onEscalate,
-  onEdit,
 }: {
   agent: Agent
-  messages: Message[]
-  typing: Message['author'] | null
-  guests: AgentId[]
-  isActive: boolean
   onBack: () => void
-  onSend: (text: string) => void
-  onInvite: (guest: AgentId) => void
-  onToggleActive: () => void
-  onEscalate: (text: string) => void
-  onEdit: (messageId: string, newText: string) => void
 }) {
-  const [tab, setTab] = useState<TabId | null>(agent.id === 'fares' || agent.id === 'salma' || agent.id === 'bebo' || agent.id === 'sasa' || agent.id === 'koko' || agent.id === 'hakim' || agent.id === 'vision' || agent.id === 'afkar' ? 'dashboard' : 'news')
-  const [approved, setApproved] = useState<string[]>([])
+  const [tab, setTab] = useState<TabId>('chat')
 
-  // deep-link للتبويب (?agent=fares&tab=tasks) — بعد الترطيب فقط لتفادي اختلاف SSR
+  // ──────────────────────── 1. تبويب الشات (Live Streaming Chat) ────────────────────────
+  const storageKey = `marwa_chat_${agent.id}`
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
+
+  // تحميل الرسائل من localStorage عند فتح الغرفة
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get('tab')
-    if (!q) return
-    if (q === 'tasks' && agent.id !== 'fares') return
-    if (q === 'dashboard' && agent.id !== 'fares' && agent.id !== 'salma' && agent.id !== 'afkar') return
-    if ((['news', 'reports', 'suggestions', 'complaints', 'tasks', 'dashboard', 'customers'] as const).includes(q as TabId)) {
-      setTab(q as TabId)
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        setMessages(JSON.parse(saved))
+      } else {
+        const initial: ChatMessage = {
+          id: `${agent.id}-welcome`,
+          role: 'assistant',
+          content: `أهلاً بك يا محمود في غرفة ${agent.name}. ${agent.tagline}`,
+          time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+        }
+        setMessages([initial])
+      }
+    } catch {
+      // تجاهل أخطاء التخزين
     }
-  }, [agent.id])
+  }, [agent.id, storageKey, agent.name, agent.tagline])
 
-  const tabs: { id: TabId; label: string; icon: typeof Newspaper; count: number; preview: string }[] = [
-    {
-      id: 'news',
-      label: 'الأخبار والإحصائيات',
-      icon: Newspaper,
-      count: agent.news.length,
-      preview:
-        agent.id === 'fares'
-          ? 'كروت حية — محسوب من البرنامج'
-          : agent.stats[0]
-            ? `${agent.stats[0].value} ${agent.stats[0].label}`
-            : 'بانتظار البيانات الحية',
-    },
-    {
-      id: 'reports',
-      label: 'التقارير',
-      icon: FileText,
-      count: agent.reports.length,
-      preview: agent.reports[0]?.title ?? 'لا تقارير رسمية بعد',
-    },
-    {
-      id: 'suggestions',
-      label: 'المقترحات',
-      icon: Lightbulb,
-      count: agent.suggestions.length,
-      preview: agent.suggestions[0]?.title ?? 'لا مقترحات مسجلة',
-    },
-    {
-      id: 'complaints',
-      label: 'الشكاوى',
-      icon: AlertTriangle,
-      count: agent.complaints.length,
-      preview: agent.complaints[0]?.title ?? 'لا شكاوى مسجلة',
-    },
-  ]
+  // حفظ الرسائل في localStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(messages))
+      } catch {
+        // storage full
+      }
+    }
+  }, [messages, storageKey])
 
-  // لوحة فارس CFO — الخزنة المركزية + تقفيل الشيفت + المخزن والرادار المالي (أمر المالك 2026-10-21)
-  if (agent.id === 'fares') {
-    tabs.unshift({ id: 'dashboard', label: 'الخزنة والمخزن', icon: LayoutDashboard, count: 0, preview: 'الخزنة الحية + تقفيل الشيفت + المخزن التفاعلي والرادار المالي' })
-    tabs.push({ id: 'tasks', label: 'المهام الجارية', icon: ListTodo, count: 0, preview: 'Supabase agent_tasks — حي' })
-  }
-  // لوحة سلمى ERP — الأوبريت الأول لتطوير لوحات الوكلاء (أمر المالك 2026-10-20)
-  if (agent.id === 'salma') {
-    tabs.push({ id: 'dashboard', label: 'لوحة سلمى CRM', icon: LayoutDashboard, count: 0, preview: 'KPIs + نواقص الإنتاج + تحصيل — حي من الورشة' })
-  }
-  // قلعة الإنتاج — لوحة بيبو كانبان + صندوق وارد + ماكينات (أمر المالك 2026-10-20)
-  if (agent.id === 'bebo') {
-    tabs.push({ id: 'dashboard', label: 'قلعة الإنتاج', icon: LayoutDashboard, count: 0, preview: 'كانبان + صندوق وارد + ماكينات — حي من الورشة' })
-  }
-  // غرفة تحكم صاصا — رادار الماكينات + طابور التشغيل + متصفح التصميمات (أمر المالك 2026-10-20)
-  if (agent.id === 'sasa') {
-    tabs.push({ id: 'dashboard', label: 'غرفة التحكم', icon: LayoutDashboard, count: 0, preview: 'رادار ماكينات + طابور تشغيل + تصميمات — غرفة قيادة' })
-  }
-  // وكالة كوكو — الناشر الآلي + البحث البصري + مدفع الواتساب + العروض اللحظية (أمر المالك 2026-10-20)
-  if (agent.id === 'koko') {
-    tabs.push({ id: 'dashboard', label: 'وكالة التسويق', icon: LayoutDashboard, count: 0, preview: 'ناشر فيسبوك + بحث بصري + واتساب VIP — وقود الورشة' })
-  }
-  // غرفة حكيم — CEO Advisor: تسعير + اختناقات + عقود B2B + محاكي (أمر المالك 2026-10-20)
-  if (agent.id === 'hakim') {
-    tabs.push({ id: 'dashboard', label: 'غرفة القيادة العليا', icon: LayoutDashboard, count: 0, preview: 'تسعير ذكي + رادار اختناقات + عقود B2B + محاكي — عقل المنظومة' })
-  }
-  // مركز القيادة التقنية — Mini-OS: منصة إطلاق البرامج + مدير العمليات + محرر + تيرمينال (أمر المالك 2026-10-20)
-  if (agent.id === 'vision') {
-    tabs.push({ id: 'dashboard', label: 'مركز القيادة التقنية', icon: LayoutDashboard, count: 0, preview: 'منصة إطلاق البرامج + مدير العمليات + محرر الأكواد + تيرمينال — Mini-OS' })
-  }
-  // معمل الابتكار — حاضنة النوت بوك: أفكار + برومبتات + رادار مواسم + تحويل الفكرة لمشروع (أمر المالك 2026-10-21)
-  if (agent.id === 'afkar') {
-    tabs.push({ id: 'dashboard', label: 'معمل الابتكار', icon: Lightbulb, count: 0, preview: 'نوت بوك أفكار + برومبتات تصميم + رادار مواسم + تحويل الفكرة لمشروع 🚀' })
-  }
-  // شات العملاء — صياغة رد ذكي من حالة الطلبات + إرسال واتساب (أمر المالك 2026-10-21)
-  if (agent.id === 'salma') {
-    tabs.push({ id: 'customers', label: 'شات العملاء', icon: MessageCircle, count: 0, preview: 'عملاء POS + ✨ صياغة رد ذكي + 📲 واتساب' })
-  }
-  // ملاحظة: «أسطول الذكاء» انتقل للإعدادات العامة ⚙️ في الشريط العلوي (أمر المالك 2026-10-21)
+  // التمرير التلقائي لآخر رسالة
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isGenerating])
 
-  const invitable = agents.filter((a) => a.id !== agent.id && !guests.includes(a.id))
-  const isLiveAgent = agent.id === 'fares' || agent.id === 'salma'
+  // إرسال رسالة الشات مع دعم البث والإيقاف
+  const handleSendChat = async () => {
+    const text = input.trim()
+    if (!text || isGenerating) return
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+    }
+
+    const nextHistory = [...messages, userMsg]
+    setMessages(nextHistory)
+    setInput('')
+    setIsGenerating(true)
+
+    const botMsgId = crypto.randomUUID()
+    const tempBotMsg: ChatMessage = {
+      id: botMsgId,
+      role: 'assistant',
+      content: '',
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+    }
+
+    setMessages((prev) => [...prev, tempBotMsg])
+
+    const abortCtrl = new AbortController()
+    abortControllerRef.current = abortCtrl
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: abortCtrl.signal,
+        body: JSON.stringify({
+          agent: agent.id,
+          messages: nextHistory.slice(-8).map((m) => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.content,
+          })),
+        }),
+      })
+
+      const data = (await res.json()) as {
+        ok?: boolean
+        text?: string
+        reason?: string
+        provider?: { model?: string }
+        latency_ms?: number
+      }
+
+      if (data.ok && data.text) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMsgId
+              ? {
+                  ...m,
+                  content: data.text || '',
+                  model: data.provider?.model,
+                  latency_ms: data.latency_ms,
+                }
+              : m,
+          ),
+        )
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMsgId
+              ? {
+                  ...m,
+                  content: data.reason || 'تعذر الحصول على رد من الوكيل، يرجى المحاولة لاحقاً.',
+                }
+              : m,
+          ),
+        )
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMsgId
+              ? { ...m, content: m.content ? `${m.content} [تم إيقاف التوليد]` : '[تم إيقاف التوليد بطلبك]' }
+              : m,
+          ),
+        )
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMsgId
+              ? { ...m, content: 'حدث خطأ في الاتصال بنظام الذكاء الاصطناعي.' }
+              : m,
+          ),
+        )
+      }
+    } finally {
+      setIsGenerating(false)
+      abortControllerRef.current = null
+    }
+  }
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+  }
+
+  const handleClearChat = () => {
+    if (window.confirm('هل تريد مسح سجل المحادثة مع هذا الوكيل؟')) {
+      const initial: ChatMessage = {
+        id: `${agent.id}-welcome`,
+        role: 'assistant',
+        content: `تم مسح السجل. أهلاً بك مجدداً في غرفة ${agent.name}.`,
+        time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      }
+      setMessages([initial])
+      localStorage.removeItem(storageKey)
+    }
+  }
+
+  // ──────────────────────── 2. تبويب المهام (Tasks) ────────────────────────
+  const [tasks, setTasks] = useState<AgentTask[]>([])
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'done' | 'rejected'>('all')
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskDesc, setNewTaskDesc] = useState('')
+  const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'normal' | 'high' | 'urgent'>('normal')
+  const [isAddingTask, setIsAddingTask] = useState(false)
+  const [tasksLoading, setTasksLoading] = useState(false)
+
+  const loadTasks = async () => {
+    if (!supabase) return
+    setTasksLoading(true)
+    const { tasks: items } = await fetchAgentTasks(supabase, agent.id)
+    setTasks(items)
+    setTasksLoading(false)
+  }
+
+  useEffect(() => {
+    if (tab === 'tasks') {
+      void loadTasks()
+    }
+  }, [tab, agent.id])
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTaskTitle.trim() || !supabase) return
+    setIsAddingTask(true)
+    const { ok, row } = await insertAgentTask(supabase, {
+      agent_id: agent.id,
+      title: newTaskTitle,
+      description: newTaskDesc,
+      priority: newTaskPriority,
+    })
+    setIsAddingTask(false)
+    if (ok && row) {
+      setTasks((prev) => [row, ...prev])
+      setNewTaskTitle('')
+      setNewTaskDesc('')
+    }
+  }
+
+  const handleUpdateTaskStatus = async (
+    taskId: string,
+    newStatus: 'pending' | 'in_progress' | 'done' | 'rejected',
+  ) => {
+    if (!supabase) return
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t)),
+    )
+    await updateAgentTaskStatus(supabase, taskId, newStatus)
+  }
+
+  const filteredTasks = tasks.filter((t) => {
+    if (taskStatusFilter === 'all') return true
+    return t.status === taskStatusFilter
+  })
+
+  // ──────────────────────── 3. تبويب التحديثات والتقارير (Updates & Reports) ────────────────────────
+  const [updates, setUpdates] = useState<AgentUpdate[]>([])
+  const [updateKindFilter, setUpdateKindFilter] = useState<'all' | 'complaint' | 'suggestion' | 'alert' | 'report'>('all')
+  const [updatesLoading, setUpdatesLoading] = useState(false)
+  const [decidingId, setDecidingId] = useState<string | null>(null)
+
+  const loadUpdates = async () => {
+    if (!supabase) return
+    setUpdatesLoading(true)
+    const { items } = await fetchAgentUpdates(supabase, agent.id)
+    setUpdates(items)
+    setUpdatesLoading(false)
+  }
+
+  useEffect(() => {
+    if (tab === 'updates') {
+      void loadUpdates()
+    }
+  }, [tab, agent.id])
+
+  const handleUpdateDecision = async (id: string, decision: 'approved' | 'rejected') => {
+    if (!supabase) return
+    setDecidingId(id)
+    const { ok } = await updateAgentUpdateStatus(supabase, id, decision)
+    setDecidingId(null)
+    if (ok) {
+      setUpdates((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: decision, decided_by: 'mahmoud' } : u)),
+      )
+    }
+  }
+
+  const filteredUpdates = updates.filter((u) => {
+    if (updateKindFilter === 'all') return true
+    return u.kind === updateKindFilter
+  })
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col" aria-label={`غرفة ${agent.name}`}>
-      <div className={cn('shrink-0 border-b border-border bg-linear-to-b to-transparent', agent.tone.gradient)}>
-        <div className="w-full max-w-full px-4 pt-4 pb-4 md:px-8">
-          <div className="flex items-start gap-4">
-            <div className={cn('relative size-20 shrink-0 overflow-hidden rounded-2xl ring-1', agent.tone.ring)}>
-              <Image src={agent.image} alt={`صورة ${agent.name}`} fill sizes="80px" className="object-cover" priority />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold">{agent.name}</h1>
-                <span
-                  className={cn('rounded-md border px-1.5 py-0.5 font-mono text-[11px]', agent.tone.border, agent.tone.text)}
-                  dir="ltr"
-                >
-                  {agent.code}
-                </span>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span
-                    className={cn(
-                      'size-1.5 rounded-full',
-                      agent.status === 'online' ? 'bg-emerald-400' : agent.status === 'busy' ? 'bg-amber-400' : 'bg-zinc-500',
-                    )}
-                    aria-hidden="true"
-                  />
-                  {statusLabel[agent.status]}
-                </span>
-              </div>
-              <p className="mt-0.5 text-sm text-muted-foreground">{agent.role}</p>
-              <p className="mt-2 text-sm text-foreground/80">{agent.tagline}</p>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              <Button variant="ghost" size="sm" onClick={onBack} className="gap-1.5 text-muted-foreground">
-                <ArrowRight className="size-3.5" aria-hidden="true" />
-                الشات الرئيسي
-              </Button>
-              <Button variant={isActive ? 'secondary' : 'outline'} size="sm" onClick={onToggleActive} className="gap-1.5">
-                <Zap className={cn('size-3.5', isActive && agent.tone.text)} aria-hidden="true" />
-                {isActive ? 'مفعّل في الشات الرئيسي' : 'تفعيل في الشات الرئيسي'}
-              </Button>
-            </div>
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      {/* ترويسة الغرفة: أيقونة الوكيل الكبيرة واسمه ومسماه */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card/60 px-4 py-3.5 md:px-6">
+        <div className="flex items-center gap-3.5">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex size-9 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            title="العودة لنظرة عامة"
+          >
+            <ArrowRight className="size-4" />
+          </button>
+
+          {/* أيقونة الوكيل الكبيرة مع شارة Glyph */}
+          <div className="flex size-11 items-center justify-center rounded-xl bg-primary/20 border border-primary/40 font-display text-2xl font-bold text-primary gold-glow">
+            {agent.glyph}
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5" role="tablist" aria-label={`بطاقات ${agent.name}`}>
-            {tabs.map((t) => {
-              const selected = tab === t.id
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  aria-controls="agent-tab-panel"
-                  onClick={() => setTab(selected ? null : t.id)}
-                  className={cn(
-                    'rounded-xl border p-3 text-start transition-colors',
-                    selected ? cn(agent.tone.border, 'bg-card') : 'border-border bg-card/40 hover:bg-card',
-                  )}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-medium">
-                      <t.icon className={cn('size-3.5', selected ? agent.tone.text : 'text-muted-foreground')} aria-hidden="true" />
-                      {t.label}
-                    </span>
-                    <span className="text-[11px] tabular-nums text-muted-foreground">{t.count}</span>
-                  </span>
-                  <span className="mt-1.5 block truncate text-xs text-muted-foreground">{t.preview}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          {tab && (
-            <div
-              id="agent-tab-panel"
-              role="tabpanel"
-              className={cn(
-                'mt-2 overflow-y-auto rounded-xl border border-border bg-card p-3 scrollbar-thin',
-                tab === 'tasks' || tab === 'dashboard' || tab === 'customers' ? 'max-h-[560px]' : 'max-h-60',
-              )}
-            >
-              {tab === 'news' && (
-                <div className="flex flex-col gap-3">
-                  {agent.id === 'fares' ? (
-                    <FaresLiveCards />
-                  ) : (
-                    <p className="py-3 text-center text-xs text-muted-foreground">{EMPTY_STATE}</p>
-                  )}
-                  {agent.news.length > 0 && (
-                    <ul className="flex flex-col divide-y divide-border">
-                      {agent.news.map((n) => (
-                        <li key={n.text} className="flex items-center justify-between gap-3 py-2 text-sm">
-                          <span className="flex items-center gap-2">
-                            <span className={cn('size-1.5 shrink-0 rounded-full', agent.tone.dot)} aria-hidden="true" />
-                            {n.text}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{n.time}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {tab === 'tasks' && <AgentTasksPanel agentId={agent.id} agentName={agent.name} toneDot={agent.tone.dot} />}
-
-              {tab === 'dashboard' && agent.id === 'fares' && <FaresDashboard />}
-              {tab === 'dashboard' && agent.id === 'salma' && <SalmaDashboard agentId={agent.id} />}
-              {tab === 'dashboard' && agent.id === 'bebo' && <BeboDashboard />}
-              {tab === 'dashboard' && agent.id === 'sasa' && <SasaDashboard />}
-              {tab === 'dashboard' && agent.id === 'koko' && <KokoDashboard />}
-              {tab === 'dashboard' && agent.id === 'hakim' && <HakimDashboard />}
-              {tab === 'dashboard' && agent.id === 'vision' && <VisionDashboard />}
-              {tab === 'dashboard' && agent.id === 'afkar' && <AfkarDashboard />}
-              {tab === 'customers' && <CustomerChat />}
-
-              {tab === 'reports' && (
-                <ul className="flex flex-col divide-y divide-border">
-                  {agent.reports.length === 0 && (
-                    <li className="py-6 text-center text-xs text-muted-foreground">{EMPTY_STATE}</li>
-                  )}
-                  {agent.reports.map((r) => (
-                    <li key={r.title} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{r.title}</p>
-                        <p className="text-xs text-muted-foreground">{r.summary}</p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-[11px] text-muted-foreground">{r.date}</span>
-                        <Button variant="outline" size="xs" onClick={() => onSend(`لخص لي "${r.title}"`)}>
-                          ناقش
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {tab === 'suggestions' && (
-                <div className="flex flex-col divide-y divide-border">
-                  <AgentUpdatesList agentId={agent.id} kind="suggestion" />
-                  {agent.suggestions.map((s) => {
-                    const done = approved.includes(s.title)
-                    return (
-                      <li key={s.title} className="flex items-center justify-between gap-3 py-2.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{s.title}</p>
-                          <p className={cn('text-xs', agent.tone.text)}>{s.impact}</p>
-                        </div>
-                        <Button
-                          variant={done ? 'secondary' : 'outline'}
-                          size="xs"
-                          disabled={done}
-                          onClick={() => {
-                            setApproved((p) => [...p, s.title])
-                            onSend(`اعتمدت المقترح: ${s.title}`)
-                          }}
-                        >
-                          {done ? 'معتمد' : 'اعتماد'}
-                        </Button>
-                      </li>
-                    )
-                  })}
-                </div>
-              )}
-
-              {tab === 'complaints' && (
-                <div className="flex flex-col divide-y divide-border">
-                  <AgentUpdatesList agentId={agent.id} kind="complaint" />
-                  {agent.complaints.map((c) => (
-                    <li key={c.title} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-[10px]', severityStyle[c.severity])}>
-                          {c.severity}
-                        </span>
-                        <p className="text-sm">{c.title}</p>
-                      </div>
-                      <Button variant="outline" size="xs" onClick={() => onEscalate(`${agent.name} تشتكي: ${c.title}`)}>
-                        تصعيد لمروة
-                      </Button>
-                    </li>
-                  ))}
-                </div>
-              )}
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground">
+                {agent.name}
+              </h2>
+              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/30">
+                متصل الآن
+              </span>
             </div>
-          )}
+            <p className="text-xs text-muted-foreground line-clamp-1">{agent.role}</p>
+          </div>
+        </div>
+
+        {/* أزرار التبويبات الثلاثة الرئيسية */}
+        <div className="flex rounded-xl border border-border bg-secondary/60 p-1">
+          <button
+            type="button"
+            onClick={() => setTab('chat')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+              tab === 'chat'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <MessageSquare className="size-3.5" />
+            <span>الشات الحي</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('tasks')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+              tab === 'tasks'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <ListTodo className="size-3.5" />
+            <span>المهام</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTab('updates')}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+              tab === 'updates'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <FileText className="size-3.5" />
+            <span>التحديثات والتقارير</span>
+          </button>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-border px-5 py-2 scrollbar-thin">
-        <span className="shrink-0 text-xs text-muted-foreground">في الغرفة:</span>
-        <span className="flex shrink-0 items-center -space-x-2 space-x-reverse">
-          <AgentAvatar agent={agent} size={22} />
-          {guests.map((g) => {
-            const guest = agents.find((a) => a.id === g)!
-            return <AgentAvatar key={g} agent={guest} size={22} />
-          })}
-        </span>
-        {invitable.length > 0 && (
-          <>
-            <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
-            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-              <UserPlus className="size-3.5" aria-hidden="true" />
-              استدعاء:
-            </span>
-            {invitable.map((a) => (
+      {/* المحتوى بحسب التبويب */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* 1. تبويب الشات (Live Streaming Chat) */}
+        {tab === 'chat' && (
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {/* رأس الشات مع زر المسح */}
+            <div className="flex items-center justify-between border-b border-border/60 px-4 py-2 text-xs text-muted-foreground bg-card/30">
+              <span className="flex items-center gap-1.5">
+                <Bot className="size-3.5 text-primary" />
+                <span>محادثة مباشرة مع النموذج الخاص بـ {agent.name} (محفوظة محلياً)</span>
+              </span>
               <button
-                key={a.id}
                 type="button"
-                onClick={() => onInvite(a.id)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                onClick={handleClearChat}
+                className="flex items-center gap-1 text-muted-foreground hover:text-destructive transition-colors"
+                title="مسح محادثة الوكيل"
               >
-                <span className={cn('size-1.5 rounded-full', a.tone.dot)} aria-hidden="true" />
-                {a.name}
+                <Trash2 className="size-3.5" />
+                <span>مسح</span>
               </button>
-            ))}
-          </>
+            </div>
+
+            {/* نافذة الرسائل مع خاصية التمرير التلقائي */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin">
+              {messages.map((msg) => {
+                const isUser = msg.role === 'user'
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={cn(
+                      'flex items-start gap-3 max-w-[85%] md:max-w-[75%]',
+                      isUser ? 'ms-auto flex-row-reverse' : 'me-auto',
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'flex size-8 shrink-0 items-center justify-center rounded-lg border font-display text-sm font-bold',
+                        isUser
+                          ? 'border-primary/40 bg-primary/20 text-primary'
+                          : 'border-border bg-card text-foreground',
+                      )}
+                    >
+                      {isUser ? <User className="size-4" /> : agent.glyph}
+                    </div>
+
+                    <div
+                      className={cn(
+                        'rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
+                        isUser
+                          ? 'bg-primary text-primary-foreground font-medium rounded-ee-sm'
+                          : 'bg-card border border-border text-foreground rounded-es-sm shadow-sm',
+                      )}
+                    >
+                      {msg.content}
+
+                      {/* شارة النموذج وزمن الاستجابة للردود */}
+                      {!isUser && msg.model && (
+                        <div className="mt-2 pt-1 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                          <span className="font-mono">{msg.model}</span>
+                          {msg.latency_ms ? <span>{msg.latency_ms}ms</span> : null}
+                        </div>
+                      )}
+
+                      <span
+                        className={cn(
+                          'block mt-1 text-[10px] text-end opacity-70 font-mono',
+                          isUser ? 'text-primary-foreground/80' : 'text-muted-foreground',
+                        )}
+                      >
+                        {msg.time}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* مؤشر جاري الكتابة / التوليد */}
+              {isGenerating && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground me-auto">
+                  <div className="flex size-7 items-center justify-center rounded-lg border border-border bg-card font-display text-xs font-bold text-primary">
+                    {agent.glyph}
+                  </div>
+                  <div className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 border border-border">
+                    <Loader2 className="size-3.5 animate-spin text-primary" />
+                    <span>{agent.name} يكتب الرد الآن…</span>
+                  </div>
+                </div>
+              )}
+
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* شريط كتابة الرسالة مع Enter للإرسال وزر إيقاف التوليد */}
+            <div className="border-t border-border bg-card/60 p-3 md:p-4">
+              <div className="relative flex items-center gap-2">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      void handleSendChat()
+                    }
+                  }}
+                  placeholder={`اكتب رسالتك لـ ${agent.name} (اضغط Enter للإرسال)…`}
+                  rows={1}
+                  className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 pe-24 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary scrollbar-thin"
+                />
+
+                <div className="absolute end-2 flex items-center gap-1.5">
+                  {isGenerating ? (
+                    <button
+                      type="button"
+                      onClick={handleStopGeneration}
+                      className="flex items-center gap-1 rounded-lg bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground transition-all hover:bg-destructive/90"
+                    >
+                      <Square className="size-3 fill-current" />
+                      <span>إيقاف</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!input.trim()}
+                      onClick={() => void handleSendChat()}
+                      className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-40"
+                    >
+                      <Send className="size-3.5 rotate-180" />
+                      <span>إرسال</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. تبويب المهام (Tasks) مع Audit Trail (حظر الحذف) */}
+        {tab === 'tasks' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin">
+            {/* إضافة مهمة جديدة مباشرة للوكيل */}
+            <form
+              onSubmit={handleCreateTask}
+              className="rounded-xl border border-border bg-card p-4 space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-sm font-bold text-foreground flex items-center gap-2">
+                  <Plus className="size-4 text-primary" />
+                  <span>إسناد مهمة جديدة لـ {agent.name}</span>
+                </h3>
+                <span className="text-[11px] text-muted-foreground">تُسجل فوراً في السحابة</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <input
+                  type="text"
+                  required
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  placeholder="عنوان المهمة (مثال: فحص رصيد العميل أحمد)..."
+                  className="md:col-span-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                />
+
+                <input
+                  type="text"
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  placeholder="تفاصيل إضافية (اختياري)..."
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                />
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={newTaskPriority}
+                    onChange={(e) => setNewTaskPriority(e.target.value as typeof newTaskPriority)}
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="low">أولوية منخفضة</option>
+                    <option value="normal">أولوية عادية</option>
+                    <option value="high">أولوية عالية</option>
+                    <option value="urgent">أولوية عاجلة</option>
+                  </select>
+
+                  <button
+                    type="submit"
+                    disabled={isAddingTask || !newTaskTitle.trim()}
+                    className="flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+                  >
+                    {isAddingTask ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                    <span>إسناد</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* فلاتر حالات المهام */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(['all', 'pending', 'in_progress', 'done', 'rejected'] as const).map((st) => {
+                  const labels = {
+                    all: 'الكل',
+                    pending: 'معلقة',
+                    in_progress: 'جارية',
+                    done: 'منجزة',
+                    rejected: 'مرفوضة',
+                  }
+                  const count =
+                    st === 'all' ? tasks.length : tasks.filter((t) => t.status === st).length
+
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setTaskStatusFilter(st)}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                        taskStatusFilter === st
+                          ? 'bg-primary/20 text-primary border border-primary/30 font-semibold'
+                          : 'bg-secondary/60 text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      <span>{labels[st]}</span>
+                      <span className="rounded-full bg-background/60 px-1.5 text-[10px] font-mono">
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <span className="text-xs text-muted-foreground">حظر الحذف نهائياً (Audit Trail مفعل)</span>
+            </div>
+
+            {/* قائمة المهام */}
+            {tasksLoading ? (
+              <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin me-2" />
+                <span>جاري تحميل المهام…</span>
+              </div>
+            ) : filteredTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
+                <ListTodo className="size-8 mb-2 opacity-50" />
+                <p className="text-sm">لا توجد مهام مطابقة لهذا الفلتر</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {filteredTasks.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-border/80"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            'rounded px-2 py-0.5 text-[10px] font-semibold',
+                            t.status === 'in_progress' && 'bg-primary/20 text-primary border border-primary/30',
+                            t.status === 'pending' && 'bg-warning/20 text-warning',
+                            t.status === 'done' && 'bg-emerald-500/20 text-emerald-400',
+                            t.status === 'rejected' && 'bg-destructive/20 text-destructive',
+                          )}
+                        >
+                          {t.status === 'in_progress' && 'جارية الآن'}
+                          {t.status === 'pending' && 'معلقة'}
+                          {t.status === 'done' && 'منجزة ✅'}
+                          {t.status === 'rejected' && 'مرفوضة ❌'}
+                        </span>
+
+                        <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          أولوية: {t.priority}
+                        </span>
+
+                        <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
+                          <Clock className="size-3" />
+                          <span>{formatCairoDate(t.created_at)}</span>
+                        </span>
+                      </div>
+
+                      <h4 className="text-sm font-semibold text-foreground">{t.title}</h4>
+                      {t.description && (
+                        <p className="text-xs text-muted-foreground">{t.description}</p>
+                      )}
+                    </div>
+
+                    {/* تغيير حالة المهمة بسلاسة (لا حذف نهائياً) */}
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                      <select
+                        value={t.status}
+                        onChange={(e) =>
+                          void handleUpdateTaskStatus(
+                            t.id,
+                            e.target.value as 'pending' | 'in_progress' | 'done' | 'rejected',
+                          )
+                        }
+                        className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+                      >
+                        <option value="pending">نقل إلى: معلقة</option>
+                        <option value="in_progress">نقل إلى: جارية</option>
+                        <option value="done">نقل إلى: منجزة</option>
+                        <option value="rejected">نقل إلى: مرفوضة</option>
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. تبويب التحديثات والتقارير (Updates & Reports) */}
+        {tab === 'updates' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 scrollbar-thin">
+            {/* فلاتر النوع */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-3">
+              {(['all', 'complaint', 'suggestion', 'alert', 'report'] as const).map((kd) => {
+                const labels = {
+                  all: 'كافة التحديثات',
+                  complaint: 'شكاوى',
+                  suggestion: 'مقترحات',
+                  alert: 'بلاغات وتنبيهات',
+                  report: 'تقارير',
+                }
+                const count =
+                  kd === 'all' ? updates.length : updates.filter((u) => u.kind === kd).length
+
+                return (
+                  <button
+                    key={kd}
+                    type="button"
+                    onClick={() => setUpdateKindFilter(kd)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                      updateKindFilter === kd
+                        ? 'bg-primary/20 text-primary border border-primary/30 font-semibold'
+                        : 'bg-secondary/60 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <span>{labels[kd]}</span>
+                    <span className="rounded-full bg-background/60 px-1.5 text-[10px] font-mono">
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {updatesLoading ? (
+              <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin me-2" />
+                <span>جاري تحميل التقارير والتحديثات…</span>
+              </div>
+            ) : filteredUpdates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground">
+                <FileText className="size-8 mb-2 opacity-50" />
+                <p className="text-sm">لا توجد تحديثات أو تقارير مسجلة بهذا الفلتر</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredUpdates.map((item) => {
+                  const isDeciding = decidingId === item.id
+                  const isPending = item.status === 'pending'
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-border bg-card p-4 space-y-2.5 transition-colors hover:border-border/80"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded bg-secondary px-2 py-0.5 text-xs font-semibold text-foreground">
+                            {item.kind}
+                          </span>
+                          {item.severity && (
+                            <span
+                              className={cn(
+                                'rounded px-2 py-0.5 text-xs font-semibold',
+                                item.severity === 'عالي'
+                                  ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                                  : 'bg-warning/20 text-warning',
+                              )}
+                            >
+                              أهمية: {item.severity}
+                            </span>
+                          )}
+                          <span
+                            className={cn(
+                              'rounded px-2 py-0.5 text-xs font-semibold',
+                              item.status === 'approved' && 'bg-emerald-500/20 text-emerald-400',
+                              item.status === 'rejected' && 'bg-destructive/20 text-destructive',
+                              item.status === 'pending' && 'bg-warning/20 text-warning',
+                            )}
+                          >
+                            الحالة: {item.status === 'approved' ? 'معتمد ✅' : item.status === 'rejected' ? 'مرفوض ❌' : 'بانتظار قرار المالك ⏳'}
+                          </span>
+                        </div>
+
+                        <span className="text-xs text-muted-foreground font-mono flex items-center gap-1">
+                          <Clock className="size-3" />
+                          <span>{formatCairoDate(item.created_at)}</span>
+                        </span>
+                      </div>
+
+                      <h4 className="text-sm md:text-base font-bold text-foreground">{item.title}</h4>
+                      {item.body && (
+                        <p className="text-xs md:text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {item.body}
+                        </p>
+                      )}
+
+                      {/* أزرار القرار المباشر إذا كان معلقاً */}
+                      {isPending && (
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <button
+                            type="button"
+                            disabled={isDeciding}
+                            onClick={() => void handleUpdateDecision(item.id, 'approved')}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50"
+                          >
+                            {isDeciding ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                            <span>اعتماد التحديث</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isDeciding}
+                            onClick={() => void handleUpdateDecision(item.id, 'rejected')}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-destructive/15 px-3 py-1.5 text-xs font-semibold text-destructive border border-destructive/30 hover:bg-destructive/25 disabled:opacity-50"
+                          >
+                            <XCircle className="size-3.5" />
+                            <span>رفض التحديث</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )}
       </div>
-
-      <MessageList messages={messages} typing={typing} onEdit={onEdit} />
-      <div className="w-full max-w-full px-4 pb-5 md:px-8">
-        <ChatComposer
-          placeholder={`تحدث مباشرة مع ${agent.name}...`}
-          onSend={onSend}
-          hint={guests.length > 0 ? `${guests.length + 1} وكلاء في المحادثة` : `محادثة خاصة مع ${agent.name}`}
-        />
-      </div>
-    </section>
+    </div>
   )
 }

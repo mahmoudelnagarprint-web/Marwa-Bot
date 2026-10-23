@@ -151,7 +151,7 @@ export function AgentUpdatesList({
   return (
     <ul className="flex flex-col divide-y divide-border">
       {items.map((u) => {
-        const Icon = kindIcons[u.kind] ?? MessageSquarePlus
+        const Icon = (kindIcons as Record<string, typeof MessageSquarePlus>)[u.kind] ?? MessageSquarePlus
         return (
           <li key={u.id} className="flex items-start justify-between gap-3 py-2.5">
             <div className="min-w-0">

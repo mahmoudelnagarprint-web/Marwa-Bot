@@ -79,7 +79,7 @@ debug_images/
 
 # ---------- DUPLICATE SKILL TREES (النسخة المعتمدة: .agents/skills) ----------
 .claude/
-agent/
+/agent/
 
 # ---------- OS ----------
 .DS_Store
