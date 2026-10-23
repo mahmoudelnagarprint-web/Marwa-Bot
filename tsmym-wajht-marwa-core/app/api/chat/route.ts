@@ -239,7 +239,7 @@ async function handleChat(
           finalReply += `\n\n---\n🤖 **[استجابة فورية من: ${targetName}]**\n${chainRes.text.trim()}`
           chainedAgents.push(target)
         } else {
-          const errTxt = String(chainRes.error ?? 'رد فارغ')
+          const errTxt = String(('reason' in chainRes && chainRes.reason) || 'رد فارغ')
           finalReply += `\n\n---\n⚠️ **[استجابة فورية من: ${targetName}]** تعذر الحصول على الرد (${errTxt}) — المهمة مسجلة في صندوقه وستُنفَّذ من جلسته.`
         }
       } catch (chainErr) {

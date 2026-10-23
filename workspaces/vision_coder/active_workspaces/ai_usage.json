@@ -13,15 +13,12 @@
    "cooldown_kind": "network"
   },
   "dahl-light": {
-   "status": "down",
-   "prompt_tokens": 0,
-   "completion_tokens": 0,
-   "calls": 0,
-   "last_error": "network: انتهت مهلة المزود (15000ms)",
+   "status": "up",
+   "prompt_tokens": 18697,
+   "completion_tokens": 489,
+   "calls": 2,
    "fp": "a072f59372c9",
-   "fail_streak": 2,
-   "cooldown_until": "2026-10-23T00:30:58.393Z",
-   "cooldown_kind": "network"
+   "fail_streak": 0
   }
  }
 }
