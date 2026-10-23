@@ -14,11 +14,14 @@ export function AgentAvatar({
   showStatus = false,
   className,
 }: {
-  agent: Pick<Agent, 'name' | 'image' | 'status' | 'tone'>
+  /** يقبل undefined/null بأمان — يعود للهوية الافتراضية لمروة بدل الانهيار (إصلاح TypeError 2026-10-23) */
+  agent?: Pick<Agent, 'name' | 'image' | 'status' | 'tone'> | null
   size?: number
   showStatus?: boolean
   className?: string
 }) {
+  // هوية احتياطية آمنة إن لم يوجد وكيل مطابق (ضيف غير مسجل أو مفتاح غريب)
+  const safeAgent = agent ?? marwaProfile
   return (
     <span
       className={cn('relative inline-flex shrink-0', className)}
@@ -26,18 +29,18 @@ export function AgentAvatar({
       suppressHydrationWarning
     >
       <Image
-        src={agent.image}
-        alt={agent.name}
+        src={safeAgent.image}
+        alt={safeAgent.name}
         width={size * 2}
         height={size * 2}
         suppressHydrationWarning
-        className={cn('size-full rounded-full object-cover ring-1', agent.tone.ring)}
+        className={cn('size-full rounded-full object-cover ring-1', safeAgent.tone?.ring ?? marwaProfile.tone.ring)}
       />
       {showStatus && (
         <span
           className={cn(
             'absolute -bottom-0.5 -start-0.5 size-2.5 rounded-full ring-2 ring-sidebar',
-            statusColor[agent.status],
+            statusColor[safeAgent.status],
           )}
           aria-hidden="true"
           suppressHydrationWarning

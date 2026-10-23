@@ -159,7 +159,7 @@ export function AgentRoom({
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label={`غرفة ${agent.name}`}>
       <div className={cn('shrink-0 border-b border-border bg-linear-to-b to-transparent', agent.tone.gradient)}>
-        <div className="mx-auto max-w-4xl px-5 pt-4 pb-4">
+        <div className="w-full max-w-full px-4 pt-4 pb-4 md:px-8">
           <div className="flex items-start gap-4">
             <div className={cn('relative size-20 shrink-0 overflow-hidden rounded-2xl ring-1', agent.tone.ring)}>
               <Image src={agent.image} alt={`صورة ${agent.name}`} fill sizes="80px" className="object-cover" priority />
@@ -377,7 +377,7 @@ export function AgentRoom({
       </div>
 
       <MessageList messages={messages} typing={typing} onEdit={onEdit} />
-      <div className="mx-auto w-full max-w-3xl px-5 pb-5">
+      <div className="w-full max-w-full px-4 pb-5 md:px-8">
         <ChatComposer
           placeholder={`تحدث مباشرة مع ${agent.name}...`}
           onSend={onSend}

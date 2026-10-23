@@ -180,12 +180,13 @@ export function ChatMessage({
 
 export function TypingIndicator({ author }: { author: Message['author'] }) {
   if (author === 'user' || author === 'system') return null
-  const profile = author === 'marwa' ? marwaProfile : agentMap[author]
+  // حماية من انهيار الواجهة في غرف الضيوف: author قد لا يكون في agentMap (إصلاح TypeError خطأ 188)
+  const profile = author === 'marwa' ? marwaProfile : agentMap[author as keyof typeof agentMap]
   return (
     <div className="flex items-center gap-3" aria-live="polite">
       <AgentAvatar agent={profile} size={28} />
       <div className="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-2">
-        <span className="sr-only">{profile.name} يكتب</span>
+        <span className="sr-only">{profile?.name || 'الوكيل'} يكتب</span>
         {[0, 150, 300].map((delay) => (
           <span
             key={delay}
