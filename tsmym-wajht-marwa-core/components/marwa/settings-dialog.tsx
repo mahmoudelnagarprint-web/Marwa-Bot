@@ -7,6 +7,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AiFleet } from './ai-fleet'
 import { WorkspaceFiles } from './workspace-files'
+import { IntegrationsPanel } from './integrations-panel'
 
 export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   return (
@@ -30,6 +31,10 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
           <div className="max-h-72 overflow-y-auto scrollbar-thin">
             <WorkspaceFiles />
           </div>
+        </div>
+
+        <div className="mt-2 border-t border-border pt-3">
+          <IntegrationsPanel />
         </div>
       </DialogContent>
     </Dialog>

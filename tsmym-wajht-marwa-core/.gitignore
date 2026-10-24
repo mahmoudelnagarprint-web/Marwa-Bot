@@ -16,3 +16,6 @@ node_modules
 .DS_Store
 # local OCR environment (indra-ocr — stays local)
 .ocr-venv/
+
+# OAuth token vault — encrypted, local only (never commit)
+.integrations/
