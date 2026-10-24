@@ -10,6 +10,7 @@ import { Cpu, Files, Settings2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AiFleet } from './ai-fleet'
 import { WorkspaceFiles } from './workspace-files'
+import { IntegrationsPanel } from './integrations-panel'
 
 type Pane = 'fleet' | 'workspaces'
 
@@ -87,6 +88,10 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-2 border-t border-border pt-3">
+          <IntegrationsPanel />
         </div>
       </DialogContent>
     </Dialog>

@@ -4,22 +4,26 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   Archive,
+  BarChart3,
   Bot,
   Bell,
   CheckCircle2,
   Clock,
   Copy,
   FileText,
+  Globe,
   Link2,
   ListTodo,
   Loader2,
   MessageSquare,
+  Paperclip,
   Pencil,
   Plus,
   Send,
   Square,
   Trash2,
   User,
+  X,
   XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,6 +31,8 @@ import { type Agent } from '@/lib/marwa-data'
 import { supabase } from '@/lib/supabase'
 import { ReportActions } from './report-actions'
 import { ChatLiveBar, ModelPicker, useLiveChat } from './chat-live'
+import { FacebookCommentsPanel } from './facebook-comments-panel'
+import { SocialReportsPanel } from './social-reports-panel'
 import {
   fetchAgentTasks,
   fetchAgentUpdates,
@@ -45,7 +51,7 @@ import {
   type AgentUpdate,
 } from '@/lib/agent-tasks'
 
-type TabId = 'chat' | 'tasks' | 'notifications' | 'updates'
+type TabId = 'chat' | 'tasks' | 'notifications' | 'updates' | 'facebook' | 'social'
 
 type ChatMessage = {
   id: string
@@ -84,6 +90,31 @@ export function AgentRoom({
   const chatBottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  // 📄 OCR محلي (indra-ocr): صورة مرفقة تُستخرج نصوصها آلياً قبل الإرسال
+  const [attachedImage, setAttachedImage] = useState<{ file: File; previewUrl: string } | null>(null)
+  const [ocrBusy, setOcrBusy] = useState(false)
+  const [ocrError, setOcrError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const addImageFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setOcrError('الملف المرفق ليس صورة')
+      return
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setOcrError('الصورة أكبر من 15 ميجابايت — الحد الأقصى 15MB')
+      return
+    }
+    if (attachedImage) URL.revokeObjectURL(attachedImage.previewUrl)
+    setOcrError(null)
+    setAttachedImage({ file, previewUrl: URL.createObjectURL(file) })
+  }
+
+  const removeImage = () => {
+    if (attachedImage) URL.revokeObjectURL(attachedImage.previewUrl)
+    setAttachedImage(null)
+  }
+
   // تحميل الرسائل من localStorage عند فتح الغرفة
   useEffect(() => {
     try {
@@ -120,10 +151,36 @@ export function AgentRoom({
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isGenerating])
 
-  // إرسال رسالة الشات مع دعم البث والإيقاف
+  // إرسال رسالة الشات مع دعم البث والإيقاف — وإن وُجدت صورة مرفقة: رفع صامت
+  // إلى /api/ocr أولاً (indra-ocr محلي) ثم حقن النص المستخرج أسفل رسالة المستخدم.
   const handleSendChat = async () => {
-    const text = input.trim()
-    if (!text || isGenerating) return
+    let text = input.trim()
+    if ((!text && !attachedImage) || isGenerating || ocrBusy) return
+
+    // 📄 الرفع الصامت للصورة واستخراج النص قبل الإرسال
+    if (attachedImage) {
+      setOcrBusy(true)
+      setOcrError(null)
+      try {
+        const fd = new FormData()
+        fd.append('file', attachedImage.file)
+        const ocrRes = await fetch('/api/ocr', { method: 'POST', body: fd })
+        const ocrData = (await ocrRes.json()) as { success?: boolean; text?: string; error?: string }
+        if (ocrData?.success && ocrData.text) {
+          text = `${text ? text + '\n\n' : ''}---\n📄 *محتوى الصورة المرفقة (تم استخراجه آلياً):*\n${ocrData.text}`
+        } else {
+          setOcrError(ocrData?.error || 'تعذر استخراج نص الصورة — أزل الصورة أو أعد المحاولة')
+          setOcrBusy(false)
+          return // إيقاف الإرسال حتى يقرر المستخدم
+        }
+      } catch (ocrErr) {
+        setOcrError(ocrErr instanceof Error ? ocrErr.message : 'فشل رفع الصورة لاستخراج النص')
+        setOcrBusy(false)
+        return
+      }
+      setOcrBusy(false)
+      removeImage()
+    }
 
     const editIndex = editTargetId ? messages.findIndex((message) => message.id === editTargetId) : -1
     const beforeEdit = editIndex >= 0 ? messages.slice(0, editIndex) : messages
@@ -593,6 +650,40 @@ export function AgentRoom({
             <FileText className="size-3.5" />
             <span>التحديثات والتقارير</span>
           </button>
+
+          {/* تاب فيسبوك — سلمى (الذكاء التفاعلي مع السوشيال ميديا) */}
+          {agent.id === 'salma' && (
+            <button
+              type="button"
+              onClick={() => setTab('facebook')}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+                tab === 'facebook'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Globe className="size-3.5" />
+              <span>فيسبوك</span>
+            </button>
+          )}
+
+          {/* تاب تقارير السوشيال — كوكو */}
+          {agent.id === 'koko' && (
+            <button
+              type="button"
+              onClick={() => setTab('social')}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+                tab === 'social'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <BarChart3 className="size-3.5" />
+              <span>تقارير السوشيال</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -703,26 +794,94 @@ export function AgentRoom({
               <div ref={chatBottomRef} />
             </div>
 
-            {/* شريط كتابة الرسالة مع Enter للإرسال وزر إيقاف التوليد */}
+            {/* شريط كتابة الرسالة مع Enter للإرسال وزر إيقاف التوليد + إرفاق صورة (OCR محلي indra-ocr) */}
             <div className="border-t border-border bg-card/60 p-3 md:p-4">
               {editTargetId && <div className="mb-2 flex items-center justify-between text-[11px] text-primary"><span>بتعدّل رسالة قديمة؛ الردود اللي بعدها هتتولد من جديد.</span><button type="button" onClick={() => { setEditTargetId(null); setInput('') }} className="rounded p-1 hover:bg-secondary">إلغاء التعديل</button></div>}
+
+              {attachedImage && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-background p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={attachedImage.previewUrl}
+                    alt="معاينة الصورة المرفقة"
+                    className="size-14 shrink-0 rounded-md border border-border object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs text-foreground">{attachedImage.file.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {(attachedImage.file.size / 1024).toFixed(0)} ك.ب — يُستخرج نصها آلياً عند الإرسال (OCR محلي)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="rounded-md border border-border p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="إزالة الصورة"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {ocrBusy && (
+                <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground" aria-busy="true">
+                  <Loader2 className="size-3.5 animate-spin text-primary" />
+                  جارٍ استخراج نص الصورة محلياً (OCR)…
+                </p>
+              )}
+
+              {ocrError && (
+                <p className="mb-2 rounded-lg border border-rose-400/20 bg-rose-400/10 px-2 py-1 text-xs text-rose-300">
+                  ⚠️ {ocrError}
+                </p>
+              )}
+
+
               <div className="relative flex items-center gap-2">
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onPaste={(e) => {
+                    const img = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'))
+                    if (img) {
+                      e.preventDefault()
+                      addImageFile(img)
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
                       void handleSendChat()
                     }
                   }}
-                  placeholder={`اكتب رسالتك لـ ${agent.name} (اضغط Enter للإرسال)…`}
+                  placeholder={`اكتب رسالتك لـ ${agent.name} (Enter للإرسال • الصق صورة ليقرأها الوكيل)…`}
                   rows={1}
-                  className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 pe-24 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary scrollbar-thin"
+                  className="w-full resize-none rounded-xl border border-border bg-background px-4 py-3 pe-32 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary scrollbar-thin"
                 />
 
                 <div className="absolute end-2 flex items-center gap-1.5">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/bmp,image/tiff"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) addImageFile(f)
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isGenerating || ocrBusy}
+                    className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-sidebar-accent/60 disabled:opacity-40"
+                    aria-label="إرفاق صورة (OCR محلي)"
+                    title="إرفاق صورة — يُستخرج نصها آلياً (indra-ocr محلي)"
+                  >
+                    <Paperclip className="size-4" />
+                  </button>
                   {isGenerating ? (
                     <button
                       type="button"
@@ -735,7 +894,7 @@ export function AgentRoom({
                   ) : (
                     <button
                       type="button"
-                      disabled={!input.trim()}
+                      disabled={(!input.trim() && !attachedImage) || ocrBusy}
                       onClick={() => void handleSendChat()}
                       className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-40"
                     >
@@ -1161,6 +1320,20 @@ export function AgentRoom({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* تاب فيسبوك — سلمى: التعليقات وردودها المقترحة (اعتماد/تعديل/رفض) */}
+        {agent.id === 'salma' && tab === 'facebook' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
+            <FacebookCommentsPanel agentName={agent.name} />
+          </div>
+        )}
+
+        {/* تاب تقارير السوشيال — كوكو: تحليل الأداء ومقترحات الحملات */}
+        {agent.id === 'koko' && tab === 'social' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
+            <SocialReportsPanel />
           </div>
         )}
       </div>
