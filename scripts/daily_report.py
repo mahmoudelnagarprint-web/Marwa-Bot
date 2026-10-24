@@ -77,25 +77,41 @@ lines.append("| كوميتات كتب الوكلاء (آخر 24 ساعة) | %s |
 lines.append("")
 block = "\n".join(lines)
 
-home_text = HOME.read_text(encoding="utf-8")
-if ANCHOR in home_text:
-    idx = home_text.index(ANCHOR) + len(ANCHOR)
-    home_text = home_text[:idx] + "\n\n" + block + home_text[idx:]
-else:
-    home_text = home_text.rstrip() + "\n\n" + ANCHOR + "\n\n" + block
-HOME.write_text(home_text, encoding="utf-8")
-print("[home] daily section written ->", HOME.name)
+def write_outputs(block: str) -> None:
+    home_text = HOME.read_text(encoding="utf-8")
+    if ANCHOR in home_text:
+        idx = home_text.index(ANCHOR) + len(ANCHOR)
+        home_text = home_text[:idx] + "\n\n" + block + home_text[idx:]
+    else:
+        home_text = home_text.rstrip() + "\n\n" + ANCHOR + "\n\n" + block
+    HOME.write_text(home_text, encoding="utf-8")
+    print("[home] daily section written ->", HOME.name)
 
-nid = store.add_note({
-    "kind": "note",
-    "title": "📅 تقفيلة اليوم %s (توليد آلي)" % today,
-    "body": block,
-    "category": "المالية",
-    "priority": "normal",
-    "status": "open",
-    "source": "daily_report",
-    "tags": "daily-report",
-    "meta": "{}",
-})
-print("[notebook] note id=%s" % nid)
-print("[done] MarwaBot_DailyReport complete")
+    nid = store.add_note({
+        "kind": "note",
+        "title": "📅 تقفيلة اليوم %s (توليد آلي)" % today,
+        "body": block,
+        "category": "المالية",
+        "priority": "normal",
+        "status": "open",
+        "source": "daily_report",
+        "tags": "daily-report",
+        "meta": "{}",
+    })
+    print("[notebook] note id=%s" % nid)
+
+
+# إعادة محاولة تلقائية ×3 (بأمر المالك 2026-10-24 — بعد فشل تشغيل 03:03 برمز مشاركة ملفات 0x80070020)
+import time as _time  # noqa: E402
+
+_ok = False
+for _attempt in (1, 2, 3):
+    try:
+        write_outputs(block)
+        _ok = True
+        break
+    except Exception as _exc:
+        print("[retry] attempt %d/%d failed: %s" % (_attempt, 3, _exc), flush=True)
+        if _attempt < 3:
+            _time.sleep(5)
+print("[done] MarwaBot_DailyReport complete" if _ok else "[FAILED] راجع الأخطاء أعلاه — سيحاول التشغيل الفائت مرة أخرى لاحقاً")
