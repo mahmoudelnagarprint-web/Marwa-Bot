@@ -174,6 +174,59 @@ export function OverviewDashboard({
         </div>
       </div>
 
+      {/* 2.5 📱 ويدجت مقترحات السوشيال ميديا — مهام جاهزة بإسناد بضغطة واحدة */}
+      <div className="rounded-xl border border-sky-400/20 bg-sky-400/[0.04] p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-base md:text-lg font-bold text-foreground flex items-center gap-2">
+            📱 مقترحات السوشيال ميديا
+          </h2>
+          <span className="text-[11px] text-muted-foreground">مهام جاهزة — إسناد بضغطة واحدة عبر محرك التفويض</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+          {[
+            {
+              agent: 'كوكو',
+              label: 'حلل أداء بوستات الأمس',
+              cmd: '/task @koko حلل أداء منشورات فيسبوك للأمس وجهز تقرير أداء كامل بأفضل البوستات والمقترحات',
+            },
+            {
+              agent: 'سلمى',
+              label: 'جهزي ردود التعليقات المعلقة',
+              cmd: '/task @salma افحصي تعليقات فيسبوك المعلقة وجهزي الردود المقترحة لاعتماد المالك',
+            },
+            {
+              agent: 'أفكار',
+              label: 'اقترحي بوست على التريند',
+              cmd: '/task @afkar اقترحي بوست تسويقي جديد بناءً على آخر التريند لمنتجات الورشة',
+            },
+          ].map((s) => {
+            const busy = slashBusy === s.cmd
+            return (
+              <button
+                key={s.agent}
+                type="button"
+                disabled={slashBusy !== null}
+                onClick={() => void runSlashTask(s.agent, s.cmd)}
+                className="group rounded-lg border border-border bg-card p-3 text-start transition-all hover:border-sky-400/40 hover:bg-sky-400/[0.06] disabled:opacity-50"
+              >
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                  {busy ? <Loader2 className="size-3.5 animate-spin text-primary" /> : <Zap className="size-3.5 text-sky-300" />}
+                  <span>
+                    يا {s.agent}: {s.label}
+                  </span>
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">إسناد فوري عبر صندوق مهام الوكيل + Supabase</p>
+              </button>
+            )
+          })}
+        </div>
+        {slashMsg && (
+          <p className={cn('rounded-lg border px-2 py-1 text-xs', slashMsg.startsWith('✓') ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300' : 'border-rose-400/20 bg-rose-400/10 text-rose-300')}>
+            {slashMsg}
+          </p>
+        )}
+      </div>
+
       {/* 3. شبكة بطاقات الوكلاء العشرة (Agent Grid) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">

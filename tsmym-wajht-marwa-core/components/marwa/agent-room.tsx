@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
+  BarChart3,
   Bot,
   CheckCircle2,
   Clock,
   FileText,
+  Globe,
   ListTodo,
   Loader2,
   MessageSquare,
@@ -452,7 +454,7 @@ export function AgentRoom({
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <Facebook className="size-3.5" />
+              <Globe className="size-3.5" />
               <span>فيسبوك</span>
             </button>
           )}

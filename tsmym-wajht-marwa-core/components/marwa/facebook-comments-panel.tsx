@@ -6,7 +6,7 @@
 // يُركَّب في غرفة سلمى (تبويب مخصص) — بلا أي رموز، منتهي الصلاحية كواجهة عرض فقط.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Facebook, Loader2, MessageSquare, Pencil, RefreshCw, X } from 'lucide-react'
+import { Check, Globe, Loader2, MessageSquare, Pencil, RefreshCw, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Interaction = {
@@ -97,7 +97,7 @@ export function FacebookCommentsPanel({ agentName }: { agentName: string }) {
     <div className="space-y-4" aria-label="تعليقات فيسبوك">
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-sm font-medium">
-          <Facebook className="size-4 text-sky-300" aria-hidden="true" />
+          <Globe className="size-4 text-sky-300" aria-hidden="true" />
           تعليقات فيسبوك — ردود {agentName} المقترحة
         </p>
         <button
@@ -138,7 +138,7 @@ export function FacebookCommentsPanel({ agentName }: { agentName: string }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                  <Facebook className="size-3.5 text-sky-300" aria-hidden="true" />
+                  <Globe className="size-3.5 text-sky-300" aria-hidden="true" />
                   {item.commenter_name}
                   <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
                     {item.page_name}
