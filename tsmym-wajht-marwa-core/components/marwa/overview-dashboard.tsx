@@ -35,6 +35,32 @@ export function OverviewDashboard({
   const [decidingId, setDecidingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  // 📱 مقترحات السوشيال ميديا — إسناد فوري عبر محرك السلاش (/task → صندوق الوكيل + Supabase)
+  const [slashBusy, setSlashBusy] = useState<string | null>(null)
+  const [slashMsg, setSlashMsg] = useState<string | null>(null)
+  const runSlashTask = async (agentName: string, command: string) => {
+    setSlashBusy(command)
+    setSlashMsg(null)
+    try {
+      const res = await fetch('/api/slash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+      })
+      const data = await res.json()
+      setSlashMsg(
+        data?.ok
+          ? `✓ تمت الإسناد إلى ${agentName} — المهمة في صندوقه وستظهر في غرفته`
+          : `✗ فشل الإسناد: ${data?.error ?? data?.reason ?? 'خطأ غير معروف'}`,
+      )
+      onRefresh?.()
+    } catch (e) {
+      setSlashMsg('فشل الاتصال بمحرك المهام: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setSlashBusy(null)
+    }
+  }
+
   // احتساب المهام الجارية لحظياً والقرارات المعلقة
   const inProgressTasksCount = tasks.filter((t) => t.status === 'in_progress').length
   const pendingDecisionsCount = pendingUpdates.filter((u) => u.status === 'pending').length

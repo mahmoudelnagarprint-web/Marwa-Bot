@@ -22,6 +22,8 @@ import {
 import { cn } from '@/lib/utils'
 import { type Agent } from '@/lib/marwa-data'
 import { supabase } from '@/lib/supabase'
+import { FacebookCommentsPanel } from './facebook-comments-panel'
+import { SocialReportsPanel } from './social-reports-panel'
 import {
   fetchAgentTasks,
   fetchAgentUpdates,
@@ -33,7 +35,7 @@ import {
   type AgentUpdate,
 } from '@/lib/agent-tasks'
 
-type TabId = 'chat' | 'tasks' | 'updates'
+type TabId = 'chat' | 'tasks' | 'updates' | 'facebook' | 'social'
 
 type ChatMessage = {
   id: string
@@ -437,6 +439,40 @@ export function AgentRoom({
             <FileText className="size-3.5" />
             <span>التحديثات والتقارير</span>
           </button>
+
+          {/* تاب فيسبوك — سلمى (الذكاء التفاعلي مع السوشيال ميديا) */}
+          {agent.id === 'salma' && (
+            <button
+              type="button"
+              onClick={() => setTab('facebook')}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+                tab === 'facebook'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Facebook className="size-3.5" />
+              <span>فيسبوك</span>
+            </button>
+          )}
+
+          {/* تاب تقارير السوشيال — كوكو */}
+          {agent.id === 'koko' && (
+            <button
+              type="button"
+              onClick={() => setTab('social')}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all',
+                tab === 'social'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <BarChart3 className="size-3.5" />
+              <span>تقارير السوشيال</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -944,6 +980,20 @@ export function AgentRoom({
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* تاب فيسبوك — سلمى: التعليقات وردودها المقترحة (اعتماد/تعديل/رفض) */}
+        {agent.id === 'salma' && tab === 'facebook' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
+            <FacebookCommentsPanel agentName={agent.name} />
+          </div>
+        )}
+
+        {/* تاب تقارير السوشيال — كوكو: تحليل الأداء ومقترحات الحملات */}
+        {agent.id === 'koko' && tab === 'social' && (
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
+            <SocialReportsPanel />
           </div>
         )}
       </div>
