@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.ocr-venv/
+*.local
+src-tauri/target/
+src-tauri/gen/
