@@ -66,7 +66,11 @@ export default function App() {
             <Dashboard transport={transport} />
           ) : activeAgent ? (
             activeAgent.phase === 'full' ? (
-              <AgentRoom agent={activeAgent} onBack={() => setView('dashboard')} />
+              activeAgent.id === 'marwa' ? (
+                <AgentRoom agentId="marwa" onBack={() => setView('dashboard')} />
+              ) : (
+                <PlaceholderRoom agentId={activeAgent.id} onBack={() => setView('dashboard')} />
+              )
             ) : (
               <PlaceholderRoom agentId={activeAgent.id} onBack={() => setView('dashboard')} />
             )

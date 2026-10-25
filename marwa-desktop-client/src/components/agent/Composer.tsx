@@ -3,7 +3,6 @@
 // components/agent/Composer.tsx — صندوق الكتابة (Enter إرسال • Shift+Enter سطر جديد)
 import { useState } from 'react'
 import { Send } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 export function Composer({
   placeholder,

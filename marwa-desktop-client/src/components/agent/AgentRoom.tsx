@@ -22,7 +22,6 @@ export function AgentRoom({ agentId, onBack }: { agentId: 'marwa'; onBack: () =>
   const updateMessage = store((s) => s.updateMessage)
   const setGenerating = store((s) => s.setGenerating)
   const pushToolCall = store((s) => s.pushToolCall)
-  const patchToolCall = store((s) => s.patchToolCall)
   const setScratchpad = store((s) => s.setScratchpad)
 
   const bottomRef = useRef<HTMLDivElement>(null)

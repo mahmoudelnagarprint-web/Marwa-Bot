@@ -74,7 +74,7 @@ function makeInitial(id: AgentId) {
   }
 }
 
-/** سجل المخازن — كل وكيل نسخة مستقلة تماماً */
+/** سجل المخازن — كل وكيل نسخة مستقلة تماماً (Lazy: يُنشأ عند أول فتح غرفته فقط — وعي بالـRAM) */
 const registry = new Map<AgentId, UseBoundStore<StoreApi<AgentState>>>()
 
 export function getAgentStore(id: AgentId): UseBoundStore<StoreApi<AgentState>> {
@@ -100,13 +100,8 @@ export function getAgentStore(id: AgentId): UseBoundStore<StoreApi<AgentState>> 
   return store
 }
 
-/** تفريغ وكيل غير مستخدم — إدارة RAM واعية */
-export function disposeAgentStore(id: AgentId): void {
-  registry.get(id)?.destroy()
-  registry.delete(id)
-}
-
-export function disposeAllAgentStores(): void {
-  registry.forEach((s) => s.destroy())
-  registry.clear()
-}
+/**
+ * ملاحظة إدارة الذاكرة (RAM): المخازن تُنشأ Lazy وتعيش لوقت التطبيق (نمط WebView مستقل).
+ * التنظيف الكامل غير مطبق في v5 typing (destroy غير مكشوف) — عند الحاجة: unmount الغرفة
+ * يكفي لأن الحالة تبقى صغيرة (رسائل + خلاصات) — والنافذة نفسها تحرر كل شيء عند الإغلاق.
+ */
