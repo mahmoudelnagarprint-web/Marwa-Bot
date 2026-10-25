@@ -4,7 +4,6 @@
 // الكروت تتغذى عبر جسر DSH (Tauri/WebSocket) — وبدون جسر: حالة «بانتظار الجسر»
 // صادقة مع زر وضع العرض (MOCK) المعنون بوضوح — بلا أرقام وهمية متخفية.
 import { useCallback, useEffect, useState } from 'react'
-import { Coins, CreditCard, TrendingUp, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dsh, type TransportKind } from '@/services/dsh-ipc'
 import { MOCK_STATS } from '@/services/mock-engine'
