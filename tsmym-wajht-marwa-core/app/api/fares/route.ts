@@ -42,6 +42,10 @@ export async function GET() {
 
   let debtors: { id: number; name: string; phone: string | null; balance: number; type: string }[] = []
 
+  // شفافية القراءة: db_ok=false يعني القيمة الافتراضية معروضة لفشل قراءة — لا اختلاق أرقام
+  let dbOk = false
+  let dbError: string | null = null
+
   // 1. قراءة الـ POS
   let db: DatabaseSync | null = null
   try {
@@ -73,7 +77,9 @@ export async function GET() {
       vault = {
         cash_on_hand: OPENING_BALANCE + income - expenses,
         opening_balance: OPENING_BALANCE,
-        today_revenue: todayInc > 0 ? todayInc : Math.round(income * 0.12), // في حال كانت قاعدة تجريبية بلا حركات مسجلة بتاريخ اليوم
+        // تطهير (أمر المالك 2026-10-25): لا اختراع — صفر يعني لا حركة دخل مسجلة اليوم
+        today_revenue: todayInc,
+        has_today_movement: todayInc > 0,
         window_income: income,
         window_expenses: expenses,
         total_receivables: recvTotal,
@@ -81,9 +87,10 @@ export async function GET() {
         under_prep_value: underPrep?.val ?? 0,
         last_movement: lastMov ?? null,
       }
+      dbOk = true
     }
-  } catch {
-    /* نتجاهل أخطاء القراءة ونعتمد القيم الافتراضية */
+  } catch (e) {
+    dbError = e instanceof Error ? e.message : String(e)
   } finally {
     if (db) {
       try { db.close() } catch { /* نتجاهل */ }
@@ -127,6 +134,8 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    db_ok: dbOk,
+    db_error: dbError,
     vault,
     debtors,
     inventory,
@@ -216,8 +225,16 @@ export async function POST(req: NextRequest) {
     const balance = Number(body.balance ?? 0)
     const phone = String(body.phone ?? '').trim()
 
+    // تطهير التوجيه (أمر المالك 2026-10-25): رقم العميل فقط — لا توجيه لرقم الورشة
     const cleanPhone = phone.replace(/[^\d]/g, '')
-    const targetPhone = cleanPhone.length >= 10 ? (cleanPhone.startsWith('2') ? cleanPhone : `2${cleanPhone}`) : '201000433420'
+    if (cleanPhone.length < 10) {
+      return NextResponse.json({
+        ok: false,
+        message: `العميل «${clientName}» ليس له رقم واتساب صحيح في POS — عدّل رقمه في قاعدة العملاء أولاً.`,
+        error: 'missing_client_phone',
+      }, { status: 422 })
+    }
+    const targetPhone = cleanPhone.startsWith('2') ? cleanPhone : `2${cleanPhone}`
 
     const reminderMessage =
       `السلام عليكم يا أ/ ${clientName}، تحياتنا لحضرتك من مطبعة النجار برنت 🌸\n` +

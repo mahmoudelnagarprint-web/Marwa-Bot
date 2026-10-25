@@ -33,7 +33,30 @@ async function alreadySweptToday(admin: ReturnType<typeof getSupabaseAdmin>): Pr
   return !!data?.id
 }
 
-function dueToday(time: string | null, lastRunAt: string | null, now: Date, scheduleType: string, scheduleDay: number | null): boolean {
+/**
+ * هل المهمة دورية «كل 48 ساعة»؟ الترميز: وجود وسم «[كل 48 ساعة]» في العنوان.
+ * يستهدف مهمة الصيانة الدورية لصاصا تحديداً، فلا يؤثر على المهام اليومية/الأسبوعية الأخرى.
+ */
+function isEvery48h(title: string | null): boolean {
+  return !!title && /\[كل\s*48\s*ساعة\]/i.test(title)
+}
+
+/**
+ * استحقاق المهام الدورية. يدعم:
+ *  - يجب أن يكون الوقت الحالي ≥ موعد المهمة (scheduled_time) في يوم القاهرة.
+ *  - weekly: يوم محدد من الأسبوع.
+ *  - كل 48 ساعة (وسم [كل 48 ساعة]): مستحقة حين يمضي ≥ 48 ساعة منذ last_run_at —
+ *    أو إذا لم تُنفَّذ قط (last_run_at فارغ) وكان الوقت قد تعدّى موعدها. يُحتسب بالوقت الفعلي
+ *    (Africa/Cairo) لا بعدد أيام، ولا يعاود في نفس اليوم بعد التنفيذ.
+ */
+function dueToday(
+  time: string | null,
+  lastRunAt: string | null,
+  now: Date,
+  scheduleType: string,
+  scheduleDay: number | null,
+  title: string | null,
+): boolean {
   if (!time) return false
   const today = cairoParts(now)
   const lastDate = lastRunAt ? cairoParts(new Date(lastRunAt)) : null
@@ -43,7 +66,17 @@ function dueToday(time: string | null, lastRunAt: string | null, now: Date, sche
     if (scheduleDay === null || scheduleDay !== dayNumber) return false
   }
   const target = time.slice(0, 5)
-  return `${today.hour}:${today.minute}` >= target &&
+  const pastTime = `${today.hour}:${today.minute}` >= target
+
+  // كل 48 ساعة: مبني على انقضاء الوقت الفعلي منذ آخر تشغيل.
+  if (isEvery48h(title)) {
+    if (!pastTime) return false
+    if (!lastRunAt) return true // لم تُنفَّذ قط بعد تعدّي موعدها → تُلتقط الآن
+    const elapsedMs = now.getTime() - new Date(lastRunAt).getTime()
+    return elapsedMs >= 48 * 60 * 60 * 1000
+  }
+
+  return pastTime &&
     (!lastDate || `${lastDate.year}-${lastDate.month}-${lastDate.day}` !== `${today.year}-${today.month}-${today.day}`)
 }
 
@@ -139,7 +172,7 @@ export async function POST(req: NextRequest) {
   const deferredCount = candidates.length - notDeferred.length
   // الإسناد السريع مستحق دائماً؛ المجدول يُفحص بموعده فقط
   const dueCandidates = notDeferred.filter((task) => task.schedule_type === 'none'
-    || dueToday(task.scheduled_time, task.last_run_at, now, task.schedule_type, task.schedule_day_of_week))
+    || dueToday(task.scheduled_time, task.last_run_at, now, task.schedule_type, task.schedule_day_of_week, task.title))
   const dependencyIds = [...new Set(dueCandidates.flatMap((task) => task.dependency_id ? [task.dependency_id] : []))]
   let readyDependencies = new Set<string>()
   let blockedDependencies = new Set<string>()

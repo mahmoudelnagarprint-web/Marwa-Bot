@@ -16,6 +16,8 @@ import path from 'path'
 import { randomBytes } from 'crypto'
 import { createRequire } from 'module'
 import type { DatabaseSync } from 'node:sqlite'
+// ── قراءة ملفات Excel للكتالوج (أمر المالك 2026-10-25: حقن روح كوكو بالكامل في الواجهة) ──
+import * as XLSX from 'xlsx'
 
 // ───────────────────────────── ثوابت التشغيل (قابلة للضبط) ─────────────────────────────
 
@@ -276,10 +278,117 @@ export const POS_DB_TOOLS = [
   },
 ]
 
+// ───────────────────────────── أداة قراءة الكتالوج (أمر المالك 2026-10-25) ─────────────────────────────
+// كوكو في الواجهة يجب أن يقرأ prices من الكتالوج مباشرة — لا يختلق أي رقم
+
+const CATALOG_XLSX_PATHS = [
+  'G:\\ai\\Naggar Print POS Agent\\exports\\products_catalog_master.xlsx',
+  'G:\\ai\\Naggar Print POS Agent\\.manus\\worktrees\\up57i4xxcnv7uaafpiav32\\exports\\products_catalog_master.xlsx',
+]
+
+function getCatalogPath(): string {
+  for (const p of CATALOG_XLSX_PATHS) {
+    try {
+      if (fs.existsSync(p)) return p
+    } catch { /* next path */ }
+  }
+  return CATALOG_XLSX_PATHS[0]
+}
+
+/** قراءة ملف الكتالوج وإرجاع المنتجات كمصفوفة */
+function readCatalogRaw(): { id: number; name: string; category: string; price_retail: number; price_wholesale: number; material: string }[] {
+  try {
+    const wb = XLSX.readFile(getCatalogPath())
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    const raw: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[]
+    return raw
+      .map((row) => {
+        // نحاول ن抓到 الأعمدة المهمة — نستخدم أسماء أعمدة عشوائية
+        const id = Number(row['id'] ?? row['ID'] ?? row['#'] ?? row['product_id'] ?? 0)
+        const name = String(row['name'] ?? row['Name'] ?? row['product_name'] ?? row['الصنف'] ?? '')
+        const category = String(row['category'] ?? row['Category'] ?? row[' التصنيف'] ?? '')
+        const price_retail = Number(row['price_retail'] ?? row['price'] ?? row['السعر'] ?? row['سعر القطاعي'] ?? 0)
+        const price_wholesale = Number(row['price_wholesale'] ?? row['سعر الجملة'] ?? 0)
+        const material = String(row['material'] ?? row['material_type'] ?? row['الخامة'] ?? '')
+        if (!id || !name) return null as unknown as { id: number; name: string; category: string; price_retail: number; price_wholesale: number; material: string }
+        return { id, name, category, price_retail, price_wholesale, material }
+      })
+      .filter(Boolean)
+      .slice(0, 200)
+  } catch (err) {
+    console.error('[agent-intelligence] فشل قراءة الكتالوج:', err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
+export type CatalogProduct = { id: number; name: string; category: string; price_retail: number; price_wholesale: number; material: string }
+
+/** البحث في الكتالوج بالنص أو رقم الـ id */
+function searchCatalog(query: string): CatalogProduct[] {
+  const q = query.toLowerCase().trim()
+  const all = readCatalogRaw()
+  if (!q) return all.slice(0, 30)
+  return all
+    .filter(
+      (p) =>
+        String(p.id) === q ||
+        p.name.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.material.toLowerCase().includes(q),
+    )
+    .slice(0, 30)
+}
+
+/** أداة قراءة الكتالوج للـ LLM — تُرجع قائمة المنتجات */
+export function runCatalogTool(productId?: string, searchText?: string): string {
+  try {
+    if (productId) {
+      const id = Number(productId)
+      const all = readCatalogRaw()
+      const item = all.find((p) => p.id === id)
+      if (!item) return JSON.stringify({ ok: false, error: `المنتج #${id} مش موجود في الكتالوج.` })
+      return JSON.stringify({ ok: true, product: item })
+    }
+    if (searchText) {
+      const results = searchCatalog(searchText)
+      return JSON.stringify({ ok: true, products: results, count: results.length })
+    }
+    // لو مفيش معيار — رجّع أول 20 منتج
+    const all = readCatalogRaw()
+    return JSON.stringify({ ok: true, products: all.slice(0, 20), count: Math.min(20, all.length) })
+  } catch (err) {
+    return JSON.stringify({ ok: false, error: String(err instanceof Error ? err.message : err) })
+  }
+}
+
+/** أدوات الكتالوج للـ LLM Function Calling */
+export const CATALOG_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'read_products_catalog',
+      description:
+        'قراءة ملف كتالوج المنتجات exports/products_catalog_master.xlsx — تُرجع قائمة بالمنتجات والأسعار. استخدمها دائماً قبل ذكر أي سعر أو اسم منتج في الرد. المعايير: productId (رقم المنتج) للبحث بنمرة ID، أو searchText (كلمة بحث) للبحث بالاسم/التصنيف. بدون معايير ترجع أول 20 منتج.',
+      parameters: {
+        type: 'object',
+        properties: {
+          productId: {
+            type: 'string',
+            description: 'رقم المنتج في الكتالوج (id) — مثال: "51"',
+          },
+          searchText: {
+            type: 'string',
+            description: 'كلمة بحث بالاسم أو التصنيف أو الخامة — مثال: "بوكس" أو "مج"',
+          },
+        },
+      },
+    },
+  },
+]
+
 /** منفّذ موحّد لاستدعاءات الأدوات القادمة من النموذج؛ يعيد دائماً نص JSON ولا يرمي استثناءً */
 export function runAgentToolCall(name: string, rawArgs: unknown): string {
   try {
-    if (name !== 'query_pos_db') return JSON.stringify({ ok: false, error: `أداة غير معروفة: ${name}` })
     let args: unknown = rawArgs
     if (typeof rawArgs === 'string') {
       try {
@@ -288,11 +397,22 @@ export function runAgentToolCall(name: string, rawArgs: unknown): string {
         return JSON.stringify({ ok: false, error: 'وسائط الأداة ليست JSON صالحاً.' })
       }
     }
-    const sql = (args as { sql?: unknown } | null)?.sql
-    if (typeof sql !== 'string' || !sql.trim()) {
-      return JSON.stringify({ ok: false, error: 'الوسيط sql مفقود أو ليس نصاً.' })
+    const a = args as Record<string, unknown> | null
+
+    if (name === 'read_products_catalog') {
+      return runCatalogTool(
+        typeof a?.productId === 'string' ? a.productId : undefined,
+        typeof a?.searchText === 'string' ? a.searchText : undefined,
+      )
     }
-    return JSON.stringify(executePosQuery(sql))
+    if (name === 'query_pos_db') {
+      const sql = (a as { sql?: unknown } | null)?.sql
+      if (typeof sql !== 'string' || !sql.trim()) {
+        return JSON.stringify({ ok: false, error: 'الوسيط sql مفقود أو ليس نصاً.' })
+      }
+      return JSON.stringify(executePosQuery(sql))
+    }
+    return JSON.stringify({ ok: false, error: `أداة غير معروفة: ${name}` })
   } catch (err) {
     return JSON.stringify({ ok: false, error: errMsg(err) })
   }
@@ -978,8 +1098,30 @@ export function buildAgentSystemPrompt(
 
     case 'koko':
       roleInstructions =
-        `أنت «كوكو» — مسؤول التسويق والعروض والمحتوى الإبداعي لزيادة مبيعات الورشة.
-- أسلوبك: حماسي، جذاب، مبدع، تركز على باقات المواسم والمنتجات الأكثر ربحية وعروض الجملة والقطاعي.`
+        `أنت «كوكو» — مدير التسويق وصانع المحتوى لورشة النجار برنت (برج التلي، أسيوط).
+
+🔥 شخصيتك وأسلوبك في الواجهة (يجب أن يظهر في كل رد):
+  • لقبك: "يا ريس" — تبدأ أو تختتم به كثيراً حسب الموقف.
+  • أسلوبك: مصري عملي وودود، حريص على كل فرصة تسويقية، شغفك تحويل أي منتج جديد لحملة ناجحة.
+  • لا تُلعب دور المساعد الآلي — ردّك يشبه حدوتة ورشة حقيقية: حماس + أرقام حقيقية + تحليل.
+
+🚨 القواعد الذهبية (ممنوع كسرها تحت أي ظرف):
+  1. ❌ لا تؤلف أي سعر أبداً — الأسعار تُجلب حصراً من الكتالوج (أداة read_products_catalog).
+     أي ذكر لسعر يجب أن يكون من البيانات الحية أو ينتهي بـ "— للتأكد من السعر راسلنا واتساب".
+  2. 🚫 لا تنشر أي شيء على أي منصة — مخرجك الوحيد هو "حزمة معتمدة للعرض على الإدارة".
+  3. 👑 كل بوست أو محتوى لازم اعتماد المالك (محمود) قبل أي خطوة نشر.
+  4. 📦 أي منتج جديد بمجرد ما بيبو يسعّره → الهدف التسويقي جاهز → جهّز الحزمة الثلاثية (أ) بوست فيسبوك، (ب) رسالة جملة، (ج) فكرة فيديو.
+
+🛠️ أدواتك المتاحة (لا تعمل بدونهم):
+  • أداة read_products_catalog: اقرأ ملف exports/products_catalog_master.xlsx — استخدمها دائماً لمعرفة أسعار المنتجات والمكونات والبوكسات.
+  • أداة query_pos_db: استعلام SQL للقراءة فقط من قاعدة بيانات الورشة.
+  • لا تستشهد برقم منتج أو سعر إلا بعد ما تستخدم أداة القراءة فعلياً.
+
+📍 التوقيع الثابت في كل بوست (لا يحذف أبداً):
+  📍 العنوان: أسيوط - برج التلي (محل البنان) - المدخل الخلفي.
+  📱 للحجز والطلبات الخاصة (واتساب): 01000433420
+
+🎯 عند كل طلب تسويقي: قدّم الحزمة الثلاثية كاملة مع ملاحظة الاعتماد للمدير.`
       break
 
     case 'afkar':

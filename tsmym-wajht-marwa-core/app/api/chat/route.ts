@@ -22,6 +22,8 @@ import {
   executeSlashCommandsInText,
   executePosQuery,
   POS_DB_TOOLS,
+  CATALOG_TOOLS,
+  runAgentToolCall,
   logAgentChatTurn,
   AGENT_MAP,
   lookupAgentKey,
@@ -169,13 +171,15 @@ function runSqlDirectives(text: string): string {
   return blocks.join('\n\n')
 }
 
-/** منفذ الأدوات المشترك — نفس سلوك الاستدعاء الرئيسي (قراءة قاعدة الأعمال فقط) */
+/** منفذ الأدوات المشترك — نفس سلوك الاستدعاء الرئيسي (قراءة قاعدة الأعمال + الكتالوج) */
 function makeToolExecutor() {
   return async (name: string, args: Record<string, unknown>) => {
-    if (name === 'query_pos_db') {
-      return executePosQuery(typeof args.sql === 'string' ? args.sql : '')
+    const result = runAgentToolCall(name, args)
+    try {
+      return JSON.parse(result) as PosQueryResult
+    } catch {
+      return { ok: false, error: 'فشل تحليل نتيجة الأداة' }
     }
-    return { ok: false, error: `أداة غير معروفة: ${name}` }
   }
 }
 
@@ -279,10 +283,12 @@ async function handleChat(
   const systemMsg: ChatMsg = { role: 'system', content: buildAgentSystemPrompt(agentKey, lastUserMsg) }
   const promptMs = Date.now() - tPrompt
 
+  const allTools = [...POS_DB_TOOLS, ...CATALOG_TOOLS]
+
   const tLlm = Date.now()
   const result = await chatWithFailover(agentWs, [systemMsg, ...windowMsgs], {
     maxTokens,
-    tools: POS_DB_TOOLS,
+    tools: allTools,
     providerId, // (2) الاختيار اليدوي المطلق
     strictProvider,
     onEvent,
@@ -355,7 +361,7 @@ async function handleChat(
           [chainSystem, { role: 'user', content: taskUser }],
           {
             maxTokens: Math.min(maxTokens, 2048),
-            tools: POS_DB_TOOLS,
+            tools: allTools,
             signal,
             toolExecutor: makeToolExecutor(),
           },

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import {
   AlertCircle,
   Activity,
@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils'
 import { agents, type Agent, type AgentId } from '@/lib/marwa-data'
 import { formatCairoDate, updateAgentUpdateStatus, type AgentTask, type AgentUpdate } from '@/lib/agent-tasks'
+import { fetchFaresSummary, formatEGP, formatCairoTime, type FaresSummary } from '@/lib/live'
 import { supabase } from '@/lib/supabase'
 
 export function OverviewDashboard({
@@ -47,6 +48,28 @@ export function OverviewDashboard({
   const [taskNotice, setTaskNotice] = useState<string | null>(null)
   const [taskSending, setTaskSending] = useState(false)
   const [busyAction, setBusyAction] = useState<'cleanup' | 'supervisor' | null>(null)
+
+  // الربط الحي (تطهير 2026-10-25 — أمر المالك): كروت المال تقرأ من /api/fares-summary
+  // (القاعدة الحية read-only) كل 60 ثانية — لا أرقام مجمدة بعد اليوم.
+  const [fares, setFares] = useState<FaresSummary | null>(null)
+  const [faresError, setFaresError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    async function loadFares() {
+      try {
+        const s = await fetchFaresSummary()
+        if (!alive) return
+        setFares(s)
+        setFaresError(null)
+      } catch (e) {
+        if (alive) setFaresError(e instanceof Error ? e.message : String(e))
+      }
+    }
+    void loadFares()
+    const id = setInterval(loadFares, 60_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
 
   // أزرار الوكلاء: ضغطة تضيف/تشيل الوكيل من الاختيار — والمتعدد مسموح
   const toggleAgent = (id: string) => {
@@ -284,7 +307,12 @@ export function OverviewDashboard({
         </div>
       </div>
 
-      {/* 2. بطاقات المؤشرات المالية (KPI Cards) بالتأثير الذهبي */}
+      {/* 2. بطاقات المؤشرات المالية (KPI Cards) — حية من القاعدة (تطهير 2026-10-25) */}
+      {faresError && !fares && (
+        <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-300">
+          ⚠️ كروت المال غير متصلة بالطبقة الحية حالياً ({faresError}) — لا تُعرض أرقام مجمدة.
+        </p>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* بطاقة الخزنة */}
         <div className="relative overflow-hidden rounded-xl border border-primary/40 bg-card p-4 md:p-5 gold-glow transition-all">
@@ -299,20 +327,26 @@ export function OverviewDashboard({
               dir="ltr"
               className="font-display text-2xl md:text-3xl font-bold tracking-tight text-primary"
             >
-              7,380.00
+              {fares ? formatEGP(fares.cash_on_hand) : '…'}
             </span>
             <span className="font-display text-sm font-semibold text-primary">ج</span>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1">
-            <span className="text-emerald-400 font-mono">5,625.00 ج</span>
-            <span>افتتاحي + دخل الخزنة الفعلي</span>
+            {fares ? (
+              <>
+                <span className="text-emerald-400 font-mono">{formatEGP(fares.opening_balance)} ج</span>
+                <span>افتتاحي • حي حتى {formatCairoTime(fares.generated_at)}</span>
+              </>
+            ) : (
+              <span>{faresError ? 'غير متصل بالطبقة الحية' : 'جارٍ القراءة من القاعدة الحية…'}</span>
+            )}
           </p>
         </div>
 
-        {/* بطاقة دخل أكتوبر */}
+        {/* بطاقة دخل النافذة الرسمية */}
         <div className="relative overflow-hidden rounded-xl border border-primary/40 bg-card p-4 md:p-5 gold-glow transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">دخل أكتوبر (النافذة الرسمية)</span>
+            <span className="text-xs font-medium text-muted-foreground">دخل النافذة الرسمية</span>
             <div className="flex size-9 items-center justify-center rounded-lg bg-primary/20 text-primary">
               <TrendingUp className="size-5" />
             </div>
@@ -322,13 +356,19 @@ export function OverviewDashboard({
               dir="ltr"
               className="font-display text-2xl md:text-3xl font-bold tracking-tight text-primary"
             >
-              1,755.00
+              {fares ? formatEGP(fares.income_window) : '…'}
             </span>
             <span className="font-display text-sm font-semibold text-primary">ج</span>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1">
-            <span>محسوب بدقة من</span>
-            <span className="font-mono text-foreground/80">2026-10-01</span>
+            {fares ? (
+              <>
+                <span>محسوب من القاعدة الحية منذ</span>
+                <span className="font-mono text-foreground/80">{fares.window_start}</span>
+              </>
+            ) : (
+              <span>{faresError ? 'غير متصل بالطبقة الحية' : 'جارٍ القراءة من القاعدة الحية…'}</span>
+            )}
           </p>
         </div>
 
@@ -345,12 +385,19 @@ export function OverviewDashboard({
               dir="ltr"
               className="font-display text-2xl md:text-3xl font-bold tracking-tight text-primary"
             >
-              790.00
+              {fares ? formatEGP(fares.receivables) : '…'}
             </span>
             <span className="font-display text-sm font-semibold text-primary">ج</span>
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1">
-            <span>أرصدة موجبة فقط لصالح المطبعة</span>
+            {fares ? (
+              <>
+                <span>أرصدة موجبة لصالح المطبعة</span>
+                <span className="font-mono text-foreground/80">• {fares.debt_clients_count} عميل</span>
+              </>
+            ) : (
+              <span>{faresError ? 'غير متصل بالطبقة الحية' : 'جارٍ القراءة من القاعدة الحية…'}</span>
+            )}
           </p>
         </div>
       </div>
@@ -415,7 +462,12 @@ export function OverviewDashboard({
             <span>أسطول الوكلاء العشرة</span>
             <span className="text-xs font-normal text-muted-foreground">(انقر للدخول إلى غرفة الوكيل)</span>
           </h2>
-          <span className="text-xs text-primary font-medium">10 متصلين</span>
+          <span className="text-xs text-primary font-medium">
+            {(() => {
+              const busyAgents = Object.keys(openTasksByAgent).length
+              return busyAgents > 0 ? `${busyAgents} وكلاء عليهم مهام مفتوحة` : 'لا مهام مفتوحة الآن'
+            })()}
+          </span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
@@ -471,9 +523,10 @@ export function OverviewDashboard({
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
+                  {/* حالة حقيقية مشتقة من مهام Supabase (تطهير 2026-10-25) — لا «نشط» ثابت */}
                   <span className="flex items-center gap-1">
-                    <span className="size-1.5 rounded-full bg-emerald-400" />
-                    <span>نشط</span>
+                    <span className={cn('size-1.5 rounded-full', openTasks > 0 ? 'bg-amber-400' : 'bg-muted-foreground/40')} />
+                    <span>{openTasks > 0 ? `عنده ${openTasks} مهمة` : 'متاح'}</span>
                   </span>
                   <span className="font-mono text-[10px] text-muted-foreground/80">{agent.code}</span>
                 </div>

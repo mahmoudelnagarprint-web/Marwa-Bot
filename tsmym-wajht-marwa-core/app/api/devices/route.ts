@@ -1,6 +1,7 @@
 // app/api/devices/route.ts — غرفة تحكم صاصا (Master Controller) 2026-10-20
 // الخط الأحمر: pos_data.db قراءة فقط. طابور التشغيل يقرأ من board_state.json (مملكة بيبو).
-// الرادار (حرارة/حبر/حالة) محاكاة وهمية مؤقتة لحين ربط الحساسات — موسومة بوضوح.
+// تطهير (أمر المالك 2026-10-25): أُزيلت المحاكاة نهائياً — العتاد يُعرض من دايمون
+// hardware_state.json فقط، ومع تقادم الملف يُوسم «قديم — الدايمون غير شغال» بصدق.
 import { NextRequest, NextResponse } from 'next/server'
 import { DatabaseSync } from 'node:sqlite'
 import { execFile } from 'child_process'
@@ -52,6 +53,8 @@ export type MachineTelemetry = {
   metric_value: string | number
   metric_unit: string
   simulated: true | false
+  /** صحيح = بيانات الدايمون أقدم من دقيقتين (الدايمون واقف) */
+  stale?: boolean
   hardware_source?: string
 }
 
@@ -90,13 +93,12 @@ function readHardware(): HardwareState | null {
   }
 }
 
-/** رادار: العتاد الحقيقي أولاً (hardware_state.json)، والمحاكاة احتياط — دائماً موسومة بمصدر الحقيقة */
+/** رادار (مُطهَّر 2026-10-25): من دايمون العتاد فقط — بلا أي أرقام مخترعة.
+ *  لا دايمون → حالة صادقة «غير متاح»، وملف قديم → وسم stale على كل ماكينة. */
 function telemetry(board: SpoolTask[]): MachineTelemetry[] {
   const busyLaser = board.some((t) => t.machine === 'ليزر CO2')
   const busyEpson = board.some((t) => t.machine === 'Epson L1800')
   const busyCutter = board.some((t) => t.machine === 'كاتر بلوتر')
-  const soon = Date.now()
-  const wob = (seed: number, span: number) => ((Math.sin(soon / 30_000 + seed) + 1) / 2) * span
   const hw = readHardware()
   const fromHw = (status: string | undefined, online: boolean | undefined, fallback: 'Idle' | 'Busy'): 'Idle' | 'Busy' => {
     if (!online) return 'Idle' // ماكينة غير متصلة → تعامل كخامل (ولا تزعج الرسم)
@@ -104,26 +106,27 @@ function telemetry(board: SpoolTask[]): MachineTelemetry[] {
     if (status === 'idle') return 'Idle'
     return fallback
   }
-  if (hw) {
+  if (!hw) {
+    // لا دايمون ولا ملف — نعرض الحقيقة بدل الاختراع
+    const offline = (id: string, name: string, busy: boolean): MachineTelemetry => ({
+      id, name, state: busy ? 'Busy' : 'Idle',
+      metric_label: 'الاتصال', metric_value: 'دايمون العتاد غير شغال', metric_unit: '',
+      simulated: false, stale: true, hardware_source: 'لا يوجد hardware_state.json — شغّل الدايمون من غرفة فيجن',
+    })
     return [
-      { id: 'laser', name: 'ليزر CO2', state: fromHw(hw.laser?.state, true, busyLaser ? 'Busy' : 'Idle'), metric_label: 'حالة الإتصال', metric_value: hw.laser?.state === 'idle' ? 'متصلة' : 'غير مربوطة', metric_unit: '', simulated: false, hardware_source: `دايمون العتاد ${hw.updated_at ?? ''}` },
-      { id: 'epson', name: 'Epson L1800', state: fromHw(hw.epson?.state, hw.epson?.online, busyEpson ? 'Busy' : 'Idle'), metric_label: 'مهام الطباعة', metric_value: hw.epson?.jobs ?? 0, metric_unit: 'مهمة', simulated: false, hardware_source: `win32print @ ${hw.updated_at ?? ''}` },
-      { id: 'cutter', name: 'كاتر بلوتر', state: fromHw(hw.cutter?.state, hw.cutter?.online, busyCutter ? 'Busy' : 'Idle'), metric_label: 'المنفذ', metric_value: hw.cutter?.port ?? '-', metric_unit: '', simulated: false, hardware_source: `pyserial @ ${hw.updated_at ?? ''}` },
+      offline('laser', 'ليزر CO2', busyLaser),
+      offline('epson', 'Epson L1800', busyEpson),
+      offline('cutter', 'كاتر بلوتر', busyCutter),
     ]
   }
+  const updatedAt = hw.updated_at ?? ''
+  const stale = updatedAt ? Date.now() - new Date(updatedAt).getTime() > 120_000 : true
+  const src = (tool: string) => `${tool} @ ${updatedAt || '؟'}${stale ? ' — قديم (الدايمون غير شغال)' : ''}`
   return [
-    {
-      id: 'laser', name: 'ليزر CO2', state: busyLaser ? 'Busy' : 'Idle',
-      metric_label: 'حرارة المياه', metric_value: Math.round((28 + wob(1, 9)) * 10) / 10, metric_unit: '°م', simulated: true,
-    },
-    {
-      id: 'epson', name: 'Epson L1800', state: busyEpson ? 'Busy' : 'Idle',
-      metric_label: 'مستوى الحبر', metric_value: Math.round(62 + wob(2, 30)), metric_unit: '%', simulated: true,
-    },
-    {
-      id: 'cutter', name: 'كاتر بلوتر', state: busyCutter ? 'Busy' : 'Idle',
-      metric_label: 'حالة الاستعداد', metric_value: Math.round(80 + wob(3, 20)), metric_unit: '%', simulated: true,
-    },
+    // إصلاح (2026-10-25): online الليزر يمرر القيمة الحقيقية من الدايمون — كانت متمررة true
+    { id: 'laser', name: 'ليزر CO2', state: fromHw(hw.laser?.state, hw.laser?.online, busyLaser ? 'Busy' : 'Idle'), metric_label: 'حالة الإتصال', metric_value: hw.laser?.state === 'idle' ? 'متصلة' : 'غير مربوطة', metric_unit: '', simulated: false, stale, hardware_source: src('دايمون العتاد') },
+    { id: 'epson', name: 'Epson L1800', state: fromHw(hw.epson?.state, hw.epson?.online, busyEpson ? 'Busy' : 'Idle'), metric_label: 'مهام الطباعة', metric_value: hw.epson?.jobs ?? 0, metric_unit: 'مهمة', simulated: false, stale, hardware_source: src('win32print') },
+    { id: 'cutter', name: 'كاتر بلوتر', state: fromHw(hw.cutter?.state, hw.cutter?.online, busyCutter ? 'Busy' : 'Idle'), metric_label: 'المنفذ', metric_value: hw.cutter?.port ?? '-', metric_unit: '', simulated: false, stale, hardware_source: src('pyserial') },
   ]
 }
 

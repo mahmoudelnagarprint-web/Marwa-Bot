@@ -26,10 +26,13 @@ function machineFor(items: { name: string; qty: number }[]): { name: string; ico
 }
 
 const MACHINES = [
-  { name: 'Epson L1800', icon: Printer, tone: 'text-sky-300 border-sky-400/25 bg-sky-400/10', state: 'جاهزة' },
-  { name: 'ليزر CO2', icon: Zap, tone: 'text-rose-300 border-rose-400/25 bg-rose-400/10', state: 'جاهزة' },
-  { name: 'كاتر بلوتر', icon: Scissors, tone: 'text-violet-300 border-violet-400/25 bg-violet-400/10', state: 'جاهزة' },
+  { name: 'Epson L1800', icon: Printer, tone: 'text-sky-300 border-sky-400/25 bg-sky-400/10' },
+  { name: 'ليزر CO2', icon: Zap, tone: 'text-rose-300 border-rose-400/25 bg-rose-400/10' },
+  { name: 'كاتر بلوتر', icon: Scissors, tone: 'text-violet-300 border-violet-400/25 bg-violet-400/10' },
 ] as const
+
+// الربط الحي (تطهير 2026-10-25): حالة الماكينات من دايمون العتاد عبر /api/devices — لا «جاهزة» ثابتة
+type HwTelemetry = { id: string; name: string; state: 'Idle' | 'Busy'; metric_label: string; metric_value: number | string; metric_unit: string; simulated: boolean; stale?: boolean; hardware_source?: string }
 
 type Resp = {
   error?: string
@@ -40,6 +43,7 @@ type Resp = {
 export function BeboDashboard() {
   const [board, setBoard] = useState<ProductionCard[]>([])
   const [inbox, setInbox] = useState<InboxItem[]>([])
+  const [telemetry, setTelemetry] = useState<HwTelemetry[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -49,11 +53,20 @@ export function BeboDashboard() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/production', { cache: 'no-store' })
+      const [res, hwRes] = await Promise.all([
+        fetch('/api/production', { cache: 'no-store' }),
+        fetch('/api/devices', { cache: 'no-store' }).catch(() => null),
+      ])
       const j = (await res.json()) as Resp
       if (j.error) throw new Error(j.error)
       setBoard(j.board ?? [])
       setInbox(j.inbox ?? [])
+      if (hwRes?.ok) {
+        const hw = (await hwRes.json()) as { telemetry?: HwTelemetry[] }
+        setTelemetry(hw.telemetry ?? [])
+      } else {
+        setTelemetry([])
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'فشل التحميل')
     } finally {
@@ -125,17 +138,32 @@ export function BeboDashboard() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      {/* حالة الماكينات */}
+      {/* حالة الماكينات — حية من دايمون العتاد (تطهير 2026-10-25) */}
       <div className="grid grid-cols-3 gap-2">
-        {MACHINES.map((m) => (
-          <div key={m.name} className={cn('flex items-center gap-2 rounded-xl border p-2.5', m.tone)}>
-            <m.icon className="size-4" aria-hidden="true" />
-            <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-foreground" dir="ltr">{m.name}</p>
-              <p className="text-[10px] text-muted-foreground">{m.state} • بمعايرة الصاصا لاحقاً</p>
+        {MACHINES.map((m) => {
+          const t = telemetry.find((x) => x.name === m.name)
+          const stateLabel = t
+            ? t.stale
+              ? 'قديمة — الدايمون غير شغال'
+              : t.state === 'Busy'
+                ? 'تعمل الآن'
+                : t.metric_value === 'غير مربوطة' || t.metric_value === 'offline'
+                  ? 'غير مربوطة'
+                  : 'خاملة — متصلة'
+            : 'دايمون العتاد غير شغال'
+          return (
+            <div key={m.name} className={cn('flex items-center gap-2 rounded-xl border p-2.5', m.tone)}>
+              <m.icon className="size-4" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-foreground" dir="ltr">{m.name}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {stateLabel}
+                  {t && !t.stale && t.metric_value !== null ? ` • ${t.metric_label}: ${t.metric_value}${t.metric_unit}` : ''}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* كانبان ثلاثي الأعمدة */}

@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { SalmaOrder } from '@/app/api/salma-summary/route'
 
-/** رقم واتساب الورشة (أمر المالك 2026-10-21) — صيغة دولية لمصر */
-const WORKSHOP_WA = '201000433420'
+// تطهير التوجيه (أمر المالك 2026-10-25): لا رقم ورشة ثابت — الإرسال يفتح محادثة
+// العميل نفسه من رقمه المسجل في POS، ولو مفيش رقم تظهر رسالة صادقة بدل توجيه خاطئ.
 
 export function CustomerChat() {
   const [orders, setOrders] = useState<SalmaOrder[]>([])
@@ -71,8 +71,15 @@ export function CustomerChat() {
 
   function sendWhatsApp() {
     const text = draft.trim()
-    if (!text) return
-    window.open(`https://wa.me/${WORKSHOP_WA}?text=${encodeURIComponent(text)}`, '_blank')
+    if (!text || !current) return
+    const digits = current.phone?.replace(/\D/g, '') ?? ''
+    if (!digits) {
+      setFlash('⚠️ العميل ليس له رقم مسجل في POS — أضف رقمه في قاعدة العملاء أولاً')
+      return
+    }
+    // صيغة دولية لمصر: 10xxxxxxxxx → 2 10xxxxxxxxx
+    const intl = digits.startsWith('2') ? digits : `2${digits}`
+    window.open(`https://wa.me/${intl}?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   if (loading) {
@@ -153,17 +160,11 @@ export function CustomerChat() {
                   {drafting ? 'بيصيغ من لوحة بيبو…' : 'صياغة رد ذكي'}
                 </Button>
                 <Button size="sm" disabled={!draft.trim()} onClick={sendWhatsApp} className="gap-1.5">
-                  <Send className="size-3.5" /> إرسال عبر واتساب
+                  <Send className="size-3.5" />
+                  {current.phone ? 'إرسال للعميل عبر واتساب' : 'لا رقم للعميل'}
                 </Button>
-                {current.phone && (
-                  <a
-                    href={`https://wa.me/${current.phone.replace(/\D/g, '')}?text=${encodeURIComponent(draft || '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] text-muted-foreground underline underline-offset-2"
-                  >
-                    أو واتساب العميل مباشرة
-                  </a>
+                {!current.phone && (
+                  <span className="text-[11px] text-amber-300/90">رقم العميل ناقص في POS — الإرسال مقفول لحد ما يتسجل</span>
                 )}
               </div>
             </>

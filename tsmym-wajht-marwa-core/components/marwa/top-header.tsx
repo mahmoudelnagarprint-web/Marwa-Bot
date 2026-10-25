@@ -3,27 +3,70 @@
 import { useEffect, useState } from 'react'
 import { BarChart3, Cpu, Laptop, Settings, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
+type LiveState = {
+  ok?: boolean
+  db_ok?: boolean
+  hardware_daemon?: { fresh?: boolean; updated_at?: string | null }
+  ts?: string
+}
+
+/** مؤشر الاتصال الحقيقي (تطهير 2026-10-25): يفحص /api/live فعلياً كل 30 ثانية —
+ *  يفتح القاعدة الحية readOnly على السيرفر. لا عدادات متحركة ولا ادعاءات ثابتة. */
 function PulseIndicator() {
-  const [seconds, setSeconds] = useState(3)
+  const [live, setLive] = useState<LiveState | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    const id = setInterval(() => setSeconds((s) => (s >= 3 ? 1 : s + 1)), 1000)
-    return () => clearInterval(id)
+    let alive = true
+    async function check() {
+      try {
+        const res = await fetch('/api/live', { cache: 'no-store' })
+        const j = (await res.json()) as LiveState
+        if (!alive) return
+        setLive(j)
+        setFailed(false)
+      } catch {
+        if (alive) setFailed(true)
+      }
+    }
+    void check()
+    const id = setInterval(check, 30_000)
+    return () => { alive = false; clearInterval(id) }
   }, [])
 
+  const connected = !failed && live?.db_ok === true
+  const hwFresh = live?.hardware_daemon?.fresh === true
+  const time = live?.ts
+    ? new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(live.ts))
+    : null
+
   return (
-    <div className="flex items-center gap-2 rounded-full border border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1">
-      <span className="relative flex size-2" aria-hidden="true">
-        <span className="animate-marwa-pulse absolute inset-0 rounded-full bg-emerald-400" />
-        <span className="relative size-2 rounded-full bg-emerald-400/90" />
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-full border px-2.5 py-1',
+        connected ? 'border-emerald-400/15 bg-emerald-400/[0.06]' : 'border-amber-400/20 bg-amber-400/[0.08]',
+      )}
+      title={connected ? 'فحص حي: القاعدة تُقرأ readOnly على السيرفر' : 'فحص /api/live فشل — السيرفر أو القاعدة غير متاحين'}
+    >
+      <span className={cn('relative flex size-2', connected && hwFresh ? '' : 'opacity-70')} aria-hidden="true">
+        {connected && (
+          <>
+            <span className="animate-marwa-pulse absolute inset-0 rounded-full bg-emerald-400" />
+            <span className="relative size-2 rounded-full bg-emerald-400/90" />
+          </>
+        )}
+        {!connected && <span className="size-2 rounded-full bg-amber-400" />}
       </span>
-      <span className="text-xs text-emerald-200/80">
-        <span className="font-mono" dir="ltr">
-          Marwa Pulse
-        </span>
+      <span className={cn('text-xs', connected ? 'text-emerald-200/80' : 'text-amber-200/90')}>
+        <span className="font-mono" dir="ltr">Marwa Pulse</span>
         {' • '}
-        <span className="font-mono tabular-nums">{seconds}s</span> — متصلة بالطبقة الحية (POS + Workspaces)
+        {failed || !live
+          ? 'يفحص الاتصال…'
+          : connected
+            ? `الطبقة الحية متصلة (POS ✓${time ? ` ${time}` : ''}${hwFresh ? ' • عتاد حي' : ' • دايمون العتاد غير شغال'})`
+            : `غير متصل${live?.db_error ? ` — ${live.db_error.slice(0, 60)}` : ' — السيرفر أو القاعدة بعيد'}`}
       </span>
     </div>
   )

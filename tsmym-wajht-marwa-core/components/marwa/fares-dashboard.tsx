@@ -144,8 +144,14 @@ export function FaresDashboard() {
     }
   }
 
-  // توليد تذكير بالدفع
+  // توليد تذكير بالدفع — تطهير التوجيه (أمر المالك 2026-10-25): رقم العميل فقط،
+  // ولو ناقص نعرض رسالة صادقة بدل توجيه الرسالة لرقم الورشة
   async function handleGenerateReminder(client: { name: string; balance: number; phone: string | null }) {
+    const digits = (client.phone ?? '').replace(/\D/g, '')
+    if (digits.length < 10) {
+      setFlash(`⚠️ العميل «${client.name}» ليس له رقم واتساب صحيح في POS — عدّل رقمه في قاعدة العملاء أولاً`)
+      return
+    }
     setGeneratingReminder(true)
     try {
       const res = await fetch('/api/fares', {
@@ -155,19 +161,21 @@ export function FaresDashboard() {
           action: 'generate_whatsapp_reminder',
           client_name: client.name,
           balance: client.balance,
-          phone: client.phone || '01000433420',
+          phone: client.phone,
         }),
       })
-      const j = (await res.json()) as { ok?: boolean; message: string; wa_link: string }
+      const j = (await res.json()) as { ok?: boolean; message: string; wa_link: string; error?: string }
       if (j.ok) {
         setReminderModal({
           open: true,
           client: client.name,
           balance: client.balance,
-          phone: client.phone || '01000433420',
+          phone: client.phone ?? '',
           message: j.message,
           waLink: j.wa_link,
         })
+      } else {
+        setFlash(`⚠️ ${j.message ?? 'تعذر توليد التذكير'}`)
       }
     } catch {
       setFlash('⚠️ تعذر توليد رسالة التذكير')
@@ -573,14 +581,15 @@ export function FaresDashboard() {
                       {formatEGP(d.balance)}
                     </td>
                     <td className="p-3 font-mono text-muted-foreground">
-                      {d.phone || '01000433420'}
+                      {d.phone || <span className="text-amber-300/90">لا رقم في POS</span>}
                     </td>
                     <td className="p-3 text-left">
                       <Button
                         variant="outline"
                         size="xs"
                         onClick={() => void handleGenerateReminder(d)}
-                        disabled={generatingReminder}
+                        disabled={generatingReminder || (d.phone ?? '').replace(/\D/g, '').length < 10}
+                        title={d.phone ? 'توليد رسالة تذكير للعميل على رقمه' : 'العميل ليس له رقم — عدّله في قاعدة العملاء'}
                         className="gap-1 border-amber-500/30 text-amber-400 hover:bg-amber-500/10 font-semibold"
                       >
                         <MessageSquare className="size-3" />

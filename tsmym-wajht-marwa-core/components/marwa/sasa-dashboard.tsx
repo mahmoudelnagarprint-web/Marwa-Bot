@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 
 type SpoolTask = { id: number; client: string; total: number; items: { name: string; qty: number }[]; machine: string }
 type DesignFile = { name: string; rel: string; size: number; mtime: string; ext: string }
-type MachineTelemetry = { id: string; name: string; state: 'Idle' | 'Busy'; metric_label: string; metric_value: number | string; metric_unit: string; simulated: true | false; hardware_source?: string }
+type MachineTelemetry = { id: string; name: string; state: 'Idle' | 'Busy'; metric_label: string; metric_value: number | string; metric_unit: string; simulated: true | false; stale?: boolean; hardware_source?: string }
 
 type Resp = {
   error?: string
@@ -107,7 +107,15 @@ export function SasaDashboard() {
             </div>
             <div className="mt-2 flex items-end justify-between">
               <div>
-                <p className="text-[10px] text-muted-foreground">{m.metric_label}{m.simulated ? ' (محاكاة مؤقتة)' : ` (عتاد حقيقي • ${m.hardware_source?.split(' @ ')[0] ?? 'دايمون'})`}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {m.metric_label}
+                  {/* شفافية المصدر (تطهير 2026-10-25): تقادم الدايمون يُعرض بصدق */}
+                  {m.stale
+                    ? ' (قديم — الدايمون غير شغال)'
+                    : m.simulated
+                      ? ' (محاكاة مؤقتة)'
+                      : ` (عتاد حقيقي • ${m.hardware_source?.split(' @ ')[0] ?? 'دايمون'})`}
+                </p>
                 <p className="font-mono text-lg font-semibold">
                   {m.metric_value}
                   <span className="text-[10px] font-normal text-muted-foreground"> {m.metric_unit}</span>

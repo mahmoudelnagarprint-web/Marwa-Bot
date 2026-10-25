@@ -244,6 +244,48 @@ export function AgentTasksPanel({
         ))}
       </ul>
 
+      {/* مهام الصيانة الدورية «كل 48 ساعة» (مثل صاصا) — تعرض دوراتها ومواعيدها */}
+      {tasks.some((t) => /\[كل\s*48\s*ساعة\]/i.test(t.title)) && (
+        <div className="mt-3 space-y-2 rounded-lg border border-border bg-background/40 p-2">
+          <p className="text-[11px] font-semibold">🛠 دورات الصيانة الدورية (كل 48 ساعة)</p>
+          {tasks
+            .filter((t) => /\[كل\s*48\s*ساعة\]/i.test(t.title))
+            .map((t) => {
+              const H = 48 * 60 * 60 * 1000
+              const base = t.last_run_at ? new Date(t.last_run_at).getTime() : Date.now()
+              const rows = [-1, 0, 1].map((off) => new Date(base + off * H))
+              return (
+                <div key={t.id} className="space-y-1">
+                  <p className="text-sm font-medium" dir="rtl">{t.title.replace(/\[كل\s*48\s*ساعة\]/i, '').trim()}</p>
+                  <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+                    {rows.map((d, i) => {
+                      const isPast = d.getTime() <= Date.now()
+                      const isNow = i === 0 && t.last_run_at
+                      return (
+                        <li key={i} className="flex items-center justify-between">
+                          <span>{formatCairoTime(d.toISOString())}</span>
+                          <span
+                            className={cn(
+                              'rounded px-1.5 py-0.5 text-[10px]',
+                              isNow
+                                ? 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+                                : isPast
+                                  ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                                  : 'border-border bg-background/60 text-muted-foreground',
+                            )}
+                          >
+                            {isNow ? 'الجارية' : isPast ? 'تمت' : 'القادمة'}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )
+            })}
+        </div>
+      )}
+
       <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-background/60 p-2">
         <input
           value={draft}
