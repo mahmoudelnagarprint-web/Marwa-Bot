@@ -1,0 +1,3 @@
+# فقط الحزم الموثوقة يُسمح لها ببناء سكربتاتها (esbuild يحتاجها vite)
+onlyBuiltDependencies:
+  - esbuild
