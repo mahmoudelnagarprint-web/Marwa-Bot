@@ -1,19 +1,6 @@
 {
-  "time": "2026-10-18T06:00:01",
-  "ok": true,
-  "root": "G:\\ai\\Naggar Print POS Agent",
-  "notebook_file": "notebook_2026-10-18_0600.db",
-  "notebook_bytes": 40960,
-  "notebook_rows": {
-    "notes": 3,
-    "categories": 13
-  },
-  "db_file": "pos_data_2026-10-18_0600.db",
-  "db_bytes": 245760,
-  "zip_file": "agent_workspace_2026-10-18_0600.zip",
-  "row_counts": {
-    "clients": 56,
-    "orders": 58,
-    "transactions": 45
-  }
+  "time": "2026-10-25T06:00:00",
+  "ok": false,
+  "root": "G:\\Marwa-Bot",
+  "error": "G:\\ai\\Elnagar POS\\pos_data.db"
 }

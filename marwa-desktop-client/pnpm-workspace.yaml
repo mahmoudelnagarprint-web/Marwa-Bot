@@ -1,0 +1,5 @@
+# إعدادات pnpm للمشروع — pnpm 11 لا يقرأ حقل package.json
+# esbuild يعمل عبر ثنائي @esbuild/win32-x64 بدون سكربت البناء (تحقق فقط) —
+# قرار واعٍ: تجاهل سكربت البناء بدل السماح (أكثر أماناً).
+ignoredBuiltDependencies:
+  - esbuild

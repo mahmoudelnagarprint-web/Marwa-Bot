@@ -1,0 +1,103 @@
+@import 'tailwindcss';
+
+/*
+  🎨 ثيم MARWA CORE المكتبي — Matte Black & Royal Gold
+  التوكنات الحية (Tailwind v4 CSS-first) — المرجع التوثيقي: tailwind.config.js
+*/
+@theme {
+  --color-matte-950: #0a0a0b;
+  --color-matte-900: #101012;
+  --color-matte-850: #141416;
+  --color-matte-800: #18181b;
+  --color-matte-700: #1f1f23;
+  --color-matte-600: #27272b;
+
+  --color-gold-50: #fbf6e3;
+  --color-gold-100: #f5e9c8;
+  --color-gold-200: #eed69a;
+  --color-gold-300: #e3c26c;
+  --color-gold-400: #d4af37;
+  --color-gold-500: #c39a2b;
+  --color-gold-600: #a37f20;
+  --color-gold-700: #826419;
+  --color-gold-800: #5f4a13;
+  --color-gold-900: #3d2f0d;
+
+  --font-display: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+  --font-body: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-matte-950);
+  color: #e8e8ea;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* توهج ذهبي للعناصر الملكية */
+.gold-glow {
+  box-shadow: 0 0 24px rgba(212, 175, 55, 0.12);
+}
+.gold-glow-strong {
+  box-shadow: 0 0 40px rgba(212, 175, 55, 0.25);
+}
+
+/* أشرطة تمرير رفيعة داكنة */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-matte-600);
+  border-radius: 999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-700);
+}
+
+/* Markdown داخل فقاعات الرسائل — جداول دقيقة */
+.md-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.8rem;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid var(--color-matte-600);
+  padding: 4px 8px;
+  text-align: start;
+}
+.md-body th {
+  background: var(--color-matte-700);
+  color: var(--color-gold-200);
+}
+.md-body code {
+  background: var(--color-matte-800);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+.md-body pre {
+  background: var(--color-matte-900);
+  border: 1px solid var(--color-matte-600);
+  border-radius: 8px;
+  padding: 8px;
+  overflow-x: auto;
+}
+.md-body pre code {
+  background: transparent;
+  padding: 0;
+}
