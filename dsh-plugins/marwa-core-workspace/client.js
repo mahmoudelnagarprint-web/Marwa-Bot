@@ -80,6 +80,8 @@ window.__ModuleLoader__.load({
     ];
     const AGENT_MAP = {};
     AGENTS.forEach((a) => { AGENT_MAP[a.id] = a; });
+    // خريطة غرفة ← Preset DSH (أسماء الـPresets الحية المسجلة من المضيف عند الإقلاع)
+    const PRESET_ID_MAP = { marwa: 'marwa', afkar: 'notebook', rased: 'rased', hakim: 'hakim', fares: 'fares', salma: 'salma', koko: 'koko', bibo: 'bibo', sasa: 'sasa', vision: 'vision' };
 
     // ------------------------------------------------------------------- الأنماط (الهوية السيادية)
     const CSS = [
@@ -310,8 +312,9 @@ window.__ModuleLoader__.load({
     }
 
     function OmniBar(props) {
-      const { onOpenPalette, ping, ram, onRefresh, clock } = props;
+      const { onOpenPalette, ping, ram, onRefresh, clock, presets } = props;
       const nb2 = ping && ping.nb2;
+      const okPresets = Array.isArray(presets) ? presets.filter((p) => p && p.ok).length : -1;
       return h('div', { className: 'mcw-omni' },
         h('div', { className: 'mcw-brand' },
           h(BrandMark, null),
@@ -322,6 +325,8 @@ window.__ModuleLoader__.load({
           '⚡ ',
           h('span', { style: { flex: 1 } }, 'أمر سريع لأي وكيل أو بحث في النوتبوك…'),
           h('kbd', null, 'Ctrl+K')),
+        h('span', { className: 'mcw-chip', title: 'Agent Presets الحية المسجلة في DSH' },
+          '🧬 Presets: ' + (okPresets >= 0 ? okPresets + '/10' : '...')),
         h('span', { className: 'mcw-chip', title: 'النوتبوك v2 (أفكاري) على المنفذ 8110' },
           h('span', { className: 'mcw-dot', style: { background: nb2 && nb2.up ? '#34d399' : '#f87171', boxShadow: nb2 && nb2.up ? '0 0 6px #34d399' : 'none' } }),
           nb2 ? (nb2.up ? 'أفكاري متصل' : 'أفكاري غير متصل') : 'أفكاري …'),
@@ -406,7 +411,7 @@ window.__ModuleLoader__.load({
     }
 
     function RoomView(props) {
-      const { agent, room, notes, bridge, onSend, onChip, onToggleScratch, onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval, onCopyPrompt, onOpenDSH, onBindLive, onInjectNote, openPanel, noteDraft, setNoteDraft } = props;
+      const { agent, room, notes, bridge, onSend, onChip, onToggleScratch, onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval, onCopyPrompt, onOpenDSH, onRebind, onInjectNote, openPanel, noteDraft, setNoteDraft, binding } = props;
       const accent = agent.color;
       const msgs = (room && room.messages) || [];
       const [draft, setDraft] = useState('');
@@ -451,7 +456,7 @@ window.__ModuleLoader__.load({
             room && room.sessionId ? h('span', { className: 'mcw-chip', title: 'جلسة DSH مرتبطة: ' + room.sessionId }, '⚡ DSH #' + String(room.sessionId).slice(0, 8)) : null,
             h('button', { className: 'mcw-btn ghost', title: 'نسخ برومبت تفعيل الشخصية', onClick: () => onCopyPrompt(agent) }, '📋 البرومبت'),
             h('button', { className: 'mcw-btn ghost', onClick: onOpenDSH }, '🗨 فتح في DSH'),
-            h('button', { className: 'mcw-btn', onClick: () => onBindLive(agent) }, '⚡ ربط جلسة DSH'))),
+            h('button', { className: 'mcw-btn', onClick: () => onRebind(agent) }, '⚡ ربط جلسة DSH'))),
         h('div', { className: 'mcw-msgs' },
           msgs.length === 0 ?
             h('div', { className: 'mcw-empty' }, 'غرفة ' + agent.name + ' — أرسل تكليفاً أو استخدم الأزرار السريعة. (الردود الحقيقية تُنفَّذ في جلسة DSH الأصلية للوكيل)') :
@@ -628,6 +633,7 @@ window.__ModuleLoader__.load({
       const [pos, setPos] = useState(null);
       const [entries, setEntries] = useState(null);
       const [preview, setPreview] = useState(null);
+      const [presets, setPresets] = useState(null);
       const [toast, setToast] = useState(null);
       const [rooms, setRooms] = useState(() => { try { return JSON.parse(localStorage.getItem('mcw.rooms.v1') || '{}'); } catch { return {}; } });
       const [noteDraft, setNoteDraft] = useState('');
@@ -653,18 +659,20 @@ window.__ModuleLoader__.load({
           const p = await bridge.ping();
           setPing(p);
           setBridgeErr(null);
-          const [r, nb, cat, po, vis] = await Promise.all([
+          const [r, nb, cat, po, vis, pr] = await Promise.all([
             bridge.call('ram', {}).catch(() => null),
             bridge.call('notebook.list', { limit: 120 }).catch(() => null),
             bridge.call('catalog.rows', { maxRows: 300 }).catch(() => null),
             bridge.call('pos.stats', {}).catch(() => null),
             bridge.call('vision.list', {}).catch(() => null),
+            bridge.call('presets.status', {}).catch(() => null),
           ]);
           setRam(r);
           if (nb) setNotes(nb.notes || []);
           if (cat) setCatalog(cat);
           if (po) setPos(po);
           if (vis) setEntries(vis.entries || []);
+          if (pr && Array.isArray(pr.presets)) setPresets(pr.presets);
         } catch (err) {
           setBridgeErr(String((err && err.message) || err));
         }
@@ -735,8 +743,12 @@ window.__ModuleLoader__.load({
           const msgs = cur.messages.map((m) => (m.id === msg.id ? Object.assign({}, m, { status: 'approved' }) : m));
           return Object.assign({}, prev, { [activeId]: Object.assign({}, cur, { messages: msgs }) });
         });
+        const execText = msg.cmd || ((msg.title || '') + '\n' + (msg.text || ''));
         if (msg.cmd) copyText(msg.cmd);
-        showToast(msg.cmd ? '✅ اعتمد ✓ — أمر التنفيذ نُسخ للحافظة' : '✅ اعتمد ✓');
+        showToast('✅ اعتمد ✓ — جارٍ التنفيذ في جلسة DSH...');
+        sendToSession(activeId, execText)
+          .then((sid) => showToast('✅ اعتمد ونُفّذ في جلسة DSH #' + String(sid).slice(0, 8)))
+          .catch((err) => showToast((msg.cmd ? '✅ اعتمد ✓ — أمر التنفيذ نُسخ للحافظة' : '✅ اعتمد ✓') + ' · تنفيذ DSH: ' + String((err && err.message) || err)));
         try {
           bridge.call('notebook.add', {
             title: 'اعتماد: ' + (msg.title || 'إجراء'), body: msg.text + (msg.cmd ? '\nالأمر: ' + msg.cmd : ''),
@@ -763,7 +775,11 @@ window.__ModuleLoader__.load({
           const msgs = cur.messages.map((m) => (m.id === msg.id ? Object.assign({}, m, { status: 'auditing' }) : m));
           return Object.assign({}, prev, { [activeId]: Object.assign({}, cur, { messages: msgs }) });
         });
-        showToast('🦉 أُرسل إلى حكيم للتدقيق');
+        showToast('🦉 استدعاء حكيم (Preset) للمراجعة...');
+        const auditText = 'طلب تدقيق من ' + AGENT_MAP[activeId].name + ' (بوابة اعتماد):\n' + (msg.title || '') + '\n' + (msg.text || '') + '\n\nراجع الحسبة/الاقتراح بصدق وأبلغ المالك بالنتيجة فوراً.';
+        ensureAgentSession('hakim')
+          .then((r) => sendToSession('hakim', auditText).then(() => showToast('🦉 حكيم يراجع الآن — جلسة #' + String(r.sessionId).slice(0, 8))))
+          .catch((err) => showToast('🦉 تعذّر استدعاء حكيم: ' + String((err && err.message) || err)));
       }
 
       function onSaveNote(msg) {
@@ -809,48 +825,109 @@ window.__ModuleLoader__.load({
       }
 
       function openDSH() {
-        try { if (layout && layout.selectPanel) layout.selectPanel('conversation'); else showToast('لا يمكن فتح شات DSH'); } catch { showToast('لا يمكن فتح شات DSH'); }
+        try {
+          const sid = (rooms[activeId] || {}).sessionId;
+          if (sid && uiWorkspace && uiWorkspace.openSession) uiWorkspace.openSession(sid);
+          if (layout && layout.selectPanel) layout.selectPanel('conversation');
+          else if (!sid) showToast('لا يمكن فتح شات DSH');
+        } catch { showToast('لا يمكن فتح شات DSH'); }
       }
 
-      // ربط جلسة DSH حقيقية (تجريبي)
+      // ------------------------------------------------ ربط الجلسات التلقائي (Zero-Click)
       const [liveBusy, setLiveBusy] = useState(null);
-      async function bindLive(agent) {
+      const wsSnapRef = useRef(null);
+      try { if (props.useWorkspaces) wsSnapRef.current = props.useWorkspaces(); } catch {}
+      function currentWorkspaceId() {
+        try {
+          const snap = wsSnapRef.current;
+          return (snap && snap.current && snap.current.id) || (snap && snap.items && snap.items[0] && snap.items[0].id) || null;
+        } catch { return null; }
+      }
+      function buildBootPrompt(agentId, pinned) {
+        const a = AGENT_MAP[agentId];
+        const presetId = PRESET_ID_MAP[agentId] || agentId;
+        const parts = [];
+        parts.push('أنت ' + (a ? a.name : agentId) + ' — جلسة DSH تلقائية أنشأتها «غرفة عمليات مروة» عبر Preset: ' + presetId + '. أجب كشخصيتك تماماً حسب دستورك وبصدق تام.');
+        if (pinned && pinned.notes && pinned.notes.length) {
+          parts.push('📌 قرارات/ملاحظات المالك المثبتة من النوتبوك (اعرفها قبل أي رد):\n' +
+            pinned.notes.map((n) => '• [' + (n.kind || 'note') + '] ' + (n.title || '') + (n.body ? ' — ' + String(n.body).slice(0, 260) : '')).join('\n'));
+        }
+        return parts.join('\n\n').slice(0, 12000);
+      }
+      function attachLive(agentId, binding) {
+        try {
+          binding.eventSource.subscribe((frame) => {
+            const txt = (frame && (frame.text || frame.content || (frame.message && frame.message.text))) || '';
+            if (txt) setRooms((prev) => {
+              const cur = prev[agentId] || { messages: [] };
+              const msgs = cur.messages.slice();
+              const last = msgs[msgs.length - 1];
+              if (last && last.live) { msgs[msgs.length - 1] = Object.assign({}, last, { text: txt }); }
+              else msgs.push({ id: 'live' + Date.now(), kind: 'agent', who: AGENT_MAP[agentId].name + ' · DSH Live', text: txt, live: true });
+              return Object.assign({}, prev, { [agentId]: Object.assign({}, cur, { messages: msgs }) });
+            });
+          });
+        } catch (err) { console.log('[marwa-core] live-subscribe', err); }
+      }
+      async function ensureAgentSession(agentId) {
+        if (!uiWorkspace || !sessionsSvc) throw new Error('خدمات الجلسات غير متاحة');
+        const presetId = PRESET_ID_MAP[agentId] || agentId;
+        // 1) جلسة مسجّلة محلياً (localStorage) ما زالت حية؟
+        let sid = null;
+        try { sid = localStorage.getItem('mcw.sid.' + agentId); } catch {}
+        if (sid) {
+          try {
+            const ref = sessionsSvc.retain(sid, { source: 'controllerOperation' });
+            await ref.ready;
+            saveRoom(agentId, { sessionId: sid });
+            attachLive(agentId, ref.binding);
+            return { sessionId: sid, created: false };
+          } catch { sid = null; }
+        }
+        // 2) جلسة نشطة مطابقة لنفس الـPreset (فحص حقيقي عبر المضيف)؟
+        try {
+          const found = await bridge.call('sessions.findForPreset', { presetId });
+          if (found && found.sessionId) {
+            sid = found.sessionId;
+            try { localStorage.setItem('mcw.sid.' + agentId, sid); } catch {}
+            const ref = sessionsSvc.retain(sid, { source: 'controllerOperation' });
+            await ref.ready;
+            saveRoom(agentId, { sessionId: sid });
+            attachLive(agentId, ref.binding);
+            return { sessionId: sid, created: false, found: true };
+          }
+        } catch {}
+        // 3) إنشاء جلسة DSH جديدة تلقائياً بالـPreset + حقن ملاحظات النوتبوك المثبتة
+        const wsId = currentWorkspaceId();
+        const sessionId = await uiWorkspace.connectWorkspace(wsId, { agentPreset: presetId });
+        try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
+        const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
+        await ref.ready;
+        saveRoom(agentId, { sessionId });
+        attachLive(agentId, ref.binding);
+        try {
+          const pinned = await bridge.call('notebook.pinned', { limit: 20 }).catch(() => null);
+          await ref.binding.session.prompt([{ type: 'text', text: buildBootPrompt(agentId, pinned) }], 'queue');
+        } catch {}
+        return { sessionId, created: true };
+      }
+      async function sendToSession(agentId, text) {
+        let sid = (rooms[agentId] || {}).sessionId;
+        if (!sid) {
+          const created = await ensureAgentSession(agentId);
+          sid = created.sessionId;
+        }
+        if (!sid) throw new Error('لا توجد جلسة مرتبطة');
+        const ref = sessionsSvc.retain(sid, { source: 'controllerOperation' });
+        await ref.ready;
+        await ref.binding.session.prompt([{ type: 'text', text }], 'queue');
+        return sid;
+      }
+      async function rebind(agent) {
         setLiveBusy(agent.id);
         try {
-          if (!uiWorkspace || !sessionsSvc) throw new Error('خدمات الجلسات غير متاحة');
-          let wsId = null;
-          try {
-            const wsHook = props.useWorkspaces;
-            if (wsHook) {
-              const snap = wsHook();
-              wsId = (snap && snap.current && snap.current.id) || (snap && snap.items && snap.items[0] && snap.items[0].id) || null;
-            }
-          } catch {}
-          const sessionId = await uiWorkspace.connectWorkspace(wsId, {});
-          const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
-          await ref.ready;
-          const binding = ref.binding;
-          const info = await bridge.call('squad.prompts', { withText: true }).catch(() => null);
-          const promptText = (info && info[agent.id] && info[agent.id].text)
-            ? info[agent.id].text.slice(0, 6000)
-            : ('أنت ' + agent.name + ' — ' + agent.role + ' في منظومة النجار برنت.');
-          await binding.session.prompt([{ type: 'text', text: promptText + '\n\n(جلسة أنشأتها غرفة عمليات مروة — أجب كشخصيتك.)' }], 'queue');
-          saveRoom(agent.id, { sessionId });
-          try {
-            const sub = binding.eventSource.subscribe((frame) => {
-              const txt = (frame && (frame.text || frame.content || (frame.message && frame.message.text))) || '';
-              if (txt) setRooms((prev) => {
-                const cur = prev[agent.id] || { messages: [] };
-                const msgs = cur.messages.slice();
-                const last = msgs[msgs.length - 1];
-                if (last && last.live) { msgs[msgs.length - 1] = Object.assign({}, last, { text: txt }); }
-                else msgs.push({ id: 'live' + Date.now(), kind: 'agent', who: agent.name + ' · DSH Live', text: txt, live: true });
-                return Object.assign({}, prev, { [agent.id]: Object.assign({}, cur, { messages: msgs }) });
-              });
-            });
-            if (sub && typeof sub === 'function') { /* keep listener for session lifetime */ }
-          } catch (err) { console.log('[marwa-core] live-subscribe', err); }
-          showToast('⚡ جلسة DSH مرتبطة بالغرفة #' + String(sessionId).slice(0, 8));
+          const r = await ensureAgentSession(agent.id);
+          showToast('⚡ جلسة DSH مرتبطة #' + String(r.sessionId).slice(0, 8));
         } catch (err) {
           showToast('⚡ تعذّر الربط: ' + String((err && err.message) || err));
         } finally { setLiveBusy(null); }
@@ -862,6 +939,10 @@ window.__ModuleLoader__.load({
           const cur = prev[id] || { messages: [], scratch: '', unread: 0, delegated: false, sessionId: null };
           return Object.assign({}, prev, { [id]: Object.assign({}, cur, { unread: 0 }) });
         });
+        // ربط تلقائي (Zero-Click): جلسة مطابقة للـPreset أو إنشاء فوري في الخلفية
+        ensureAgentSession(id)
+          .then((r) => showToast('⚡ جلسة DSH تلقائية #' + String(r.sessionId).slice(0, 8) + (r.created ? ' (جديدة)' : ' (موجودة)')))
+          .catch(() => { /* الغرفة تعمل محلياً؛ الخطأ يظهر عند أول تنفيذ */ });
       }
 
       const active = AGENT_MAP[activeId] || AGENTS[0];
@@ -869,7 +950,7 @@ window.__ModuleLoader__.load({
 
       return h(McwBoundary, null,
         h('div', { className: 'mcw-root' },
-          h(OmniBar, { onOpenPalette: () => setPaletteOpen(true), ping, ram, onRefresh: refresh, clock }),
+          h(OmniBar, { onOpenPalette: () => setPaletteOpen(true), ping, ram, onRefresh: refresh, clock, presets }),
           h('div', { className: 'mcw-body' },
             h('div', { className: 'mcw-drawer' },
               h('div', { className: 'mcw-tabs' },
@@ -883,7 +964,7 @@ window.__ModuleLoader__.load({
               agent: active, room: activeRoom, notes, bridge,
               onSend, onChip, onToggleScratch: (v) => saveRoom(activeId, { scratch: v }),
               onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval,
-              onCopyPrompt, onOpenDSH: openDSH, onBindLive: bindLive,
+              onCopyPrompt, onOpenDSH: openDSH, onRebind: rebind,
               onInjectNote: null, openPanel: () => { try { if (layout && layout.selectPanel) layout.selectPanel('marwa-core'); } catch {} },
               noteDraft, setNoteDraft,
             }),

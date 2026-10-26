@@ -117,6 +117,25 @@ def notebook_pin(params):
         conn.close()
 
 
+def notebook_pinned(params):
+    """ملاحظات مثبتة للوكلاء (📌): أولوية عالية/عاجلة ومفتوحة — تُحقن في تهيئة جلسة كل وكيل."""
+    conn = sqlite3.connect(str(NOTEBOOK_DB), timeout=6)
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT n.id, n.kind, n.title, n.body, n.priority, n.tags, n.updated_at,"
+            " c.name AS category FROM notes n"
+            " LEFT JOIN categories c ON c.id = n.category_id"
+            " WHERE n.status='open' AND n.priority IN ('high','urgent')"
+            " ORDER BY (n.priority='urgent') DESC, n.updated_at DESC LIMIT ?",
+            (int(params.get("limit") or 20),))
+        notes = [dict(r) for r in cur.fetchall()]
+        return {"notes": notes, "count": len(notes)}
+    finally:
+        conn.close()
+
+
 # --------------------------------------------------------------- catalog
 def catalog_rows(params):
     mtime = _mtime(CATALOG)
@@ -277,6 +296,7 @@ HANDLERS = {
     "notebook.list": notebook_list,
     "notebook.add": notebook_add,
     "notebook.pin": notebook_pin,
+    "notebook.pinned": notebook_pinned,
     "catalog.rows": catalog_rows,
     "pos.stats": pos_stats,
     "vision.list": vision_list,

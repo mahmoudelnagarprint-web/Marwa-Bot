@@ -1,0 +1,72 @@
+[
+  {
+    "id": "marwa",
+    "name": "مروة — المنسق العام",
+    "order": 1,
+    "prompt": "AGENT.md",
+    "prefixChars": 7000
+  },
+  {
+    "id": "notebook",
+    "name": "أفكاري — الذاكرة الثانية (Notebook v2)",
+    "order": 2,
+    "prompt": "Vision-Lab/projects/notebook-v2/NB2_CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 4233
+  },
+  {
+    "id": "rased",
+    "name": "راصد — المراقب الذاتي",
+    "order": 3,
+    "prompt": "orchestrator/squad/rased/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 1803
+  },
+  {
+    "id": "hakim",
+    "name": "حكيم — طبيب البيانات",
+    "order": 4,
+    "prompt": "orchestrator/squad/hakim/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 2010
+  },
+  {
+    "id": "fares",
+    "name": "فارس — المدير المالي",
+    "order": 5,
+    "prompt": "orchestrator/squad/fares/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 2210
+  },
+  {
+    "id": "salma",
+    "name": "سلمى — علاقات العملاء",
+    "order": 6,
+    "prompt": "orchestrator/squad/salma/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 2113
+  },
+  {
+    "id": "koko",
+    "name": "كوكو — التسويق والعروض",
+    "order": 7,
+    "prompt": "orchestrator/squad/koko/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 2531
+  },
+  {
+    "id": "bibo",
+    "name": "بيبو — التصنيع والليزر",
+    "order": 8,
+    "prompt": "orchestrator/squad/bibo/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 2405
+  },
+  {
+    "id": "sasa",
+    "name": "مصطفى (صاصا) — التحكم بالكمبيوتر",
+    "order": 9,
+    "prompt": "orchestrator/squad/sasa/CHAT_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 1839
+  },
+  {
+    "id": "vision",
+    "name": "فيجن — الكودر والتطوير",
+    "order": 10,
+    "prompt": "Vision-Lab/SQUAD_BOOTSTRAP_PROMPT.md",
+    "prefixChars": 2226
+  }
+]
