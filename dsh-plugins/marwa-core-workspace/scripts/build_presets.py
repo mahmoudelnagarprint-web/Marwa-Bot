@@ -132,6 +132,7 @@ def preset_yaml(spec, prefix):
 
 
 def main():
+    static_presets = "--static-presets" in sys.argv[1:]
     workspace_row = (
         "- insert:\n"
         "    - id: marwa-core-workspace\n"
@@ -146,14 +147,15 @@ def main():
     summary = []
     for spec in SPECS:
         prefix = compose_prefix(spec)
-        blocks.append(preset_yaml(spec, prefix))
+        if static_presets:
+            blocks.append(preset_yaml(spec, prefix))
         summary.append({"id": spec["id"], "name": spec["name"], "order": spec["order"],
                         "prompt": spec["prompt"], "prefixChars": len(prefix)})
     patch = "\n".join(blocks) + "\n"
     (PLUGIN / "cordis.patch.yml").write_text(patch, encoding="utf-8")
     (PLUGIN / "presets.generated.yml").write_text("\n".join(blocks[1:]) + "\n", encoding="utf-8")
     (PLUGIN / "presets.summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print("generated cordis.patch.yml with %d preset rows" % len(summary))
+    print("generated cordis.patch.yml (static rows: %s) with %d preset defs" % (static_presets, len(summary)))
     for s in summary:
         print("  preset-%s | %s | prefix=%d chars" % (s["id"], s["name"], s["prefixChars"]))
 

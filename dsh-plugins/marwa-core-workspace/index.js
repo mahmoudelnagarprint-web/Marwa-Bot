@@ -24,16 +24,40 @@ import path from 'node:path';
 
 const DEFAULTS = { repoRoot: 'G:\\Marwa-Bot', routePath: '/api/marwa-core', idleShutdownMs: 300000, nb2Url: 'http://127.0.0.1:8110' };
 
+// ------------------------------------------------------------------- تحديد دليل الحزمة بموثوقية
+// import.meta.url قد يكون مساراً وهمياً تحت مُحمّل DSH — نجرّب مرشحين ونثبت بالوجود الفعلي للجسر.
+function resolvePluginDir() {
+  const candidates = [];
+  try {
+    const u = String(import.meta.url);
+    if (u.startsWith('file:')) {
+      const p = new URL(u).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+      candidates.push(path.dirname(p));
+    }
+  } catch {}
+  if (process.env.DSH_PROFILE_DIR) {
+    candidates.push(path.join(process.env.DSH_PROFILE_DIR, 'node_modules', '@local', 'marwa-core-workspace'));
+  }
+  candidates.push(path.join(process.cwd(), 'dsh-plugins', 'marwa-core-workspace'));
+  candidates.push(path.join(process.cwd(), 'node_modules', '@local', 'marwa-core-workspace'));
+  candidates.push('G:\\Marwa-Bot\\dsh-plugins\\marwa-core-workspace');
+  for (const c of candidates) {
+    try { if (c && existsSync(path.join(c, 'bridge', 'dsh_bridge.py'))) return c; } catch {}
+  }
+  return candidates[0] || '.';
+}
+
 export function apply(ctx, config) {
   const cfg = Object.assign({}, DEFAULTS, config || {});
-  const bridgePath = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'bridge', 'dsh_bridge.py');
+  const pluginDir = resolvePluginDir();
+  const bridgePath = path.join(pluginDir, 'bridge', 'dsh_bridge.py');
 
-  // علامة إقلاع متزامنة — دليل قاطع على أن هذا الجيل من الكود يعمل ومسار الجسر صحيح
+  // علامة إقلاع متزامنة — دليل على عمل هذا الجيل من الكود + مكان الكتابة الفعلي
   try {
-    writeFileSync(path.join(path.dirname(bridgePath), 'boot.log'),
-      JSON.stringify({ at: Date.now(), route: cfg.routePath, cwd: process.cwd(), metaUrl: String(import.meta.url), bridgePath, node: process.version }, null, 2), 'utf8');
+    writeFileSync(path.join(pluginDir, 'boot.log'),
+      JSON.stringify({ at: Date.now(), route: cfg.routePath, cwd: process.cwd(), metaUrl: String(import.meta.url), pluginDir, bridgePath, node: process.version }, null, 2), 'utf8');
   } catch (e) {
-    try { writeFileSync(path.join(process.cwd(), 'boot.err.log'), JSON.stringify({ at: Date.now(), err: String(e && e.message || e), metaUrl: String(import.meta.url) }), 'utf8'); } catch {}
+    try { writeFileSync(path.join(process.cwd(), 'boot.err.log'), JSON.stringify({ at: Date.now(), err: String((e && e.message) || e), pluginDir }), 'utf8'); } catch {}
   }
 
   // ------------------------------------------------------------- جسر بايثون (JSON-lines)
@@ -208,7 +232,7 @@ export function apply(ctx, config) {
 
   function writePresetLog() {
     try {
-      writeFileSync(path.join(path.dirname(bridgePath), 'presets.last.log'),
+      writeFileSync(path.join(pluginDir, 'presets.last.log'),
         JSON.stringify({ at: Date.now(), buildMode: presetLog.buildMode, error: presetLog.error, entries: presetLog.entries }, null, 2), 'utf8');
     } catch {}
   }
@@ -251,11 +275,17 @@ export function apply(ctx, config) {
     let pinned = null;
     try { pinned = await withTimeout(bridgeCall('notebook.pinned', { limit: 20 }), 15000); }
     catch (e) { presetLog.error = 'notebook.pinned: ' + String((e && e.message) || e); }
+    // حارس تخطٍّ: لا نسجّل Preset موجوداً وسليماً (تجنب «Duplicate» مع الصفوف الثابتة/الموجودة)
+    let roster = [];
+    try { roster = await withTimeout(reg.list(), 10000); } catch {}
     const results = [];
     for (const spec of PRESET_SPECS) {
       try {
-        const prev = presetDisposers.get(spec.id);
-        if (prev) { try { await withTimeout(prev(), 5000); } catch {} }
+        const existing = roster.find((r) => r && r.id === spec.id && !r.broken);
+        if (existing) {
+          results.push({ id: spec.id, ok: true, existing: true });
+          continue;
+        }
         const plugins = [{ name: '@deepseek-ai/dsh-persona', config: { prefix: composePrompt(spec, pinned) } }].concat(spec.tools);
         const dispose = await withTimeout(reg.register({
           id: spec.id,
@@ -267,7 +297,18 @@ export function apply(ctx, config) {
         presetDisposers.set(spec.id, dispose);
         results.push({ id: spec.id, ok: true });
       } catch (err) {
-        results.push({ id: spec.id, ok: false, error: String((err && err.message) || err) });
+        const msg = String((err && err.message) || err);
+        if (msg.includes('Duplicate')) {
+          // مسجّل سابقاً (بقايا دورة قديمة لم يُتخلَّص منها بعد) — نتسامح ونكمل:
+          try {
+            const existing = await withTimeout(reg.resolve(spec.id), 5000);
+            if (existing && existing.id === spec.id) {
+              results.push({ id: spec.id, ok: true, existing: true });
+              continue;
+            }
+          } catch {}
+        }
+        results.push({ id: spec.id, ok: false, error: msg });
       }
     }
     presetLog.at = Date.now();
