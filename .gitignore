@@ -62,6 +62,9 @@ telegram_import_now.flag
 # ---------- NOTEBOOK RUNTIME (بيانات النوتبوك محلية ولا تُرفع) ----------
 notebook/data/
 
+# ---------- DSH DEV SCRATCH (قوالب ومراجع تطوير إضافات DSH — عمل مؤقت لا يُرفع) ----------
+.dsh_dev/
+
 # ---------- PYTHON ----------
 __pycache__/
 *.pyc
