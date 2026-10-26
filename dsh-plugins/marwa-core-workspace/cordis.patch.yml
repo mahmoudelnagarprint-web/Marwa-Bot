@@ -2,7 +2,7 @@
     - id: marwa-core-workspace
       name: '@local/marwa-core-workspace'
       config:
-        repoRoot: 'G:\Marwa-Bot'
+        repoRoot: 'G:\ai\Naggar Print POS Agent'
         routePath: '/api/marwa-core'
         idleShutdownMs: 300000
         nb2Url: 'http://127.0.0.1:8110'

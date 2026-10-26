@@ -18,8 +18,10 @@
   - قراءة القاعدة المحلية فقط بلا تغيير؛ الدفع للسحابة عبر مسار HermesSyncManager.
   - لا أسرار في اللوج؛ كل تشغيل مسجَّل + قفل ضد التشغيل المتزامن.
 
-الجدولة (خارج هذا السكربت — Scheduled Task في Windows):
-  RASED_DailyAutoSync — عند تسجيل الدخول (At logon) + يومياً 18:00.
+الجدولة:
+  - محفز أول ما يفتح الجهاز (Startup folder shortcut)
+  - محفز الساعة 18:00 يتحقق منه السكربت داخلياً (لا يحتاج Scheduled Task)
+  - لمنع تشغيل مزدوج، سجل آخر تاريخ تشغيل ناجح في .rased_last_sync
 """
 from __future__ import annotations
 
@@ -280,11 +282,42 @@ def append_state(report: str) -> None:
 
 
 # ----------------------------------------------------------------- main
+def _last_sync_date() -> str | None:
+    marker = ROOT / ".rased_last_sync"
+    try:
+        return marker.read_text(encoding="utf-8").strip() or None
+    except Exception:
+        return None
+
+
+def _today() -> str:
+    return _dt.date.today().isoformat()
+
+
+def _should_sync() -> tuple[bool, str]:
+    """تقرر هل نشغّل المزامنة الآن. ترجع (نعم/لا, السبب)."""
+    last = _last_sync_date()
+    today = _today()
+    now_h = _dt.datetime.now().hour
+    is_evening = now_h >= 18
+    if last != today:
+        if is_evening:
+            return True, "يوم جديد + محفز 18:00"
+        return True, "أول تسجيل دخول اليوم"
+    if is_evening:
+        return True, "محفز 18:00 اليومي"
+    return False, f"تم التشغيل اليوم ({last})"
+
+
 def main() -> int:
     if not acquire_lock():
         return 0
     try:
-        log(f"بدء المزامنة اليومية — العقدة {NODE}")
+        do_sync, reason = _should_sync()
+        if not do_sync:
+            log(f"مزامنة محززة: {reason} — خروج")
+            return 0
+        log(f"بدء المزامنة ({reason}) — العقدة {NODE}")
         sections = []
         sections.append(git_pull())
         sections.append(git_push())
@@ -293,6 +326,10 @@ def main() -> int:
         sections.append(_workshop_activity())
         report = build_report(sections)
         append_state(report)
+        try:
+            ROOT.joinpath(".rased_last_sync").write_text(_today(), encoding="utf-8")
+        except Exception:
+            pass
         log("اكتملت المزامنة اليومية ✓")
         return 0
     finally:
