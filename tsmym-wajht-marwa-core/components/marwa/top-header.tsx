@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 type LiveState = {
   ok?: boolean
   db_ok?: boolean
+  db_error?: string | null
   hardware_daemon?: { fresh?: boolean; updated_at?: string | null }
   ts?: string
 }

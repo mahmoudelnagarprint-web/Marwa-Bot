@@ -1,0 +1,26 @@
+$ next dev
+❌ [AI Gateway] dddd (DeepSeek-V4-Flash-0731) (deepseek-ai/DeepSeek-V4-Flash-0731) @ https://inference.dahl.global/v1
+   انتهت المهلة (10000ms)
+   error: AbortError: This operation was aborted
+[AI Gateway] failover من [dddd (DeepSeek-V4-Flash-0731)] (محاولة 1/5): timeout HTTP — → قاطع الدائرة: تنحية 300 ثانية
+❌ [AI Gateway] dddd (GLM-5.3-Flash) (zai-org/GLM-5.3-Flash) @ https://inference.dahl.global/v1
+   انتهت المهلة (10000ms)
+   error: AbortError: This operation was aborted
+[AI Gateway] failover من [dddd (GLM-5.3-Flash)] (محاولة 1/5): timeout HTTP — → قاطع الدائرة: تنحية 300 ثانية
+❌ [AI Gateway] dddd (MiniMax-M2.7) (MiniMaxAI/MiniMax-M2.7) @ https://inference.dahl.global/v1
+   انتهت المهلة (10000ms)
+   error: AbortError: This operation was aborted
+[AI Gateway] failover من [dddd (MiniMax-M2.7)] (محاولة 2/5): timeout HTTP — → قاطع الدائرة: تنحية 300 ثانية
+❌ [AI Gateway] dddd (MiniMax-M2.7) (MiniMaxAI/MiniMax-M2.7) @ https://inference.dahl.global/v1
+   انتهت المهلة (10000ms)
+   error: AbortError: This operation was aborted
+[AI Gateway] failover من [dddd (MiniMax-M2.7)] (محاولة 1/5): timeout HTTP — → قاطع الدائرة: تنحية 300 ثانية
+❌ [AI Gateway] dddd (GLM-5.3-Flash) (zai-org/GLM-5.3-Flash) @ https://inference.dahl.global/v1
+   انتهت المهلة (10000ms)
+   error: AbortError: This operation was aborted
+[AI Gateway] failover من [dddd (GLM-5.3-Flash)] (محاولة 1/5): timeout HTTP — → قاطع الدائرة: تنحية 300 ثانية
+❌ [AI Gateway] dddd (DeepSeek-V4-Flash-0731) (deepseek-ai/DeepSeek-V4-Flash-0731) @ https://inference.dahl.global/v1
+   انتهت المهلة (10000ms)
+   error: AbortError: This operation was aborted
+[AI Gateway] failover من [dddd (DeepSeek-V4-Flash-0731)] (محاولة 2/5): timeout HTTP — → قاطع الدائرة: تنحية 300 ثانية
+[agent-intelligence] فشل قراءة الكتالوج: Cannot access file G:\ai\Naggar Print POS Agent\exports\products_catalog_master.xlsx

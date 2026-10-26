@@ -32,6 +32,7 @@ export async function GET() {
     cash_on_hand: OPENING_BALANCE,
     opening_balance: OPENING_BALANCE,
     today_revenue: 0,
+    has_today_movement: false,
     window_income: 0,
     window_expenses: 0,
     total_receivables: 0,
