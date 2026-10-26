@@ -145,8 +145,13 @@ def catalog_rows(params):
 
 # --------------------------------------------------------------- pos (قراءة فقط)
 def _ro_conn():
-    uri = "file:{}?mode=ro".format(str(POS_DB).replace("\\", "/"))
-    return sqlite3.connect(uri, uri=True, timeout=5)
+    """اتصال قراءة فقط فعلي: query_only=ON يمنع أي كتابة على قاعدة البرنامج."""
+    conn = sqlite3.connect(str(POS_DB), timeout=6)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+    except Exception:  # noqa: BLE001 — لا يكسر القراءة لو رُفض الـ PRAGMA
+        pass
+    return conn
 
 
 def pos_stats(params):

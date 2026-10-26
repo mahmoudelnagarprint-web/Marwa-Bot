@@ -19,18 +19,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const Config = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    repoRoot: { type: 'string', description: 'جذر مستودع مروة', default: 'G:\\Marwa-Bot' },
-    routePath: { type: 'string', description: 'مسار الـAPI داخل Harness', default: '/marwa-core/api' },
-    idleShutdownMs: { type: 'number', description: 'إطفاء جسر بايثون بعد خمول', default: 300000 },
-    nb2Url: { type: 'string', description: 'عنوان النوتبوك v2 (أفكاري)', default: 'http://127.0.0.1:8110' },
-  },
-};
-
-const DEFAULTS = { repoRoot: 'G:\\Marwa-Bot', routePath: '/marwa-core/api', idleShutdownMs: 300000, nb2Url: 'http://127.0.0.1:8110' };
+const DEFAULTS = { repoRoot: 'G:\\Marwa-Bot', routePath: '/api/marwa-core', idleShutdownMs: 300000, nb2Url: 'http://127.0.0.1:8110' };
 
 export function apply(ctx, config) {
   const cfg = Object.assign({}, DEFAULTS, config || {});
