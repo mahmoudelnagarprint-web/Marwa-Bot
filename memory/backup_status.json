@@ -1,5 +1,5 @@
 {
-  "time": "2026-10-25T06:00:02",
+  "time": "2026-10-26T06:23:13",
   "ok": false,
   "root": "G:\\ai\\Naggar Print POS Agent",
   "notebook_file": "notebook_2026-10-25_0600.db",
@@ -8,5 +8,5 @@
     "notes": 5,
     "categories": 13
   },
-  "error": "[Errno 13] Permission denied: 'G:\\\\ai\\\\Naggar Print POS Agent\\\\tsmym-wajht-marwa-core\\\\.next\\\\dev\\\\lock'"
+  "error": "[Errno 13] Permission denied: 'G:\\ai\\Naggar Print POS Agent\\tsmym-wajht-marwa-core\\.next\\dev\\lock'"
 }
