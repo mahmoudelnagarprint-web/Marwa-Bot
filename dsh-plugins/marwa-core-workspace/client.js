@@ -175,6 +175,7 @@ window.__ModuleLoader__.load({
       '.mcw-foot{font-size:9.5px;color:rgba(236,231,218,.38);text-align:center;padding:6px}',
       '.mcw-empty{color:rgba(236,231,218,.45);text-align:center;font-size:12px;padding:24px 8px}',
       '.mcw-toast{position:absolute;bottom:14px;inset-inline:40%;background:#101014;border:1px solid rgba(212,175,55,.5);color:#f2e7c3;border-radius:10px;padding:8px 14px;font-size:12px;z-index:60;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.5)}',
+      '.mcw-drawer.hid,.mcw-dock.hid{display:none}',
       '@media (max-width:1100px){.mcw-dock{width:64px;min-width:56px}.mcw-dock .nm,.mcw-dock .mcw-group-title span{display:none}.mcw-drawer{width:250px}}',
     ].join('\n');
 
@@ -316,7 +317,7 @@ window.__ModuleLoader__.load({
     }
 
     function OmniBar(props) {
-      const { onOpenPalette, ping, ram, onRefresh, clock, presets, notesMeta } = props;
+      const { onOpenPalette, ping, ram, onRefresh, clock, presets, notesMeta, bars, onToggleBar } = props;
       const nb2 = ping && ping.nb2;
       const okPresets = Array.isArray(presets) ? presets.filter((p) => p && p.ok).length : -1;
       const nbConn = notesMeta && notesMeta.connected;
@@ -341,6 +342,8 @@ window.__ModuleLoader__.load({
           '🖥️ ', ram ? (fmtBytes(ram.used) + ' / ' + fmtBytes(ram.total)) : '…',
           h('span', { className: 'mcw-rambar' }, h('i', { style: { width: ram ? Math.min(100, Math.round((ram.used / ram.total) * 100)) + '%' : '0%' } }))),
         h('span', { className: 'mcw-chip' }, '📍 ' + (ping ? ping.node : '…')),
+        h('button', { className: 'mcw-btn ghost', style: { opacity: bars && bars.right ? 1 : 0.4 }, title: 'إظهار/إخفاء عمود أفكاري والسياق (يمين)', onClick: () => onToggleBar('right') }, '🗂️'),
+        h('button', { className: 'mcw-btn ghost', style: { opacity: bars && bars.left ? 1 : 0.4 }, title: 'إظهار/إخفاء رصيف الوكلاء (يسار)', onClick: () => onToggleBar('left') }, '👥'),
         h('button', { className: 'mcw-btn ghost', onClick: onRefresh, title: 'تحديث البيانات' }, '⟳ ' + (clock || '')));
     }
 
@@ -359,8 +362,10 @@ window.__ModuleLoader__.load({
     }
 
     function AgentDock(props) {
-      const { agents, groups, activeId, rooms, onOpen, onOpenDSH } = props;
-      return h('div', { className: 'mcw-dock' },
+      const { agents, groups, activeId, rooms, onOpen, onOpenDSH, hidden, onCollapse } = props;
+      return h('div', { className: cls('mcw-dock', hidden && 'hid') },
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
+          h('button', { className: 'mcw-btn ghost', style: { fontSize: 10, padding: '1px 6px' }, title: 'طي رصيف الوكلاء — الغرفة تتمدد', onClick: onCollapse }, '⟪')),
         groups.map((g) => h('div', { key: g.id },
           h('div', { className: 'mcw-group-title' }, h('span', null, g.icon), h('span', null, g.name)),
           agents.filter((a) => a.group === g.id).map((a) => {
@@ -494,6 +499,7 @@ window.__ModuleLoader__.load({
             h('h2', null, agent.name + ' ' + (agent.nick ? '— ' + agent.nick : '')),
             h('small', null, agent.role + (agent.external ? ' · مسار خارجي: ' + agent.prompt : ''))),
           h('div', { className: 'mcw-roomacts' },
+            room && room.wsTitle ? h('span', { className: 'mcw-chip', title: 'مساحة عمل DSH لهذه الغرفة: ' + room.wsTitle }, '🗂 ' + room.wsTitle) : null,
             room && room.sessionId ? h('span', { className: 'mcw-chip', title: 'جلسة DSH مرتبطة: ' + room.sessionId }, '⚡ DSH #' + String(room.sessionId).slice(0, 8)) : null,
             h('button', { className: 'mcw-btn ghost', title: 'نسخ برومبت تفعيل الشخصية', onClick: () => onCopyPrompt(agent) }, '📋 البرومبت'),
             h('button', { className: 'mcw-btn ghost', onClick: onOpenDSH }, '🗨 فتح في DSH'),
@@ -696,6 +702,12 @@ window.__ModuleLoader__.load({
       const [presets, setPresets] = useState(null);
       const [agentCtx, setAgentCtx] = useState({});
       const [toast, setToast] = useState(null);
+      const [bars, setBars] = useState(() => {
+        try { return Object.assign({ left: true, right: true }, JSON.parse(localStorage.getItem('mcw.bars.v1') || '{}')); }
+        catch { return { left: true, right: true }; }
+      });
+      useEffect(() => { try { localStorage.setItem('mcw.bars.v1', JSON.stringify(bars)); } catch {} }, [bars]);
+      const toggleBar = useCallback((k) => setBars((b) => Object.assign({}, b, { [k]: !b[k] })), []);
       const [rooms, setRooms] = useState(() => { try { return JSON.parse(localStorage.getItem('mcw.rooms.v1') || '{}'); } catch { return {}; } });
       const [noteDraft, setNoteDraft] = useState('');
 
@@ -919,7 +931,7 @@ window.__ModuleLoader__.load({
         } catch { showToast('لا يمكن فتح شات DSH'); }
       }
 
-      // ------------------------------------------------ ربط الجلسات التلقائي (Zero-Click)
+      // ------------------------------------------------ ربط الجلسات التلقائي (Zero-Click) داخل مساحة عمل الوكيل
       const [liveBusy, setLiveBusy] = useState(null);
       const wsSnapRef = useRef(null);
       try { if (props.useWorkspaces) wsSnapRef.current = props.useWorkspaces(); } catch {}
@@ -928,6 +940,38 @@ window.__ModuleLoader__.load({
           const snap = wsSnapRef.current;
           return (snap && snap.current && snap.current.id) || (snap && snap.items && snap.items[0] && snap.items[0].id) || null;
         } catch { return null; }
+      }
+      // مساحة عمل DSH حقيقية لكل وكيل: مجلده الأصلي (orchestrator/squad/<id>…) + عنوان «غرفة عمليات - …».
+      // الجلسات الجديدة تُنشأ حصرياً داخلها عبر workspaces.create + connectWorkspace.
+      async function ensureAgentWorkspace(agentId) {
+        let wss = null;
+        try { wss = ctx.get ? ctx.get('workspaces') : undefined; } catch { wss = null; }
+        if (!wss || typeof wss.create !== 'function') return null;
+        const info = await bridge.call('workspaces.ensure', { agent: agentId }).catch(() => null);
+        if (!info || !info.path) return null;
+        const norm = (p) => String(p || '').toLowerCase().replace(/\//g, '\\');
+        let item = null;
+        try { item = (wss.list.getSnapshot().items || []).find((w) => norm(w.path) === norm(info.path)); } catch {}
+        if (!item) {
+          // مصدر ثاني: snapshot الـhook الخاص بالواجهة (شكل مختلف لنفس المخزن)
+          try {
+            const snap = wsSnapRef.current;
+            const hit = ((snap && snap.items) || []).find((w) => norm(w.path) === norm(info.path));
+            if (hit) item = { workspaceId: hit.workspaceId || hit.id, title: hit.title };
+          } catch {}
+        }
+        if (!item) {
+          try {
+            const created = await wss.create({ path: info.path });
+            item = created && created.workspaceId ? created : null;
+          } catch { item = null; }
+          if (!item) {
+            try { item = (wss.list.getSnapshot().items || []).find((w) => norm(w.path) === norm(info.path)); } catch {}
+          }
+        }
+        if (!item) return null;
+        try { if (info.title && item.title !== info.title && typeof wss.rename === 'function') await wss.rename(item.workspaceId, info.title); } catch {}
+        return { workspaceId: item.workspaceId, title: info.title };
       }
       function buildBootPrompt(agentId, pinned) {
         const a = AGENT_MAP[agentId];
@@ -983,19 +1027,21 @@ window.__ModuleLoader__.load({
             return { sessionId: sid, created: false, found: true };
           }
         } catch {}
-        // 3) إنشاء جلسة DSH جديدة تلقائياً بالـPreset + حقن ملاحظات النوتبوك المثبتة
-        const wsId = currentWorkspaceId();
+        // 3) إنشاء جلسة DSH جديدة حصرياً داخل مساحة عمل الوكيل + حقن المثبتة
+        let wsInfo = null;
+        try { wsInfo = await ensureAgentWorkspace(agentId); } catch { wsInfo = null; }
+        const wsId = (wsInfo && wsInfo.workspaceId) || currentWorkspaceId();
         const sessionId = await uiWorkspace.connectWorkspace(wsId, { agentPreset: presetId });
         try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
         const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
         await ref.ready;
-        saveRoom(agentId, { sessionId });
+        saveRoom(agentId, { sessionId, wsTitle: wsInfo ? wsInfo.title : null });
         attachLive(agentId, ref.binding);
         try {
           const pinned = await bridge.call('notebook.pinned', { limit: 20 }).catch(() => null);
           await ref.binding.session.prompt([{ type: 'text', text: buildBootPrompt(agentId, pinned) }], 'queue');
         } catch {}
-        return { sessionId, created: true };
+        return { sessionId, created: true, wsTitle: wsInfo ? wsInfo.title : null };
       }
       async function sendToSession(agentId, text) {
         let sid = (rooms[agentId] || {}).sessionId;
@@ -1013,7 +1059,7 @@ window.__ModuleLoader__.load({
         setLiveBusy(agent.id);
         try {
           const r = await ensureAgentSession(agent.id);
-          showToast('⚡ جلسة DSH مرتبطة #' + String(r.sessionId).slice(0, 8));
+          showToast('⚡ جلسة DSH #' + String(r.sessionId).slice(0, 8) + (r.wsTitle ? ' في «' + r.wsTitle + '»' : ''));
         } catch (err) {
           showToast('⚡ تعذّر الربط: ' + String((err && err.message) || err));
         } finally { setLiveBusy(null); }
@@ -1036,13 +1082,14 @@ window.__ModuleLoader__.load({
 
       return h(McwBoundary, null,
         h('div', { className: 'mcw-root' },
-          h(OmniBar, { onOpenPalette: () => setPaletteOpen(true), ping, ram, onRefresh: refresh, clock, presets, notesMeta: nbMeta }),
+          h(OmniBar, { onOpenPalette: () => setPaletteOpen(true), ping, ram, onRefresh: refresh, clock, presets, notesMeta: nbMeta, bars, onToggleBar: toggleBar }),
           h('div', { className: 'mcw-body' },
-            h('div', { className: 'mcw-drawer' },
+            h('div', { className: cls('mcw-drawer', !bars.right && 'hid') },
               h('div', { className: 'mcw-tabs' },
                 h('button', { className: cls('mcw-tab', tab === 'nb' && 'on'), onClick: () => setTab('nb') }, '📓 أفكاري'),
                 h('button', { className: cls('mcw-tab', tab === 'vision' && 'on'), onClick: () => setTab('vision') }, '👁️ مرسم فيجين'),
-                h('button', { className: cls('mcw-tab', tab === 'ctx' && 'on'), onClick: () => setTab('ctx') }, '📊 السياق الحي')),
+                h('button', { className: cls('mcw-tab', tab === 'ctx' && 'on'), onClick: () => setTab('ctx') }, '📊 السياق الحي'),
+                h('button', { className: 'mcw-btn ghost', style: { alignSelf: 'center', marginInlineEnd: 4, fontSize: 10, padding: '1px 6px', flex: 'none' }, title: 'طي العمود — الغرفة تتمدد', onClick: () => toggleBar('right') }, '⟪')),
               tab === 'nb' ? h(NotebookPane, { notes, notesMeta: nbMeta, ping, onAddNote, onPin, onRefresh: refresh }) :
                 tab === 'vision' ? h(VisionPane, { entries, onPreview, preview, onRefresh: refresh }) :
                   h(ContextPane, { pos, catalog, onRefresh: refresh })),
@@ -1054,7 +1101,7 @@ window.__ModuleLoader__.load({
               onInjectNote: null, openPanel: () => { try { if (layout && layout.selectPanel) layout.selectPanel('marwa-core'); } catch {} },
               noteDraft, setNoteDraft,
             }),
-            h(AgentDock, { agents: AGENTS, groups: GROUPS, activeId, rooms, onOpen: openRoom, onOpenDSH: openDSH })),
+            h(AgentDock, { agents: AGENTS, groups: GROUPS, activeId, rooms, onOpen: openRoom, onOpenDSH: openDSH, hidden: !bars.left, onCollapse: () => toggleBar('left') })),
           h(Palette, { open: paletteOpen, onClose: () => setPaletteOpen(false), agents: AGENTS, notes, onAgent: openRoom, onAction: (act, n) => { if (act === 'openDSH') openDSH(); else if (act === 'refresh') refresh(); else if (act === 'note' && n) { setTab('nb'); } } }),
           h(Toast, { text: toast }),
           !bridgeErr && !ping ? h('div', { className: 'mcw-toast' }, '⏳ جارٍ الاتصال بجسر مروة…') : null,

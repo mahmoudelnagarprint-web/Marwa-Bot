@@ -364,6 +364,93 @@ def _head(p: Path, chars: int = 900):
         return {"path": str(p), "error": str(exc), "mtime": 0.0}
 
 
+# --------------------------------------------------------------- مساحات العمل الأصلية (Native Workspaces)
+# كل وكيل له مجلد حقيقي = مساحة عمل DSH خاصة به؛ AGENTS.md داخله يُحقن تلقائياً
+# كتعليمات نظام لكل جلسة تُفتح في هذا المجلد (dsh-agent-instructions — مفعّل افتراضياً).
+AGENT_NAMES = {
+    "marwa": "مروة", "afkar": "أفكاري", "rased": "راصد", "hakim": "حكيم",
+    "fares": "فارس", "salma": "سلمى", "koko": "كوكو", "bibo": "بيبو",
+    "sasa": "مصطفى (صاصا)", "vision": "فيجن",
+}
+WORKSPACE_DIRS = {
+    "marwa": "orchestrator/squad/marwa",
+    "afkar": "Vision-Lab/projects/notebook-v2",
+    "rased": "orchestrator/squad/rased",
+    "hakim": "orchestrator/squad/hakim",
+    "fares": "orchestrator/squad/fares",
+    "salma": "orchestrator/squad/salma",
+    "koko": "orchestrator/squad/koko",
+    "bibo": "orchestrator/squad/bibo",
+    "sasa": "orchestrator/squad/sasa",
+    "vision": "Vision-Lab",
+}
+AGENTS_MD_MARK = "مولّد من جسر marwa-core-workspace"
+
+
+def workspaces_ensure(params):
+    """تجهيز مساحة عمل الوكيل: المجلد + ملف AGENTS.md (دستور + هوية + دفاتر + مثبتة).
+    لا يلمس أي ملف حالة جذري — يكتب AGENTS.md الذي ولّده هو فقط (بعلامة المولد)."""
+    aid = params.get("agent") or ""
+    if aid not in SQUAD_PROMPTS:
+        raise ValueError("unknown agent: %r" % aid)
+    rel = WORKSPACE_DIRS.get(aid) or ""
+    ws_dir = REPO / rel if rel else REPO / "orchestrator" / "squad" / aid
+    ws_dir.mkdir(parents=True, exist_ok=True)
+    title = "غرفة عمليات - " + AGENT_NAMES.get(aid, aid)
+    try:
+        pinned = notebook_pinned({"limit": 12}) or {}
+    except Exception:  # noqa: BLE001 — المثبتة تفشل فلا تكسر التجهيز
+        pinned = {}
+    parts = []
+    parts.append("# " + title + " — مساحة عمل DSH لوكيل " + AGENT_NAMES.get(aid, aid))
+    parts.append("")
+    parts.append("> يُحقن تلقائياً في كل جلسة تُفتح داخل هذا المجلد (dsh-agent-instructions) — " + AGENTS_MD_MARK + ".")
+    pr = _head(SQUAD_PROMPTS[aid], 1600)
+    if "head" in pr:
+        parts.append("")
+        parts.append("## الدستور (CHAT_BOOTSTRAP_PROMPT)")
+        parts.append(pr["head"])
+    prof = REPO / "orchestrator" / "squad" / aid / "AGENT_PROFILE.md"
+    if prof.exists():
+        ph = _head(prof, 700)
+        if "head" in ph:
+            parts.append("")
+            parts.append("## الهوية (AGENT_PROFILE)")
+            parts.append(ph["head"])
+    states = [REPO / rel2 for rel2 in STATE_FILES.get(aid, []) if (REPO / rel2).exists()]
+    if states:
+        parts.append("")
+        parts.append("## دفاتر الحالة الرسمية (اقرأها قبل أي رد بأرقام)")
+        for f in states:
+            parts.append("- `" + str(f.relative_to(REPO)) + "` · آخر تحديث " +
+                         time.strftime("%Y-%m-%d %H:%M", time.localtime(_mtime(f))))
+    pnotes = pinned.get("notes") or []
+    parts.append("")
+    parts.append("## 📌 قرارات/ملاحظات المالك المثبتة (نوتبوك notebook.db)")
+    if pnotes:
+        for n in pnotes:
+            parts.append("- [#" + str(n.get("id")) + "][" + str(n.get("kind") or "note") + "] " +
+                         str(n.get("title") or "") + (":" + str(n.get("body") or "")[:260] if n.get("body") else ""))
+    else:
+        parts.append("- لا يوجد حالياً.")
+    parts.append("")
+    parts.append("---")
+    parts.append("آخر تحديث تلقائي: " + time.strftime("%Y-%m-%d %H:%M") + " — " + AGENTS_MD_MARK)
+    content = "\n".join(parts) + "\n"
+    md_path = ws_dir / "AGENTS.md"
+    written = False
+    try:
+        if (not md_path.exists()) or AGENTS_MD_MARK in md_path.read_text(encoding="utf-8", errors="replace"):
+            if (not md_path.exists()) or md_path.read_text(encoding="utf-8", errors="replace") != content:
+                md_path.write_text(content, encoding="utf-8")
+                written = True
+    except OSError:
+        pass
+    return {"agent": aid, "title": title, "path": str(ws_dir),
+            "agentsMd": str(md_path), "agentsMdChars": len(content),
+            "written": written, "pinnedCount": len(pnotes)}
+
+
 def squad_context(params):
     """سياق حي لوكيل واحد: الدستور + ملف الهوية + دفاتر الحالة + المهام المفتوحة
     (نوتبوك موسوم agent:<id> + صندوق الوارد inbox_tasks/<id>). قراءة فقط."""
@@ -428,6 +515,7 @@ HANDLERS = {
     "vision.file": vision_file,
     "squad.prompts": squad_prompts,
     "squad.context": squad_context,
+    "workspaces.ensure": workspaces_ensure,
 }
 
 
