@@ -24,6 +24,7 @@ import path from 'node:path';
 
 // معرف Cordis الرسمي للإضافة (Function form: export const name + export function apply)
 export const name = 'marwa-core-workspace';
+export const inject = ['connection', 'webServer'];
 
 const DEFAULTS = { repoRoot: 'G:\\ai\\Naggar Print POS Agent', routePath: '/api/marwa-core', idleShutdownMs: 300000, nb2Url: 'http://127.0.0.1:8110' };
 
@@ -50,7 +51,8 @@ function resolvePluginDir() {
   return candidates[0] || '.';
 }
 
-export function apply(ctx, config) {
+export function apply(ctx, config) { 
+apply.inject = ['connection', 'webServer']; // حقن رسمي — يقرأه Cordis من خاصية الدالة
   const cfg = Object.assign({}, DEFAULTS, config || {});
   const pluginDir = resolvePluginDir();
   const bridgePath = path.join(pluginDir, 'bridge', 'dsh_bridge.py');
@@ -404,9 +406,9 @@ export function apply(ctx, config) {
   }
 
   const disposers = [];
-  // تسجيل مسار الجسر بمحاولات متعددة + تشخيص كامل — ممنوع فشل صامت يظهر كـ404
+  // تسجيل المسار عبر الحقن الرسمي ctx.inject — نفس الآلية التي يقلع بها تطبيق الويب نفسه
   const regDiag = { at: new Date().toISOString(), attempts: [] };
-  const routeDef = { path: cfg.routePath, methods: ['POST'], fetch: (request) => handler(request) };
+  const routeDef = { path: cfg.routePath, methods: ['POST'], requestBody: 'buffered', fetch: (request) => handler(request) };
   function tryRegister(label, make) {
     try {
       const un = make();
@@ -418,46 +420,56 @@ export function apply(ctx, config) {
       return false;
     }
   }
+  function rawRoute(req, res) {
+    let body = '';
+    req.on('data', (ch) => { body += ch; if (body.length > 5e6) { try { req.destroy(); } catch {} } });
+    req.on('end', async () => {
+      let out = { ok: false, error: 'unknown' };
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        const endpoint = parsed && typeof parsed.endpoint === 'string' ? parsed.endpoint : '';
+        if (!endpoint) out = { ok: false, error: 'endpoint required' };
+        else out = { ok: true, value: await dispatch(endpoint, (parsed && parsed.params) || {}) };
+      } catch (err) { out = { ok: false, error: String((err && err.message) || err) }; }
+      try { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out)); } catch {}
+    });
+  }
+  function writeDiag() { try { writeFileSync(path.join(pluginDir, 'route.diag.json'), JSON.stringify(regDiag, null, 2), 'utf8'); } catch {} }
   let registered = false;
   try {
-    const connection = getService('connection');
-    regDiag.connection = typeof connection;
-    if (connection) {
-      regDiag.connectionFetch = typeof connection.fetch;
-      if (connection.fetch && typeof connection.fetch.register === 'function') {
-        registered = tryRegister('connection.fetch.register', () => connection.fetch.register(Object.assign({ requestBody: 'buffered' }, routeDef)));
-      }
-    }
-  } catch (e) { regDiag.connectionError = String((e && e.message) || e); }
-  if (!registered) {
-    try {
-      const webServer = getService('webServer');
-      regDiag.webServer = typeof webServer;
-      if (webServer && typeof webServer.register === 'function') {
-        registered = tryRegister('webServer.register', () => webServer.register(routeDef));
-      }
-    } catch (e) { regDiag.webServerError = String((e && e.message) || e); }
-  }
-  if (!registered) {
-    try {
-      const conn2 = ctx.connection;
-      regDiag.ctxConnection = typeof conn2;
-      if (conn2 && conn2.fetch && typeof conn2.fetch.register === 'function') {
-        registered = tryRegister('ctx.connection.fetch.register', () => conn2.fetch.register(Object.assign({ requestBody: 'buffered' }, routeDef)));
-      }
-    } catch (e) { regDiag.ctxConnectionError = String((e && e.message) || e); }
-  }
-  if (!registered) {
-    try {
-      const ws2 = ctx.webServer;
-      regDiag.ctxWebServer = typeof ws2;
-      if (ws2 && typeof ws2.register === 'function') {
-        registered = tryRegister('ctx.webServer.register', () => ws2.register(routeDef));
-      }
-    } catch (e) { regDiag.ctxWebServerError = String((e && e.message) || e); }
-  }
-  regDiag.registered = registered;
-  try { writeFileSync(path.join(pluginDir, 'route.diag.json'), JSON.stringify(regDiag, null, 2), 'utf8'); } catch {}
+    if (typeof ctx.inject === 'function') {
+      ctx.inject(['connection', 'webServer'], (c) => {
+        try {
+          regDiag.injected = true;
+          let connection = null;
+          try { connection = c.connection; } catch (e) { regDiag.connectionError = String((e && e.message) || e); }
+          regDiag.connection = typeof connection;
+          if (connection && connection.fetch && typeof connection.fetch.register === 'function') {
+            registered = tryRegister('connection.fetch.register', () => connection.fetch.register(routeDef));
+          }
+          if (!registered) {
+            let webServer = null;
+            try { webServer = c.webServer; } catch (e) { regDiag.webServerError = String((e && e.message) || e); }
+            regDiag.webServer = typeof webServer;
+            if (webServer && typeof webServer.register === 'function') {
+              registered = tryRegister('webServer.register', () => webServer.register({ kind: 'exact', path: cfg.routePath, handler: (req, res) => {
+                try {
+                  if (connection && typeof connection.requestRejection === 'function') {
+                    const rej = connection.requestRejection(req);
+                    if (rej) { res.writeHead(typeof rej === 'number' ? rej : 401); res.end(); return; }
+                  }
+                } catch {}
+                rawRoute(req, res);
+              } }));
+            }
+          }
+        } catch (e) { regDiag.injectError = String((e && e.message) || e); }
+        regDiag.registered = registered;
+        writeDiag();
+      });
+    } else { regDiag.noInjectApi = true; writeDiag(); }
+  } catch (e) { regDiag.injectThrow = String((e && e.message) || e); writeDiag(); }
+  setTimeout(() => { if (!registered) { regDiag.note = 'written by 8s watchdog — inject callback never completed'; writeDiag(); } }, 8000);
 
   // بناء الـ10 Agent Presets الحية من الدساتير عند الإقلاع (لا يحجب تفعيل الصف)
   presetsRunning = ensurePresets('boot').catch((err) => {

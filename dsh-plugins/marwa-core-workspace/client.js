@@ -624,10 +624,12 @@ window.__ModuleLoader__.load({
       const [rooms, setRooms] = useState(() => { try { return JSON.parse(localStorage.getItem('mcw.rooms.v1') || '{}'); } catch { return {}; } });
       const [noteDraft, setNoteDraft] = useState('');
 
-      // خلفيات / خدمات
-      const layout = useMemo(() => { try { return ctx.get ? ctx.get('layout') : undefined; } catch { return undefined; } }, []);
-      const uiWorkspace = useMemo(() => { try { return ctx.get ? ctx.get('uiWorkspace') : undefined; } catch { return undefined; } }, []);
-      const sessionsSvc = useMemo(() => { try { return ctx.get ? ctx.get('sessions') : undefined; } catch { return undefined; } }, []);
+      // خدمات DSH المحقونة — إعادة رسم فورية عند وصول الحقن
+      const [svcTick, setSvcTick] = useState(0);
+      useEffect(() => { const fn = () => setSvcTick((t) => t + 1); svcListeners.add(fn); return () => { svcListeners.delete(fn); }; }, []);
+      const layout = useMemo(() => { try { return SVC.layout || undefined; } catch { return undefined; } }, [svcTick]);
+      const uiWorkspace = useMemo(() => { try { return SVC.uiWorkspace || undefined; } catch { return undefined; } }, [svcTick]);
+      const sessionsSvc = useMemo(() => { try { return SVC.sessions || undefined; } catch { return undefined; } }, [svcTick]);
 
       const showToast = useCallback((t) => { setToast(t); setTimeout(() => setToast(null), 2600); }, []);
 
@@ -865,7 +867,7 @@ window.__ModuleLoader__.load({
       // الجلسات الجديدة تُنشأ حصرياً داخلها عبر workspaces.create + connectWorkspace.
       async function ensureAgentWorkspace(agentId) {
         let wss = null;
-        try { wss = ctx.get ? ctx.get('workspaces') : undefined; } catch { wss = null; }
+        try { wss = getSvc('workspaces'); } catch { wss = null; }
         if (!wss || typeof wss.create !== 'function') return null;
         const info = await bridge.call('workspaces.ensure', { agent: agentId }).catch(() => null);
         if (!info || !info.path) return null;
@@ -956,7 +958,7 @@ window.__ModuleLoader__.load({
         let wsId = (wsInfo && wsInfo.workspaceId) || null;
         if (!wsId) {
           try {
-            const wsvc = ctx.get('workspaces');
+            const wsvc = getSvc('workspaces');
             const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
             const key = String(agentId).toLowerCase();
             const hit = items.find((w) => String(w.path || '').toLowerCase().includes('squad/' + key))
@@ -968,7 +970,7 @@ window.__ModuleLoader__.load({
         }
         if (!wsId) {
           try {
-            const wsvc = ctx.get('workspaces');
+            const wsvc = getSvc('workspaces');
             if (wsvc && typeof wsvc.create === 'function') {
               const created = await wsvc.create({ path: 'G:\\ai\\Naggar Print POS Agent\\orchestrator\\squad\\' + agentId });
               wsId = (created && (created.workspaceId || created.id)) || null;
@@ -979,7 +981,7 @@ window.__ModuleLoader__.load({
         // 3-ب) جلسة جاهزة داخل مساحة الوكيل؟ افتحها فوراً بلا إنشاء (تنقّل أصلي)
         if (wsId && !sid) {
           try {
-            const wsvc = ctx.get('workspaces');
+            const wsvc = getSvc('workspaces');
             const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
             const hit = items.find((w) => (w.workspaceId || w.id) === wsId);
             const sids = (hit && hit.sessionIds) || [];
@@ -1101,16 +1103,24 @@ window.__ModuleLoader__.load({
       return h('div', { style: { display: 'flex', justifyContent: 'flex-start', padding: '2px 4px' } },
         h('button', {
           className: 'mcw-btn', style: { fontSize: 11 },
-          onClick: () => { try { const l = ctx.get ? ctx.get('layout') : undefined; if (l && l.selectPanel) l.selectPanel('marwa-core'); } catch {} },
+          onClick: () => { try { const l = getSvc('layout'); if (l && l.selectPanel) l.selectPanel('marwa-core'); } catch {} },
         }, '🛡️ غرفة عمليات مروة (الوكلاء · النوتبوك · فيجين · السياق)'));
     }
 
     // ------------------------------------------------------------------- التطبيق
     let ctxRef = null;
+    const SVC = {}; // خدمات DSH المحقونة رسمياً عبر inject
+    const svcListeners = new Set();
+    function getSvc(k) { try { if (SVC[k]) return SVC[k]; } catch {} try { return ctxRef && ctxRef.get ? ctxRef.get(k) : undefined; } catch {} return undefined; }
     return {
-      inject: ['slots'],
+      inject: ['slots', 'layout', 'workspaces', 'uiWorkspace', 'sessions'],
       apply(ctx) {
         ctxRef = ctx;
+        try {
+          const grab = (k) => { try { const v = ctx[k]; if (v) return v; } catch {} try { return ctx.get ? ctx.get(k) : undefined; } catch {} return undefined; };
+          for (const k of ['layout', 'workspaces', 'uiWorkspace', 'sessions']) { try { SVC[k] = grab(k); } catch {} }
+          for (const fn of Array.from(svcListeners)) { try { fn(); } catch {} }
+        } catch {}
         let removeStyles = null;
         try { if (ctx.styles && typeof ctx.styles.insert === 'function') removeStyles = ctx.styles.insert(CSS); } catch {}
         if (!removeStyles) {
