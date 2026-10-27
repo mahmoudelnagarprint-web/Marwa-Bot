@@ -675,6 +675,13 @@ window.__ModuleLoader__.load({
 
       useEffect(() => { refresh(); const t = setInterval(refresh, 30000); return () => clearInterval(t); }, [refresh]);
 
+      // إعادة محاولة سريعة تلقائياً عند فشل الجسر (كل 8 ثوانٍ) — يتعافى وحده بعد إقلاع المضيف
+      useEffect(() => {
+        if (!bridgeErr) return;
+        const t = setTimeout(() => { refresh(); }, 8000);
+        return () => clearTimeout(t);
+      }, [bridgeErr, refresh]);
+
       // الرام حية كل 5 ثوانٍ — مستقلة عن التحديث الكبير (الشريط العلوي يتنفس)
       useEffect(() => {
         const pull = () => { bridge.call('ram', {}).then((r) => setRam(r)).catch(() => {}); };
@@ -915,6 +922,7 @@ window.__ModuleLoader__.load({
       async function ensureAgentSession(agentId) {
         if (!uiWorkspace || !sessionsSvc) throw new Error('خدمات الجلسات غير متاحة');
         const presetId = PRESET_ID_MAP[agentId] || agentId;
+        const nav = (targetSid) => { try { if (targetSid && uiWorkspace && typeof uiWorkspace.openSession === 'function') uiWorkspace.openSession(targetSid); } catch {} };
         // 1) جلسة مسجّلة محلياً (localStorage) ما زالت حية؟
         let sid = null;
         try { sid = localStorage.getItem('mcw.sid.' + agentId); } catch {}
@@ -924,6 +932,7 @@ window.__ModuleLoader__.load({
             await ref.ready;
             saveRoom(agentId, { sessionId: sid });
             attachLive(agentId, ref.binding);
+            nav(sid);
             return { sessionId: sid, created: false };
           } catch { sid = null; }
         }
@@ -937,23 +946,71 @@ window.__ModuleLoader__.load({
             await ref.ready;
             saveRoom(agentId, { sessionId: sid });
             attachLive(agentId, ref.binding);
+            nav(sid);
             return { sessionId: sid, created: false, found: true };
           }
         } catch {}
-        // 3) إنشاء جلسة DSH جديدة حصرياً داخل مساحة عمل الوكيل + حقن المثبتة
+        // 3) مساحة الوكيل: عبر الجسر، وإلا اكتشاف أصلي من خدمة workspaces، وإلا إنشاء أصلي — بلا اعتماد إلزامي على الجسر
         let wsInfo = null;
         try { wsInfo = await ensureAgentWorkspace(agentId); } catch { wsInfo = null; }
-        const wsId = (wsInfo && wsInfo.workspaceId) || currentWorkspaceId();
+        let wsId = (wsInfo && wsInfo.workspaceId) || null;
+        if (!wsId) {
+          try {
+            const wsvc = ctx.get('workspaces');
+            const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
+            const key = String(agentId).toLowerCase();
+            const hit = items.find((w) => String(w.path || '').toLowerCase().includes('squad/' + key))
+              || items.find((w) => String(w.name || w.title || '').toLowerCase() === key)
+              || items.find((w) => String(w.path || '').toLowerCase().endsWith('\\' + key))
+              || items.find((w) => String(w.workspaceId || w.id || '').toLowerCase().includes(key));
+            if (hit) wsId = hit.workspaceId || hit.id || null;
+          } catch {}
+        }
+        if (!wsId) {
+          try {
+            const wsvc = ctx.get('workspaces');
+            if (wsvc && typeof wsvc.create === 'function') {
+              const created = await wsvc.create({ path: 'G:\\ai\\Naggar Print POS Agent\\orchestrator\\squad\\' + agentId });
+              wsId = (created && (created.workspaceId || created.id)) || null;
+              if (wsId && typeof wsvc.rename === 'function') { try { await wsvc.rename(wsId, (AGENT_MAP[agentId] || {}).name || agentId); } catch {} }
+            }
+          } catch {}
+        }
+        // 3-ب) جلسة جاهزة داخل مساحة الوكيل؟ افتحها فوراً بلا إنشاء (تنقّل أصلي)
+        if (wsId && !sid) {
+          try {
+            const wsvc = ctx.get('workspaces');
+            const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
+            const hit = items.find((w) => (w.workspaceId || w.id) === wsId);
+            const sids = (hit && hit.sessionIds) || [];
+            if (sids.length) sid = sids[sids.length - 1];
+          } catch {}
+        }
+        if (sid) {
+          nav(sid);
+          try { localStorage.setItem('mcw.sid.' + agentId, sid); } catch {}
+          try {
+            const ref = sessionsSvc.retain(sid, { source: 'controllerOperation' });
+            await ref.ready;
+            saveRoom(agentId, { sessionId: sid });
+            attachLive(agentId, ref.binding);
+          } catch {}
+          return { sessionId: sid, created: false, reused: true };
+        }
+        if (!wsId) throw new Error('لا توجد مساحة عمل للوكيل — شغّل الجسر ثم أعد المحاولة');
+        // 4) إنشاء جلسة DSH جديدة داخل مساحة الوكيل + تنقّل أصلي فوري إلى المحادثة
         const sessionId = await uiWorkspace.connectWorkspace(wsId, { agentPreset: presetId });
-   
-        try { uiWorkspace.openSession(sessionId); } catch {}     try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
-        const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
-        await ref.ready;
-        saveRoom(agentId, { sessionId, wsTitle: wsInfo ? wsInfo.title : null });
-        attachLive(agentId, ref.binding);
+        nav(sessionId);
+        try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
         try {
-          const pinned = await bridge.call('notebook.pinned', { limit: 20 }).catch(() => null);
-          await ref.binding.session.prompt([{ type: 'text', text: buildBootPrompt(agentId, pinned) }], 'queue');
+          const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
+          await ref.ready;
+          saveRoom(agentId, { sessionId, wsTitle: wsInfo ? wsInfo.title : null });
+          attachLive(agentId, ref.binding);
+          try {
+            const pinned = await bridge.call('notebook.pinned', { limit: 20 }).catch(() => null);
+            await ref.binding.session.prompt([{ type: 'text', text: buildBootPrompt(agentId, pinned) }], 'queue');
+          } catch {}
         } catch {}
         return { sessionId, created: true, wsTitle: wsInfo ? wsInfo.title : null };
       }
@@ -987,8 +1044,8 @@ window.__ModuleLoader__.load({
         });
         // ربط تلقائي (Zero-Click): جلسة مطابقة للـPreset أو إنشاء فوري في الخلفية
         ensureAgentSession(id)
-          .then((r) => showToast('⚡ جلسة DSH تلقائية #' + String(r.sessionId).slice(0, 8) + (r.created ? ' (جديدة)' : ' (موجودة)')))
-          .catch(() => { /* الغرفة تعمل محلياً؛ الخطأ يظهر عند أول تنفيذ */ });
+          .then((r) => showToast('⚡ جلسة DSH #' + String(r.sessionId).slice(0, 8) + (r.created ? ' (جديدة)' : ' (موجودة)') + ' — فُتحت المحادثة الأصلية'))
+          .catch((err) => showToast('⚠ تعذّر فتح جلسة الوكيل: ' + String((err && err.message) || err)));
       }
 
       const active = AGENT_MAP[activeId] || AGENTS[0];
@@ -1016,7 +1073,7 @@ window.__ModuleLoader__.load({
           h(Palette, { open: paletteOpen, onClose: () => setPaletteOpen(false), agents: AGENTS, notes, onAgent: openRoom, onAction: (act, n) => { if (act === 'openDSH') openDSH(); else if (act === 'refresh') refresh(); else if (act === 'note' && n) { setTab('nb'); } } }),
           h(Toast, { text: toast }),
           !bridgeErr && !ping ? h('div', { className: 'mcw-toast' }, '⏳ جارٍ الاتصال بجسر مروة…') : null,
-          bridgeErr ? h('div', { className: 'mcw-toast', style: { borderColor: '#f87171' } }, '⚠ الجسر غير متاح: ' + bridgeErr) : null));
+          bridgeErr ? h('div', { className: 'mcw-toast', style: { borderColor: '#f87171', cursor: 'pointer' }, onClick: () => refresh(), title: 'اضغط لإعادة المحاولة' }, '⚠ الجسر غير متاح: ' + bridgeErr + ' — اضغط لإعادة المحاولة') : null));
     }
 
     // ------------------------------------------------------------------- أيقونة الشريط الجانبي
