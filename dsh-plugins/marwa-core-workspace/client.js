@@ -447,8 +447,8 @@ window.__ModuleLoader__.load({
             h('button', { className: 'mcw-btn', onClick: () => onRebind(agent) }, '⚡ ربط'))),
         h(AgentContextCard, { agent, ctxData: agentCtx }),
         h('div', { className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
-          renderFactorySlot
-            ? renderFactorySlot('conversation.content', NativeChatFallback)
+          (renderFactorySlot && room && room.sessionId)
+            ? renderFactorySlot('conversation.content', { sessionId: room.sessionId })
             : h(NativeChatFallback)));
     }
     function NoteRow({ n, onPin }) {
@@ -1042,6 +1042,11 @@ window.__ModuleLoader__.load({
           const cur = prev[id] || { messages: [], scratch: '', unread: 0, delegated: false, sessionId: null };
           return Object.assign({}, prev, { [id]: Object.assign({}, cur, { unread: 0 }) });
         });
+        // بذرة فورية من الكاش المحلي — المركز يرسم الشات الأصلي بلا انتظار الجسر
+        try {
+          const cachedSid = localStorage.getItem('mcw.sid.' + id);
+          if (cachedSid) saveRoom(id, { sessionId: cachedSid });
+        } catch {}
         // ربط تلقائي (Zero-Click): جلسة مطابقة للـPreset أو إنشاء فوري في الخلفية
         ensureAgentSession(id)
           .then((r) => showToast('⚡ جلسة DSH #' + String(r.sessionId).slice(0, 8) + (r.created ? ' (جديدة)' : ' (موجودة)') + ' — فُتحت المحادثة الأصلية'))
@@ -1065,7 +1070,7 @@ window.__ModuleLoader__.load({
                 tab === 'vision' ? h(VisionPane, { entries, onPreview, preview, onRefresh: refresh }) :
                   h(ContextPane, { pos, catalog, onRefresh: refresh })),
             h(RoomView, {
-              agent: active, room: activeRoom, agentCtx: agentCtx[activeId],
+              key: active.id, agent: active, room: activeRoom, agentCtx: agentCtx[activeId],
               renderFactorySlot: props.renderFactorySlot,
               onCopyPrompt, onOpenDSH: openDSH, onRebind: rebind,
             }),
