@@ -187,7 +187,11 @@ window.__ModuleLoader__.load({
     }
 
     function fmtTime(ts) {
-      try { return new Date(ts).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; }
+      try {
+        if (!ts) return '';
+        const ms = ts > 1e12 ? ts : ts * 1000; // ثوانٍ (بايثون) أو ميلي ثانية (نود)
+        return new Date(ms).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+      } catch { return ''; }
     }
 
     function copyText(text) {
@@ -312,9 +316,10 @@ window.__ModuleLoader__.load({
     }
 
     function OmniBar(props) {
-      const { onOpenPalette, ping, ram, onRefresh, clock, presets } = props;
+      const { onOpenPalette, ping, ram, onRefresh, clock, presets, notesMeta } = props;
       const nb2 = ping && ping.nb2;
       const okPresets = Array.isArray(presets) ? presets.filter((p) => p && p.ok).length : -1;
+      const nbConn = notesMeta && notesMeta.connected;
       return h('div', { className: 'mcw-omni' },
         h('div', { className: 'mcw-brand' },
           h(BrandMark, null),
@@ -327,9 +332,11 @@ window.__ModuleLoader__.load({
           h('kbd', null, 'Ctrl+K')),
         h('span', { className: 'mcw-chip', title: 'Agent Presets الحية المسجلة في DSH' },
           '🧬 Presets: ' + (okPresets >= 0 ? okPresets + '/10' : '...')),
-        h('span', { className: 'mcw-chip', title: 'النوتبوك v2 (أفكاري) على المنفذ 8110' },
-          h('span', { className: 'mcw-dot', style: { background: nb2 && nb2.up ? '#34d399' : '#f87171', boxShadow: nb2 && nb2.up ? '0 0 6px #34d399' : 'none' } }),
-          nb2 ? (nb2.up ? 'أفكاري متصل' : 'أفكاري غير متصل') : 'أفكاري …'),
+        h('span', { className: 'mcw-chip', title: nbConn ? 'قاعدة notebook.db متصلة عبر الجسر — ' + notesMeta.openCount + ' مفتوحة · ' + notesMeta.pinned + ' مثبتة' : 'تعذّرت قراءة notebook.db عبر الجسر' },
+          h('span', { className: 'mcw-dot', style: { background: nbConn ? '#34d399' : '#f87171', boxShadow: nbConn ? '0 0 6px #34d399' : 'none' } }),
+          notesMeta ? (nbConn ? 'أفكاري متصل (' + notesMeta.openCount + ' مفتوحة)' : 'أفكاري غير متصل') : 'أفكاري …'),
+        nb2 && nb2.up ? h('span', { className: 'mcw-chip', title: 'خدمة أفكاري v2 (الويب + البوت) على المنفذ 8110' },
+          h('span', { className: 'mcw-dot', style: { background: '#34d399', boxShadow: '0 0 6px #34d399' } }), 'v2 8110 حي') : null,
         h('span', { className: 'mcw-chip', title: 'استهلاك الرام الفعلي للورشة' },
           '🖥️ ', ram ? (fmtBytes(ram.used) + ' / ' + fmtBytes(ram.total)) : '…',
           h('span', { className: 'mcw-rambar' }, h('i', { style: { width: ram ? Math.min(100, Math.round((ram.used / ram.total) * 100)) + '%' : '0%' } }))),
@@ -410,8 +417,42 @@ window.__ModuleLoader__.load({
           h('button', { className: 'mcw-btn ghost', onClick: () => setOpen(false) }, 'إلغاء')));
     }
 
+    function AgentContextCard({ agent, ctxData }) {
+      if (!ctxData) {
+        return h('div', { className: 'mcw-foot', style: { padding: '5px 16px', textAlign: 'start' } },
+          '🗂 جارٍ سحب ملف ' + agent.name + ' الحي من الدساتير…');
+      }
+      if (ctxData.error) {
+        return h('div', { className: 'mcw-foot', style: { padding: '6px 16px', textAlign: 'start', color: '#f87171' } },
+          '🗂 ملف ' + agent.name + ': غير متاح — ' + ctxData.error);
+      }
+      const p = ctxData.prompt || {};
+      const states = ctxData.stateFiles || [];
+      const tasks = ctxData.noteTasks || [];
+      const inbox = ctxData.inbox || { count: 0, files: [] };
+      return h('details', { className: 'mcw-scratch', style: { margin: '0 16px 8px' } },
+        h('summary', null,
+          '🗂 ملف ' + agent.name + ' الحي — الدستور (' + (p.chars || 0) + ' حرف) · ' + states.length + ' دفاتر · ' +
+            ((ctxData.noteTasks || []).length + (inbox.count || 0)) + ' مهام'),
+        h('div', { style: { padding: '6px 10px', maxHeight: 260, overflow: 'auto', fontSize: 11 } },
+          h('div', { className: 'meta' }, '📜 الدستور: ' + (p.path || 'غير متاح') + (p.chars ? ' · ' + p.chars + ' حرف' : '') + (p.error ? ' · ' + p.error : '')),
+          states.map((s, i) => h('div', { key: 'st' + i, style: { marginTop: 6 } },
+            h('div', { style: { fontWeight: 700, color: '#ecd58a' } },
+              '📄 ' + (s.path || '').split('\\').pop() + ' · آخر تحديث ' + fmtTime(s.mtime) + ' · ' + (s.chars || 0) + ' حرف'),
+            h('div', { style: { color: 'rgba(236,231,218,.6)', whiteSpace: 'pre-wrap', maxHeight: 90, overflow: 'hidden', marginTop: 2 } }, (s.head || '').slice(0, 320)))),
+          (ctxData.noteTasks || []).length ? h('div', null,
+            h('div', { className: 'mcw-group-title', style: { margin: '6px 0 3px' } }, '🧾 المهام الحالية (نوتبوك)'),
+            ctxData.noteTasks.map((t) => h('div', { key: t.id, style: { fontSize: 10.5 } },
+              '• #' + t.id + ' ' + (t.title || '') + ' — [' + (t.priority || 'normal') + ']' + (t.due_at ? ' · موعد ' + t.due_at : '')))) : null,
+          inbox.count ? h('div', { style: { marginTop: 6 } },
+            h('div', { className: 'mcw-group-title' }, '📥 صندوق الوارد (' + inbox.count + ')'),
+            (inbox.files || []).slice(0, 3).map((f, i) => h('div', { key: f.name, style: { fontSize: 10, color: 'rgba(236,231,218,.55)' } },
+              '• ' + f.name + ' · ' + fmtTime(f.mtime)))) : null,
+          h('div', { className: 'mcw-foot', style: { textAlign: 'start', padding: '4px 0 0' } }, 'سُحب حياً من الدساتير والدفاتر ' + fmtTime(ctxData.loadedAt))));
+    }
+
     function RoomView(props) {
-      const { agent, room, notes, bridge, onSend, onChip, onToggleScratch, onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval, onCopyPrompt, onOpenDSH, onRebind, onInjectNote, openPanel, noteDraft, setNoteDraft, binding } = props;
+      const { agent, room, notes, notesMeta, agentCtx, bridge, onSend, onChip, onToggleScratch, onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval, onCopyPrompt, onOpenDSH, onRebind, onInjectNote, openPanel, noteDraft, setNoteDraft, binding } = props;
       const accent = agent.color;
       const msgs = (room && room.messages) || [];
       const [draft, setDraft] = useState('');
@@ -457,6 +498,7 @@ window.__ModuleLoader__.load({
             h('button', { className: 'mcw-btn ghost', title: 'نسخ برومبت تفعيل الشخصية', onClick: () => onCopyPrompt(agent) }, '📋 البرومبت'),
             h('button', { className: 'mcw-btn ghost', onClick: onOpenDSH }, '🗨 فتح في DSH'),
             h('button', { className: 'mcw-btn', onClick: () => onRebind(agent) }, '⚡ ربط جلسة DSH'))),
+        h(AgentContextCard, { agent, ctxData: agentCtx }),
         h('div', { className: 'mcw-msgs' },
           msgs.length === 0 ?
             h('div', { className: 'mcw-empty' }, 'غرفة ' + agent.name + ' — أرسل تكليفاً أو استخدم الأزرار السريعة. (الردود الحقيقية تُنفَّذ في جلسة DSH الأصلية للوكيل)') :
@@ -490,17 +532,37 @@ window.__ModuleLoader__.load({
                 h('b', null, a.emoji + ' ' + a.name + ' — ' + a.nick)))) : null));
     }
 
+    function NoteRow({ n, onPin }) {
+      return h('div', { key: n.id, className: 'mcw-note' },
+        h('b', null, (n.emoji || '📁') + ' #' + n.id + ' · ' + n.title + (n.status === 'done' ? ' ✓' : '')),
+        h('p', null, n.body || ''),
+        h('div', { className: 'meta' }, '[' + n.kind + '] ' + n.priority + ' · ' + (n.category || '') + ' · ' + (n.due_at ? 'موعد: ' + n.due_at : '')),
+        h('div', { style: { display: 'flex', gap: 4, marginTop: 4 } },
+          h('button', { className: 'mcw-btn ghost', onClick: () => onPin(n) }, n.priority === 'high' ? '📌 مثبت' : '📌 تثبيت'),
+          h('button', { className: 'mcw-btn ghost', onClick: () => copyText('#قاعدة ' + n.title + '\n' + (n.body || '')) }, 'نسخ كقاعدة')));
+    }
+
     function NotebookPane(props) {
-      const { notes, ping, onAddNote, onPin, onRefresh } = props;
+      const { notes, notesMeta, ping, onAddNote, onPin, onRefresh } = props;
       const [title, setTitle] = useState('');
       const [body, setBody] = useState('');
       const [kind, setKind] = useState('note');
       const [priority, setPriority] = useState('normal');
       const nb2 = ping && ping.nb2;
+      const conn = notesMeta && notesMeta.connected;
+      const all = notes || [];
+      const open = all.filter((n) => n.status === 'open');
+      const pinned = open.filter((n) => n.priority === 'high' || n.priority === 'urgent');
+      const rest = open.filter((n) => !(n.priority === 'high' || n.priority === 'urgent'))
+        .concat(all.filter((n) => n.status !== 'open'));
       return h('div', { className: 'mcw-tabpane' },
         h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 } },
-          h('span', { className: 'mcw-dot', style: { background: nb2 && nb2.up ? '#34d399' : '#f87171' } }),
-          h('span', { style: { fontSize: 11, color: 'rgba(236,231,218,.65)' } }, nb2 ? (nb2.up ? 'أفكاري v2 متصل (8110)' : 'أفكاري v2 غير متصل — عرض المخزن المحلي') : '…'),
+          h('span', { className: 'mcw-dot', style: { background: conn ? '#34d399' : '#f87171' } }),
+          h('span', { style: { fontSize: 11, color: 'rgba(236,231,218,.65)' } },
+            conn
+              ? 'أفكاري متصل — notebook.db (' + notesMeta.openCount + ' مفتوحة · ' + notesMeta.pinned + ' مثبتة)'
+              : 'أفكاري غير متصل — الجسر لم يقرأ notebook.db'),
+          nb2 && nb2.up ? h('span', { style: { fontSize: 10, color: '#34d399' } }, ' · v2 8110 حي') : null,
           h('button', { className: 'mcw-btn ghost', onClick: onRefresh, style: { marginInlineStart: 'auto' } }, '⟳')),
         h('div', { style: { border: '1px solid rgba(212,175,55,.3)', borderRadius: 9, padding: 8, marginBottom: 10, background: 'rgba(9,9,11,.4)' } },
           h('input', { placeholder: 'عنوان النوت…', value: title, onChange: (e) => setTitle(e.target.value), style: { width: '100%', marginBottom: 6, background: 'rgba(9,9,11,.7)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 7, color: '#ece7da', padding: '5px 8px', fontFamily: 'inherit' } }),
@@ -512,13 +574,10 @@ window.__ModuleLoader__.load({
               h('option', { value: 'low' }, 'منخفضة'), h('option', { value: 'normal' }, 'عادية'), h('option', { value: 'high' }, 'عالية'), h('option', { value: 'urgent' }, 'عاجلة')),
             h('button', { className: 'mcw-btn', style: { marginInlineStart: 'auto' }, onClick: () => { if (title.trim()) { onAddNote({ title, body, kind, priority }); setTitle(''); setBody(''); } } }, '+ إضافة')),
           h('div', { className: 'mcw-foot', style: { padding: '4px 0 0' } }, 'المخزن: notebook/data/notebook.db (القناة الرسمية store)')),
-        (notes || []).map((n) => h('div', { key: n.id, className: 'mcw-note' },
-          h('b', null, (n.emoji || '📁') + ' #' + n.id + ' · ' + n.title + (n.status === 'done' ? ' ✓' : '')),
-          h('p', null, n.body || ''),
-          h('div', { className: 'meta' }, '[' + n.kind + '] ' + n.priority + ' · ' + (n.category || '') + ' · ' + (n.due_at ? 'موعد: ' + n.due_at : '')),
-          h('div', { style: { display: 'flex', gap: 4, marginTop: 4 } },
-            h('button', { className: 'mcw-btn ghost', onClick: () => onPin(n) }, n.priority === 'high' ? '📌 مثبت' : '📌 تثبيت'),
-            h('button', { className: 'mcw-btn ghost', onClick: () => copyText('#قاعدة ' + n.title + '\n' + (n.body || '')) }, 'نسخ كقاعدة')))));
+        (pinned.length ? h('div', { className: 'mcw-group-title' }, '📌 مثبتة (Pinned) — تُحقن في برومبت كل وكيل') : null),
+        pinned.map((n) => h(NoteRow, { key: 'p' + n.id, n, onPin })),
+        h('div', { className: 'mcw-group-title' }, '🗂 المحفوظة (' + rest.length + ')'),
+        rest.map((n) => h(NoteRow, { key: n.id, n, onPin })));
     }
 
     function VisionPane(props) {
@@ -629,11 +688,13 @@ window.__ModuleLoader__.load({
       const [tab, setTab] = useState('nb');
       const [paletteOpen, setPaletteOpen] = useState(false);
       const [notes, setNotes] = useState(null);
+      const [nbMeta, setNbMeta] = useState(null);
       const [catalog, setCatalog] = useState(null);
       const [pos, setPos] = useState(null);
       const [entries, setEntries] = useState(null);
       const [preview, setPreview] = useState(null);
       const [presets, setPresets] = useState(null);
+      const [agentCtx, setAgentCtx] = useState({});
       const [toast, setToast] = useState(null);
       const [rooms, setRooms] = useState(() => { try { return JSON.parse(localStorage.getItem('mcw.rooms.v1') || '{}'); } catch { return {}; } });
       const [noteDraft, setNoteDraft] = useState('');
@@ -668,7 +729,16 @@ window.__ModuleLoader__.load({
             bridge.call('presets.status', {}).catch(() => null),
           ]);
           setRam(r);
-          if (nb) setNotes(nb.notes || []);
+          if (nb) {
+            setNotes(nb.notes || []);
+            const openN = (nb.notes || []).filter((n) => n.status === 'open');
+            setNbMeta({
+              connected: !!nb.exists,
+              openCount: nb.openCount || openN.length,
+              pinned: openN.filter((n) => n.priority === 'high' || n.priority === 'urgent').length,
+              db: nb.db,
+            });
+          } else { setNbMeta({ connected: false }); }
           if (cat) setCatalog(cat);
           if (po) setPos(po);
           if (vis) setEntries(vis.entries || []);
@@ -679,6 +749,14 @@ window.__ModuleLoader__.load({
       }, [bridge]);
 
       useEffect(() => { refresh(); const t = setInterval(refresh, 30000); return () => clearInterval(t); }, [refresh]);
+
+      // الرام حية كل 5 ثوانٍ — مستقلة عن التحديث الكبير (الشريط العلوي يتنفس)
+      useEffect(() => {
+        const pull = () => { bridge.call('ram', {}).then((r) => setRam(r)).catch(() => {}); };
+        pull();
+        const t = setInterval(pull, 5000);
+        return () => clearInterval(t);
+      }, [bridge]);
 
       // Ctrl+K
       useEffect(() => {
@@ -731,6 +809,14 @@ window.__ModuleLoader__.load({
       function onChip(text) {
         pushMsg(activeId, { kind: 'user', text });
       }
+
+      // سياق الوكيل الحي: يُسحب من الدساتير والدفاتر عند فتح غرفته (squad.context عبر الجسر)
+      const loadAgentContext = useCallback((id) => {
+        bridge.call('squad.context', { agent: id })
+          .then((v) => setAgentCtx((prev) => Object.assign({}, prev, { [id]: Object.assign({}, v, { loadedAt: Date.now() }) })))
+          .catch((err) => setAgentCtx((prev) => Object.assign({}, prev, { [id]: { agent: id, error: String((err && err.message) || err) } })));
+      }, [bridge]);
+      useEffect(() => { loadAgentContext(activeId); }, [activeId, loadAgentContext]);
 
       function onRequestApproval({ title, body, cmd }) {
         pushMsg(activeId, { kind: 'approval', title, text: body, cmd, status: 'pending' });
@@ -950,18 +1036,18 @@ window.__ModuleLoader__.load({
 
       return h(McwBoundary, null,
         h('div', { className: 'mcw-root' },
-          h(OmniBar, { onOpenPalette: () => setPaletteOpen(true), ping, ram, onRefresh: refresh, clock, presets }),
+          h(OmniBar, { onOpenPalette: () => setPaletteOpen(true), ping, ram, onRefresh: refresh, clock, presets, notesMeta: nbMeta }),
           h('div', { className: 'mcw-body' },
             h('div', { className: 'mcw-drawer' },
               h('div', { className: 'mcw-tabs' },
                 h('button', { className: cls('mcw-tab', tab === 'nb' && 'on'), onClick: () => setTab('nb') }, '📓 أفكاري'),
                 h('button', { className: cls('mcw-tab', tab === 'vision' && 'on'), onClick: () => setTab('vision') }, '👁️ مرسم فيجين'),
                 h('button', { className: cls('mcw-tab', tab === 'ctx' && 'on'), onClick: () => setTab('ctx') }, '📊 السياق الحي')),
-              tab === 'nb' ? h(NotebookPane, { notes, ping, onAddNote, onPin, onRefresh: refresh }) :
+              tab === 'nb' ? h(NotebookPane, { notes, notesMeta: nbMeta, ping, onAddNote, onPin, onRefresh: refresh }) :
                 tab === 'vision' ? h(VisionPane, { entries, onPreview, preview, onRefresh: refresh }) :
                   h(ContextPane, { pos, catalog, onRefresh: refresh })),
             h(RoomView, {
-              agent: active, room: activeRoom, notes, bridge,
+              agent: active, room: activeRoom, notes, notesMeta: nbMeta, bridge, agentCtx: agentCtx[activeId],
               onSend, onChip, onToggleScratch: (v) => saveRoom(activeId, { scratch: v }),
               onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval,
               onCopyPrompt, onOpenDSH: openDSH, onRebind: rebind,

@@ -50,6 +50,8 @@ logs/
 runtime_logs/
 _last_backup.txt
 telegram_import_now.flag
+# RASED autosync daily marker (local sync gate — لا يُتتبع)
+.rased_last_sync
 
 # ---------- SCAN/DIAGNOSTIC SCRATCH (مخلفات فحص مؤقتة — لا تُرفع) ----------
 /_*.py

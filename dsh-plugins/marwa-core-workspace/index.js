@@ -22,7 +22,10 @@ import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const DEFAULTS = { repoRoot: 'G:\\Marwa-Bot', routePath: '/api/marwa-core', idleShutdownMs: 300000, nb2Url: 'http://127.0.0.1:8110' };
+// معرف Cordis الرسمي للإضافة (Function form: export const name + export function apply)
+export const name = 'marwa-core-workspace';
+
+const DEFAULTS = { repoRoot: 'G:\\ai\\Naggar Print POS Agent', routePath: '/api/marwa-core', idleShutdownMs: 300000, nb2Url: 'http://127.0.0.1:8110' };
 
 // ------------------------------------------------------------------- تحديد دليل الحزمة بموثوقية
 // import.meta.url قد يكون مساراً وهمياً تحت مُحمّل DSH — نجرّب مرشحين ونثبت بالوجود الفعلي للجسر.
@@ -51,6 +54,17 @@ export function apply(ctx, config) {
   const cfg = Object.assign({}, DEFAULTS, config || {});
   const pluginDir = resolvePluginDir();
   const bridgePath = path.join(pluginDir, 'bridge', 'dsh_bridge.py');
+
+  // قراءة خدمة من السياق بأمان — في Cordis الوصول لخدمة غير معلنة قد يرمي خطأ
+  // (انظر deepseek-harness discussion #3472) بدل إرجاع undefined، فنلفّها بـ try/catch.
+  const getService = (key) => {
+    try {
+      if (ctx && typeof ctx.get === 'function') return ctx.get(key);
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  };
 
   // علامة إقلاع متزامنة — دليل على عمل هذا الجيل من الكود + مكان الكتابة الفعلي
   try {
@@ -248,7 +262,7 @@ export function apply(ctx, config) {
       ? base
       : ('أنت ' + spec.name + ' — وكيل متخصص في منظومة النجار برنت تحت إدارة مروة. اقرأ مراجعك وأجب بصدق، ولا تختلق أرقاماً أبداً.'));
     if (spec.refs && spec.refs.length) {
-      parts.push('🗂️ مراجعك الرسمية (من داخل مستودع G:\\Marwa-Bot):\n' + spec.refs.map((r) => '• ' + r).join('\n'));
+      parts.push('🗂️ مراجعك الرسمية (من داخل مستودع ' + cfg.repoRoot + '):\n' + spec.refs.map((r) => '• ' + r).join('\n'));
     }
     if (pinned && pinned.notes && pinned.notes.length) {
       const txt = pinned.notes.map((n) => '• [' + (n.kind || 'note') + '] ' + (n.title || '') + (n.body ? ' — ' + String(n.body).slice(0, 260) : '')).join('\n');
@@ -266,7 +280,7 @@ export function apply(ctx, config) {
 
   async function ensurePresets(mode) {
     presetLog = { at: 0, entries: [], error: null, buildMode: mode || 'boot' };
-    const reg = ctx.get ? ctx.get('agentPresets') : undefined;
+    const reg = getService('agentPresets');
     if (!reg || typeof reg.register !== 'function') {
       presetLog.error = 'خدمة agentPresets غير متاحة في هذا المضيف';
       writePresetLog();
@@ -355,7 +369,7 @@ export function apply(ctx, config) {
         return presetLog;
       case 'sessions.findForPreset': {
         const presetId = params && typeof params.presetId === 'string' ? params.presetId : '';
-        const sessionsSvc = ctx.get ? ctx.get('sessions') : undefined;
+        const sessionsSvc = getService('sessions');
         if (!sessionsSvc || typeof sessionsSvc.list !== 'function') {
           return { sessionId: null, available: false, liveCount: -1 };
         }
@@ -384,7 +398,7 @@ export function apply(ctx, config) {
   }
 
   const disposers = [];
-  const connection = ctx.get ? ctx.get('connection') : undefined;
+  const connection = getService('connection');
   if (connection && connection.fetch && typeof connection.fetch.register === 'function') {
     const un = connection.fetch.register({
       path: cfg.routePath,
@@ -394,7 +408,7 @@ export function apply(ctx, config) {
     });
     disposers.push(() => Promise.resolve(un).catch(() => {}));
   }
-  const webServer = ctx.get ? ctx.get('webServer') : undefined;
+  const webServer = getService('webServer');
   if (!connection && webServer && typeof webServer.register === 'function') {
     const un = webServer.register({ path: cfg.routePath, methods: ['POST'], fetch: (request) => handler(request) });
     disposers.push(() => Promise.resolve(un).catch(() => {}));

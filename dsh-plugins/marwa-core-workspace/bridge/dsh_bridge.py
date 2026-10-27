@@ -4,14 +4,16 @@
 يخدم نصف المضيف (index.js) داخل إضافة DSH:
   • notebook.list / notebook.add / notebook.pin  — عبر notebook.store الرسمي (v1 موحد)
   • catalog.rows   — قراءة exports/products_catalog_master.xlsx (openpyxl)
-  • pos.stats      — قراءة فقط pos_data.db (مرآة اللابتوب المحلية)
+  • pos.stats      — قراءة فقط قاعدة البرنامج الحية (LIVE_DB_PATH من .env، وإلا المرآة)
   • vision.list / vision.file — معمل فيجن Vision-Lab + designs/ (قراءة فقط)
   • squad.prompts  — دفاتر تفعيل الشخصيات من مساراتها الأصلية
+  • squad.context  — سياق حي لوكيل: الدستور + الهوية + دفاتر الحالة + المهام المفتوحة
 لا تكتب أبداً في قاعدة البرنامج (pos_data.db) — قراءة فقط (ميثاق MARWA_CORE).
 """
 import io
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -20,10 +22,52 @@ from pathlib import Path
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-REPO = Path(os.environ.get("MARWA_REPO_ROOT") or r"G:\Marwa-Bot")
+def _detect_repo():
+    """ترتيب الثقة: متغير البيئة من نصف المضيف ← جذر المستودع المعروف ← عقدة اللابتوب ← cwd.
+    إصلاح «البيانات الوهمية»: الجسر القديم كان يسقط على G:\\Marwa-Bot (مسار اللابتوب غير الموجود
+    على عقدة الورشة) فترجع كل المآخذ exists:false وتشبه البيانات الوهمية."""
+    cands = []
+    env = os.environ.get("MARWA_REPO_ROOT")
+    if env:
+        cands.append(Path(env))
+    cands.append(Path(r"G:\ai\Naggar Print POS Agent"))
+    cands.append(Path(r"G:\Marwa-Bot"))
+    try:
+        cands.append(Path.cwd())
+    except OSError:
+        pass
+    for c in cands:
+        try:
+            if c and (c / "notebook" / "data" / "notebook.db").exists():
+                return c
+        except OSError:
+            continue
+    return cands[0] if cands else Path.cwd()
+
+
+REPO = _detect_repo()
 NOTEBOOK_DB = REPO / "notebook" / "data" / "notebook.db"
-POS_DB = REPO / "pos_data.db"
 CATALOG = REPO / "exports" / "products_catalog_master.xlsx"
+
+
+def _live_pos_db():
+    """قاعدة البرنامج الحية — مصدر الحقيقة على عقدة WORKSHOP (LIVE_DB_PATH من .env).
+    لا كتابة أبداً: الاتصال عبر mode=ro + query_only=ON (ميثاق MARWA_CORE)."""
+    try:
+        m = re.search(
+            r'^\s*LIVE_DB_PATH\s*=\s*"?([^"\r\n]+)"?\s*$',
+            (REPO / ".env").read_text(encoding="utf-8", errors="replace"), re.M)
+        if m:
+            p = Path(m.group(1).strip())
+            if p.exists():
+                return p
+    except OSError:
+        pass
+    live = Path(r"G:\ai\Elnagar POS\pos_data.db")
+    return live if live.exists() else REPO / "pos_data.db"
+
+
+POS_DB = _live_pos_db()  # الاسم تاريخي — يقف الآن على القاعدة الحية إن توفرت وإلا المرآة
 VISION_LAB = REPO / "Vision-Lab"
 VISION_ROOTS = [
     REPO / "designs",
@@ -164,8 +208,11 @@ def catalog_rows(params):
 
 # --------------------------------------------------------------- pos (قراءة فقط)
 def _ro_conn():
-    """اتصال قراءة فقط فعلي: query_only=ON يمنع أي كتابة على قاعدة البرنامج."""
-    conn = sqlite3.connect(str(POS_DB), timeout=6)
+    """اتصال قراءة فقط فعلي: mode=ro عبر URI + query_only=ON — يستحيل أي كتابة."""
+    try:
+        conn = sqlite3.connect(POS_DB.as_uri() + "?mode=ro", uri=True, timeout=6)
+    except Exception:  # noqa: BLE001 — رجوع آمن للاتصال العادي مع query_only
+        conn = sqlite3.connect(str(POS_DB), timeout=6)
     try:
         conn.execute("PRAGMA query_only=ON")
     except Exception:  # noqa: BLE001 — لا يكسر القراءة لو رُفض الـ PRAGMA
@@ -292,6 +339,84 @@ def squad_prompts(params):
     return out
 
 
+# --------------------------------------------------------------- سياق الوكيل الحي
+# دفاتر الحالة الرسمية لكل وكيل (مسارات نسبية من جذر المستودع — سجل راصد المعتمد)
+STATE_FILES = {
+    "marwa": ["MARWA_HOME_STATE.md", "AGENT.md"],
+    "rased": ["RASED_SENTINEL_STATE.md"],
+    "hakim": [],
+    "fares": ["FARES_CFO_STATE.md"],
+    "salma": ["SALMA_CRM_STATE.md"],
+    "koko": ["KOKO_MARKETING_STATE.md"],
+    "bibo": ["BIBO_MANUFACTURING_STATE.md"],
+    "sasa": ["SASA_WORKSHOP_STATE.md"],
+    "vision": ["Vision-Lab/AGENT.md", "Vision-Lab/SQUAD_PROFILE.md"],
+    "afkar": ["Vision-Lab/projects/notebook-v2/NB2_CHAT_BOOTSTRAP_PROMPT.md"],
+}
+
+
+def _head(p: Path, chars: int = 900):
+    """قراءة رأس ملف نصي بأمان — بلا كتابة."""
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+        return {"path": str(p), "chars": len(text), "head": text[:chars].strip(), "mtime": _mtime(p)}
+    except OSError as exc:
+        return {"path": str(p), "error": str(exc), "mtime": 0.0}
+
+
+def squad_context(params):
+    """سياق حي لوكيل واحد: الدستور + ملف الهوية + دفاتر الحالة + المهام المفتوحة
+    (نوتبوك موسوم agent:<id> + صندوق الوارد inbox_tasks/<id>). قراءة فقط."""
+    aid = params.get("agent") or ""
+    if aid not in SQUAD_PROMPTS:
+        raise ValueError("unknown agent: %r" % aid)
+    out = {"agent": aid}
+    pr = _head(SQUAD_PROMPTS[aid], 900)
+    out["prompt"] = {"path": pr.get("path"), "chars": pr.get("chars"),
+                     "head": pr.get("head"), "error": pr.get("error"), "mtime": pr.get("mtime")}
+    prof = REPO / "orchestrator" / "squad" / aid / "AGENT_PROFILE.md"
+    out["profile"] = _head(prof, 700) if prof.exists() else None
+    out["stateFiles"] = []
+    for rel in STATE_FILES.get(aid, []):
+        f = REPO / rel
+        if f.exists():
+            out["stateFiles"].append(_head(f, 1100))
+    out["noteTasks"] = []
+    conn = None
+    try:
+        conn = sqlite3.connect(str(NOTEBOOK_DB), timeout=6)
+        conn.row_factory = sqlite3.Row
+        like = "%agent:" + aid + "%"
+        cur = conn.execute(
+            "SELECT id, kind, title, priority, status, due_at, updated_at FROM notes"
+            " WHERE status='open' AND (tags LIKE ? OR source LIKE ?)"
+            " ORDER BY (priority='urgent') DESC, updated_at DESC LIMIT 8",
+            (like, "%" + aid + "%"))
+        out["noteTasks"] = [dict(r) for r in cur.fetchall()]
+    except Exception as exc:  # noqa: BLE001 — المهام تُشير بصدق عند الفشل
+        out["noteTasksError"] = str(exc)
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+    inbox = REPO / "inbox_tasks" / aid
+    files = []
+    if inbox.exists():
+        try:
+            fl = sorted((f for f in inbox.iterdir() if f.is_file()),
+                        key=_mtime, reverse=True)
+            out["inbox"] = {"dir": str(inbox), "count": len(fl),
+                            "files": [{"name": f.name, "mtime": _mtime(f),
+                                       "size": f.stat().st_size} for f in fl[:8]]}
+        except OSError as exc:
+            out["inbox"] = {"dir": str(inbox), "count": 0, "files": [], "error": str(exc)}
+    else:
+        out["inbox"] = {"dir": str(inbox), "count": 0, "files": []}
+    return out
+
+
 HANDLERS = {
     "notebook.list": notebook_list,
     "notebook.add": notebook_add,
@@ -302,6 +427,7 @@ HANDLERS = {
     "vision.list": vision_list,
     "vision.file": vision_file,
     "squad.prompts": squad_prompts,
+    "squad.context": squad_context,
 }
 
 
