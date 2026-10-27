@@ -1,7 +1,7 @@
-/**
+﻿/**
  * Marwa Core Workspace — Client half: غرفة عمليات مروة (الهيكل الرباعي).
  *
- * الشاشة الرباعية:
+ * الش
  *   1) Omni-Bar (شريط سيادي علوي): أمر سريع Ctrl+K + مؤشر NB2 + رام حي + عقدة
  *   2) Agent Dock (رصيف الكتيبة يمين): مجموعات × وكلاء مع شارات حالة حية
  *   3) Workspace (مساحة العمليات وسط): غرف محادثة، Scratchpad، @/ #، أزرار سريعة، بوابات اعتماد
@@ -380,47 +380,7 @@ window.__ModuleLoader__.load({
           h('button', { className: 'mcw-btn', style: { width: '100%' }, onClick: onOpenDSH }, '🗨 فتح شات DSH الأصلي')));
     }
 
-    function MsgBubble({ msg, accent, agentName, onApprove, onEditMsg, onAudit, onSaveNote }) {
-      if (msg.kind === 'approval') {
-        const approved = msg.status === 'approved';
-        return h('div', { className: 'mcw-approval', style: { '--mcw-accent': accent } },
-          h('h4', null, (approved ? '✅ ' : '🛡️ ') + (msg.title || 'إجراء بانتظار الاعتماد')),
-          h('div', { className: 'det' }, msg.text || msg.details || ''),
-          h('div', { className: 'acts' },
-            approved ? h('span', { className: 'mcw-chip' }, '✓ تم الاعتماد والتنفيذ') :
-              h('button', { className: 'mcw-approve', onClick: () => onApprove(msg) }, '✅ اعتماد وتنفيذ'),
-            h('button', { className: 'mcw-editb', onClick: () => onEditMsg(msg) }, '✏️ تعديل'),
-            h('button', { className: 'mcw-audit', onClick: () => onAudit(msg) }, '🦉 طلب تدقيق/مراجعة'),
-            h('button', { className: 'mcw-savenote', onClick: () => onSaveNote(msg) }, '📓 حفظ في النوتبوك')));
-      }
-      if (msg.kind === 'note') {
-        return h('div', { className: cls('mcw-msg', 'agent'), style: { '--mcw-accent': accent } },
-          h('div', { className: 'who' }, '📓 نوت من النوتبوك'),
-          renderBlocks(msg.text, accent));
-      }
-      if (msg.kind === 'system') {
-        return h('div', { className: 'mcw-msg', style: { maxWidth: '96%', background: 'rgba(212,175,55,.05)', textAlign: 'center', fontSize: 11, color: 'rgba(236,231,218,.55)' } }, msg.text);
-      }
-      return h('div', { className: cls('mcw-msg', msg.kind === 'user' ? 'me' : 'agent'), style: { '--mcw-accent': accent } },
-        msg.who ? h('div', { className: 'who' }, msg.who) : null,
-        renderBlocks(msg.text, accent));
-    }
-
-    function ApprovalComposer({ onRequestApproval }) {
-      const [open, setOpen] = useState(false);
-      const [title, setTitle] = useState('');
-      const [body, setBody] = useState('');
-      const [cmd, setCmd] = useState('');
-      if (!open) return h('button', { className: 'mcw-btn ghost', onClick: () => setOpen(true) }, '🛡️ بوابة اعتماد');
-      return h('div', { className: 'mcw-approval', style: { margin: '0 16px 8px' } },
-        h('h4', null, '🛡️ إجراء حساس — بانتظار اعتماد المالك'),
-        h('input', { placeholder: 'العنوان (مثال: اعتماد سعر #333)', value: title, onChange: (e) => setTitle(e.target.value), style: { width: '100%', marginBottom: 6, background: 'rgba(9,9,11,.7)', border: '1px solid rgba(212,175,55,.3)', borderRadius: 8, color: '#ece7da', padding: '6px 9px', fontFamily: 'inherit' } }),
-        h('textarea', { placeholder: 'التفاصيل…', value: body, onChange: (e) => setBody(e.target.value), style: { width: '100%', minHeight: 46, marginBottom: 6, background: 'rgba(9,9,11,.7)', border: '1px solid rgba(212,175,55,.3)', borderRadius: 8, color: '#ece7da', padding: '6px 9px', fontFamily: 'inherit', resize: 'vertical' } }),
-        h('input', { placeholder: 'أمر التنفيذ بعد الاعتماد (يُنسخ للحافظة)', value: cmd, onChange: (e) => setCmd(e.target.value), style: { width: '100%', marginBottom: 8, background: 'rgba(9,9,11,.7)', border: '1px solid rgba(212,175,55,.3)', borderRadius: 8, color: '#ece7da', padding: '6px 9px', fontFamily: 'inherit', direction: 'ltr', textAlign: 'left' } }),
-        h('div', { className: 'acts' },
-          h('button', { className: 'mcw-approve', onClick: () => { onRequestApproval({ title, body, cmd }); setOpen(false); setTitle(''); setBody(''); setCmd(''); } }, 'إرسال للبوابة'),
-          h('button', { className: 'mcw-btn ghost', onClick: () => setOpen(false) }, 'إلغاء')));
-    }
+    // --- MsgBubble / ApprovalComposer retired v1.5.0 (native DSH chat now used) ---
 
     function AgentContextCard({ agent, ctxData }) {
       if (!ctxData) {
@@ -456,42 +416,23 @@ window.__ModuleLoader__.load({
           h('div', { className: 'mcw-foot', style: { textAlign: 'start', padding: '4px 0 0' } }, 'سُحب حياً من الدساتير والدفاتر ' + fmtTime(ctxData.loadedAt))));
     }
 
+    // ------------------------------------------------------------------- غرفة وكيل مبسّطة — هيدر + ملف حقيقي + محادثة DSH الأصلية
+
+    function NativeChatFallback() {
+      return h('div', {
+        style: {
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          color: 'rgba(236,231,218,.35)', padding: '32px 24px', textAlign: 'center', gap: 14,
+        }
+      },
+        h('div', { style: { fontSize: 40, opacity: 0.4 } }, '💬'),
+        h('div', { style: { fontSize: 13 } }, 'الجلسة الحقيقية للوكيل تظهر هنا'),
+        h('div', { style: { fontSize: 11, opacity: 0.6 } }, 'اختر وكيلاً من الرصيف الأيسر · أو اضغط «⚡ ربط»'));
+    }
+
     function RoomView(props) {
-      const { agent, room, notes, notesMeta, agentCtx, bridge, onSend, onChip, onToggleScratch, onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval, onCopyPrompt, onOpenDSH, onRebind, onInjectNote, openPanel, noteDraft, setNoteDraft, binding } = props;
+      const { agent, room, agentCtx, renderFactorySlot, onCopyPrompt, onOpenDSH, onRebind } = props;
       const accent = agent.color;
-      const msgs = (room && room.messages) || [];
-      const [draft, setDraft] = useState('');
-      const [mentionOpen, setMentionOpen] = useState(false);
-      const [mentionFilter, setMentionFilter] = useState('');
-      const [notePick, setNotePick] = useState(false);
-      const composerRef = useRef(null);
-
-      function onComposerChange(e) {
-        const v = e.target.value;
-        setDraft(v);
-        const m = v.match(/@([\u0600-\u06FF\w]*)$/);
-        setMentionOpen(!!m);
-        setMentionFilter(m ? m[1] : '');
-      }
-      function pickMention(agentId) {
-        const a = AGENT_MAP[agentId];
-        const v = draft.replace(/@[\u0600-\u06FF\w]*$/, '@' + a.name + ' ');
-        setDraft(v);
-        setMentionOpen(false);
-        if (composerRef.current) composerRef.current.focus();
-      }
-      function send() {
-        if (!draft.trim()) return;
-        onSend(draft.trim());
-        setDraft('');
-        setMentionOpen(false);
-      }
-      function injectNote(note) {
-        setDraft(draft + (draft ? '\n' : '') + '[📓 #' + note.id + '] ' + note.title);
-        setNotePick(false);
-        if (composerRef.current) composerRef.current.focus();
-      }
-
       return h('div', { className: 'mcw-center' },
         h('div', { className: 'mcw-roomhead', style: { '--mcw-accent': accent } },
           h('div', { className: 'mcw-emoji' }, agent.emoji),
@@ -499,45 +440,17 @@ window.__ModuleLoader__.load({
             h('h2', null, agent.name + ' ' + (agent.nick ? '— ' + agent.nick : '')),
             h('small', null, agent.role + (agent.external ? ' · مسار خارجي: ' + agent.prompt : ''))),
           h('div', { className: 'mcw-roomacts' },
-            room && room.wsTitle ? h('span', { className: 'mcw-chip', title: 'مساحة عمل DSH لهذه الغرفة: ' + room.wsTitle }, '🗂 ' + room.wsTitle) : null,
+            room && room.wsTitle ? h('span', { className: 'mcw-chip', title: 'مساحة عمل DSH: ' + room.wsTitle }, '🗂 ' + room.wsTitle) : null,
             room && room.sessionId ? h('span', { className: 'mcw-chip', title: 'جلسة DSH مرتبطة: ' + room.sessionId }, '⚡ DSH #' + String(room.sessionId).slice(0, 8)) : null,
             h('button', { className: 'mcw-btn ghost', title: 'نسخ برومبت تفعيل الشخصية', onClick: () => onCopyPrompt(agent) }, '📋 البرومبت'),
-            h('button', { className: 'mcw-btn ghost', onClick: onOpenDSH }, '🗨 فتح في DSH'),
-            h('button', { className: 'mcw-btn', onClick: () => onRebind(agent) }, '⚡ ربط جلسة DSH'))),
+            h('button', { className: 'mcw-btn ghost', onClick: onOpenDSH }, '🗨 ملء الشاشة'),
+            h('button', { className: 'mcw-btn', onClick: () => onRebind(agent) }, '⚡ ربط'))),
         h(AgentContextCard, { agent, ctxData: agentCtx }),
-        h('div', { className: 'mcw-msgs' },
-          msgs.length === 0 ?
-            h('div', { className: 'mcw-empty' }, 'غرفة ' + agent.name + ' — أرسل تكليفاً أو استخدم الأزرار السريعة. (الردود الحقيقية تُنفَّذ في جلسة DSH الأصلية للوكيل)') :
-            msgs.map((m) => h(MsgBubble, {
-              key: m.id, msg: m, accent, agentName: agent.name,
-              onApprove, onEditMsg, onAudit, onSaveNote,
-            }))),
-        h('details', { className: 'mcw-scratch' },
-          h('summary', null, '🧠 Scratchpad — تفكير ' + agent.name + ' الداخلي' + (room && room.scratch ? ' ✍️' : '')),
-          h('textarea', { placeholder: 'ملاحظات تفكير/ذاكرة مؤقتة للوكيل (تُحفظ محلياً)', value: (room && room.scratch) || '', onChange: (e) => onToggleScratch(e.target.value) })),
-        h('div', { className: 'mcw-chips' },
-          (agent.chips || []).map((c) => h('button', { key: c.label, className: 'mcw-btn', onClick: () => onChip(c.text) }, c.label)),
-          h('button', { className: 'mcw-btn ghost', onClick: () => setNotePick(!notePick) }, '# حقن نوت من النوتبوك')),
-        (notePick ? h('div', { className: 'mcw-scratch', style: { padding: 8, maxHeight: 160, overflow: 'auto' } },
-          (notes || []).filter((n) => n.status === 'open').slice(0, 8).map((n) =>
-            h('div', { key: n.id, className: 'mcw-note', style: { cursor: 'pointer' }, onClick: () => injectNote(n) },
-              h('b', null, '#' + n.id + ' · ' + n.title),
-              h('p', null, n.body || '')))) : null),
-        h(ApprovalComposer, { onRequestApproval }),
-        h('div', { className: 'mcw-composer' },
-          h('textarea', {
-            ref: composerRef, value: draft, onChange: onComposerChange,
-            placeholder: 'اكتب للوكيل…  ( @اسم_وكيل = استدعاء تعاوني · # = حقن نوت )',
-            onKeyDown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } },
-          }),
-          h('button', { className: 'mcw-send', onClick: send }, 'إرسال ↵')),
-        (mentionOpen ?
-          h('div', { className: 'mcw-scratch', style: { position: 'absolute', bottom: 86, insetInline: 40, zIndex: 30, maxHeight: 200, overflow: 'auto' } },
-            AGENTS.filter((a) => a.id !== agent.id && (!mentionFilter || a.name.includes(mentionFilter) || a.nick.includes(mentionFilter))).map((a) =>
-              h('div', { key: a.id, className: 'mcw-note', style: { cursor: 'pointer', margin: 0, borderInlineStart: '3px solid ' + a.color }, onClick: () => pickMention(a.id) },
-                h('b', null, a.emoji + ' ' + a.name + ' — ' + a.nick)))) : null));
+        h('div', { className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
+          renderFactorySlot
+            ? renderFactorySlot('conversation.content', NativeChatFallback)
+            : h(NativeChatFallback)));
     }
-
     function NoteRow({ n, onPin }) {
       return h('div', { key: n.id, className: 'mcw-note' },
         h('b', null, (n.emoji || '📁') + ' #' + n.id + ' · ' + n.title + (n.status === 'done' ? ' ✓' : '')),
@@ -1032,7 +945,8 @@ window.__ModuleLoader__.load({
         try { wsInfo = await ensureAgentWorkspace(agentId); } catch { wsInfo = null; }
         const wsId = (wsInfo && wsInfo.workspaceId) || currentWorkspaceId();
         const sessionId = await uiWorkspace.connectWorkspace(wsId, { agentPreset: presetId });
-        try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
+   
+        try { uiWorkspace.openSession(sessionId); } catch {}     try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
         const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
         await ref.ready;
         saveRoom(agentId, { sessionId, wsTitle: wsInfo ? wsInfo.title : null });
@@ -1094,12 +1008,9 @@ window.__ModuleLoader__.load({
                 tab === 'vision' ? h(VisionPane, { entries, onPreview, preview, onRefresh: refresh }) :
                   h(ContextPane, { pos, catalog, onRefresh: refresh })),
             h(RoomView, {
-              agent: active, room: activeRoom, notes, notesMeta: nbMeta, bridge, agentCtx: agentCtx[activeId],
-              onSend, onChip, onToggleScratch: (v) => saveRoom(activeId, { scratch: v }),
-              onApprove, onEditMsg, onAudit, onSaveNote, onRequestApproval,
+              agent: active, room: activeRoom, agentCtx: agentCtx[activeId],
+              renderFactorySlot: props.renderFactorySlot,
               onCopyPrompt, onOpenDSH: openDSH, onRebind: rebind,
-              onInjectNote: null, openPanel: () => { try { if (layout && layout.selectPanel) layout.selectPanel('marwa-core'); } catch {} },
-              noteDraft, setNoteDraft,
             }),
             h(AgentDock, { agents: AGENTS, groups: GROUPS, activeId, rooms, onOpen: openRoom, onOpenDSH: openDSH, hidden: !bars.left, onCollapse: () => toggleBar('left') })),
           h(Palette, { open: paletteOpen, onClose: () => setPaletteOpen(false), agents: AGENTS, notes, onAgent: openRoom, onAction: (act, n) => { if (act === 'openDSH') openDSH(); else if (act === 'refresh') refresh(); else if (act === 'note' && n) { setTab('nb'); } } }),

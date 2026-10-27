@@ -377,6 +377,12 @@ export function apply(ctx, config) {
         const match = all.find((s) => s && s.header && s.header.agentPreset === presetId);
         return { sessionId: match ? match.id : null, available: true, liveCount: all.length };
       }
+      case 'version':
+        return {
+          ok: true,
+          version: '1.5.0',
+          note: 'المركز أصبح غلافاً: الشات الأصلي DSH في المنتصف عبر renderFactorySlot، والتنقّل عبر uiWorkspace.openSession',
+        };
       default:
         return bridgeCall(endpoint, params);
     }
