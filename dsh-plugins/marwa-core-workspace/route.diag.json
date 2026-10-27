@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-27T22:59:43.947Z",
+  "attempts": [
+    {
+      "via": "connection.fetch.register",
+      "ok": true
+    }
+  ],
+  "injected": true,
+  "connection": "object",
+  "registered": true
+}
