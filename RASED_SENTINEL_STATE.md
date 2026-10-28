@@ -282,3 +282,16 @@
 - **إجراء مطلوب من اللابتوب**: git pull origin main لجلب 1ba337
 
 >>>>>>> Stashed changes
+
+
+## 🔄 رصد المزامنة — 2026-10-28 09:45 Cairo
+**حدث**: sync طوارئ + تصحيح divergence مع LAPTOP
+
+| النظام | الحالة |
+|---------|--------|
+| GitHub | ✅ LAPTOP syncing every 5 min (v1.6.x) |
+| Supabase | ✅ 7 tables synced |
+| AGENTS.md | ✅ restored (hakim/marwa/rased/fares) |
+| marwa_command_center | ➡️ added to .gitignore (session binding) |
+
+**ملاحظة**: بسبب divergence — تم reset لـ origin/main ثم إعادة بناء local changes.

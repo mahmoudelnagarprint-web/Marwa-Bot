@@ -105,3 +105,5 @@ Vision-Lab/tmp_vision/
 # Live runtime state — local only (workshop decision 21b52ef: stay local, never tracked)
 workspaces/**/chats/
 workspaces/**/active_workspaces/
+
+orchestrator/marwa_command_center/
