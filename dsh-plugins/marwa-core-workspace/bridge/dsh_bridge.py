@@ -555,6 +555,56 @@ def binding_ensure(params):
     return rec
 
 
+def squad_stats(params):
+    """إحصائيات حقيقية لوكيل: مهام النوتبوك الموسومة له + صندوق الوارد + ملفات مساحته.
+    كلها محسوبة من سجلات فعلية — بلا أي أرقام تقديرية أو وهمية (متطلب القسم 9-د)."""
+    aid = params.get("agent") or ""
+    if aid not in SQUAD_PROMPTS:
+        raise ValueError("unknown agent: %r" % aid)
+    out = {"agent": aid, "computedAt": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    conn = None
+    try:
+        conn = sqlite3.connect(str(NOTEBOOK_DB), timeout=6)
+        conn.row_factory = sqlite3.Row
+        like = "%agent:" + aid + "%"
+        cur = conn.execute(
+            "SELECT status, COUNT(*) AS c FROM notes WHERE (tags LIKE ? OR source LIKE ?) GROUP BY status",
+            (like, "%" + aid + "%"))
+        counts = {}
+        for row in cur.fetchall():
+            counts[str(row["status"] or "other")] = int(row["c"])
+        out["notebookTasks"] = {"open": counts.get("open", 0), "done": counts.get("done", 0),
+                                "other": sum(v for k, v in counts.items() if k not in ("open", "done"))}
+    except Exception as exc:  # noqa: BLE001 — الإحصائيات تُشير بصدق عند فشل المصدر
+        out["notebookTasks"] = {"error": str(exc)}
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001
+                pass
+    inbox = REPO / "inbox_tasks" / aid
+    files = []
+    if inbox.exists():
+        try:
+            files = [f for f in inbox.iterdir() if f.is_file()]
+        except OSError:
+            files = []
+    out["inbox"] = {"count": len(files),
+                    "latest": (time.strftime("%Y-%m-%d %H:%M", time.localtime(max((_mtime(f) for f in files), default=0))) if files else None)}
+    rel = WORKSPACE_DIRS.get(aid) or ("orchestrator/squad/" + aid)
+    ws_dir = REPO / rel
+    md = ws_dir / "AGENTS.md"
+    out["workspace"] = {
+        "path": str(ws_dir),
+        "exists": ws_dir.exists(),
+        "agentsMd": {"exists": md.exists(), "chars": (md.stat().st_size if md.exists() else 0),
+                     "mtime": (time.strftime("%Y-%m-%d %H:%M", time.localtime(_mtime(md))) if md.exists() else None)},
+    }
+    out["source"] = "محسوبة من سجلات فعلية — notebook.db + inbox_tasks + ملفات المساحة"
+    return out
+
+
 HANDLERS = {
     "notebook.list": notebook_list,
     "notebook.add": notebook_add,
@@ -566,6 +616,7 @@ HANDLERS = {
     "vision.file": vision_file,
     "squad.prompts": squad_prompts,
     "squad.context": squad_context,
+    "squad.stats": squad_stats,
     "workspaces.ensure": workspaces_ensure,
     "binding.get": binding_get,
     "binding.ensure": binding_ensure,

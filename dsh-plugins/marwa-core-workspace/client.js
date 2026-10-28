@@ -431,8 +431,19 @@ window.__ModuleLoader__.load({
     }
 
     function RoomView(props) {
-      const { agent, room, agentCtx, agentSessions, renderFactorySlot, onCopyPrompt, onOpenDSH, onRebind, onPickSession, onNewSession } = props;
+      const { agent, room, agentCtx, agentSessions, renderFactorySlot, onCopyPrompt, onOpenDSH, onRebind, onPickSession, onNewSession, onLoadStats } = props;
       const accent = agent.color;
+      const [vt, setVt] = useState('chat');
+      const [stats, setStats] = useState(null);
+      useEffect(() => {
+        if (vt !== 'stats') return;
+        let alive = true;
+        setStats({ loading: true });
+        Promise.resolve(onLoadStats ? onLoadStats(agent.id) : null)
+          .then((v) => { if (alive) setStats(v || { error: 'لا توجد بيانات' }); })
+          .catch((e) => { if (alive) setStats({ error: String((e && e.message) || e) }); });
+        return () => { alive = false; };
+      }, [vt, agent.id]);
       return h('div', { className: 'mcw-center' },
         h('div', { className: 'mcw-roomhead', style: { '--mcw-accent': accent } },
           h('div', { className: 'mcw-emoji' }, agent.emoji),
@@ -454,11 +465,41 @@ window.__ModuleLoader__.load({
             onClick: () => onPickSession(s.id),
           }, '💬 ' + String(s.title || '').slice(0, 24))),
           h('button', { className: 'mcw-btn ghost', title: 'إنشاء جلسة جديدة داخل مساحة الوكيل', onClick: onNewSession }, '➕ جديدة')) : null,
-        h(AgentContextCard, { agent, ctxData: agentCtx }),
-        h('div', { className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
+        h('div', { style: { display: 'flex', gap: 4, padding: '4px 8px 0', flexWrap: 'wrap' } },
+          h('button', { className: cls('mcw-tab', vt === 'chat' && 'on'), onClick: () => setVt('chat') }, '💬 المحادثة'),
+          h('button', { className: cls('mcw-tab', vt === 'tasks' && 'on'), onClick: () => setVt('tasks') }, '📋 المهام'),
+          h('button', { className: cls('mcw-tab', vt === 'data' && 'on'), onClick: () => setVt('data') }, '📊 البيانات'),
+          h('button', { className: cls('mcw-tab', vt === 'stats' && 'on'), onClick: () => setVt('stats') }, '📈 إحصائيات'),
+          h('button', { className: cls('mcw-tab', vt === 'guide' && 'on'), onClick: () => setVt('guide') }, '📜 التعليمات')),
+        vt === 'chat' ? h('div', { className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
           (renderFactorySlot && room && room.sessionId)
             ? renderFactorySlot('conversation.content', { sessionId: room.sessionId })
-            : h(NativeChatFallback)));
+            : h(NativeChatFallback))
+        : vt === 'tasks' ? h('div', { style: { flex: 1, overflow: 'auto', padding: '8px 12px', fontSize: 12 } },
+            h('div', { className: 'mcw-group-title' }, '📋 مهام النوتبوك الموسومة للوكيل'),
+            agentCtx && agentCtx.noteTasks && agentCtx.noteTasks.length
+              ? agentCtx.noteTasks.map((t, i) => h('div', { key: i, className: 'mcw-note', style: { marginBottom: 4 } },
+                  '#' + t.id + ' · ' + (t.title || '') + ' · ' + (t.priority || '') + ' · ' + (t.status || '')))
+              : h('div', { style: { opacity: 0.5 } }, 'لا مهام مفتوحة موسومة لهذا الوكيل حالياً'),
+            h('div', { className: 'mcw-group-title', style: { marginTop: 10 } }, '📥 صندوق الوارد (inbox_tasks)'),
+            agentCtx && agentCtx.inbox && agentCtx.inbox.files && agentCtx.inbox.files.length
+              ? agentCtx.inbox.files.map((f, i) => h('div', { key: i, style: { fontSize: 11, color: 'rgba(236,231,218,.6)' } }, '• ' + f.name))
+              : h('div', { style: { opacity: 0.5 } }, 'الصندوق فارغ'))
+        : vt === 'data' ? h('div', { style: { flex: 1, overflow: 'auto' } }, h(AgentContextCard, { agent, ctxData: agentCtx }))
+        : vt === 'stats' ? h('div', { style: { flex: 1, overflow: 'auto', padding: '8px 12px', fontSize: 12 } },
+            !stats ? h('div', { style: { opacity: 0.5 } }, '⏳ جارٍ الحساب من السجلات الفعلية…')
+            : stats.loading ? h('div', { style: { opacity: 0.5 } }, '⏳ …')
+            : stats.error ? h('div', { style: { color: '#f87171' } }, '⚠ ' + stats.error)
+            : h('div', null,
+                h('div', { className: 'mcw-group-title' }, '📈 إحصائيات ' + (agent.name || '') + ' — ' + (stats.computedAt || '')),
+                h('div', { style: { marginTop: 6 } }, '• مهام النوتبوك: مفتوحة ' + (stats.notebookTasks ? stats.notebookTasks.open : '؟') + ' · منجزة ' + (stats.notebookTasks ? stats.notebookTasks.done : '؟')),
+                h('div', null, '• صندوق الوارد: ' + (stats.inbox ? stats.inbox.count : '؟') + ' ملف' + (stats.inbox && stats.inbox.latest ? ' · آخرها ' + stats.inbox.latest : '')),
+                h('div', null, '• مساحة العمل: ' + (stats.workspace && stats.workspace.exists ? 'موجودة ✓' : 'غير منشأة') + (stats.workspace && stats.workspace.agentsMd && stats.workspace.agentsMd.exists ? ' · AGENTS.md ' + stats.workspace.agentsMd.chars + ' حرف · تحديث ' + stats.workspace.agentsMd.mtime : ' · AGENTS.md غير موجود بعد')),
+                h('div', { style: { marginTop: 6, opacity: 0.55, fontSize: 11 } }, stats.source || '')))
+        : h('div', { style: { flex: 1, overflow: 'auto', padding: '8px 12px', fontSize: 12 } },
+            h('div', { className: 'mcw-group-title' }, '📜 تعليمات الوكيل (من ملفاته الأصلية)'),
+            agentCtx && agentCtx.prompt && agentCtx.prompt.head ? h('pre', { style: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 11, opacity: 0.85 } }, agentCtx.prompt.head) : h('div', { style: { opacity: 0.5 } }, 'لا دستور محمّل'),
+            agentCtx && agentCtx.profile && agentCtx.profile.head ? h('div', null, h('div', { className: 'mcw-group-title', style: { marginTop: 8 } }, 'الهوية (AGENT_PROFILE)'), h('pre', { style: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 11, opacity: 0.85 } }, agentCtx.profile.head)) : null));
     }
     function NoteRow({ n, onPin }) {
       return h('div', { key: n.id, className: 'mcw-note' },
@@ -1144,6 +1185,7 @@ window.__ModuleLoader__.load({
             h(RoomView, {
               key: active.id, agent: active, room: activeRoom, agentCtx: agentCtx[activeId], agentSessions,
               onPickSession: (sid) => pickAgentSession(activeId, sid), onNewSession: () => newAgentSession(activeId),
+              onLoadStats: (aid) => bridge.call('squad.stats', { agent: aid }),
               renderFactorySlot: props.renderFactorySlot,
               onCopyPrompt, onOpenDSH: openDSH, onRebind: rebind,
             }),
