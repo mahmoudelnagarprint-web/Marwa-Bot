@@ -431,7 +431,7 @@ window.__ModuleLoader__.load({
     }
 
     function RoomView(props) {
-      const { agent, room, agentCtx, renderFactorySlot, onCopyPrompt, onOpenDSH, onRebind } = props;
+      const { agent, room, agentCtx, agentSessions, renderFactorySlot, onCopyPrompt, onOpenDSH, onRebind, onPickSession, onNewSession } = props;
       const accent = agent.color;
       return h('div', { className: 'mcw-center' },
         h('div', { className: 'mcw-roomhead', style: { '--mcw-accent': accent } },
@@ -445,6 +445,15 @@ window.__ModuleLoader__.load({
             h('button', { className: 'mcw-btn ghost', title: 'نسخ برومبت تفعيل الشخصية', onClick: () => onCopyPrompt(agent) }, '📋 البرومبت'),
             h('button', { className: 'mcw-btn ghost', onClick: onOpenDSH }, '🗨 ملء الشاشة'),
             h('button', { className: 'mcw-btn', onClick: () => onRebind(agent) }, '⚡ ربط'))),
+        agentSessions && agentSessions.sessions && agentSessions.sessions.length ? h('div', { style: { display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', padding: '2px 8px' } },
+          h('span', { style: { fontSize: 10, color: 'rgba(236,231,218,.55)' } }, '🗂 ' + (agentSessions.title || 'مساحة الوكيل') + ' (' + agentSessions.sessions.length + '):'),
+          agentSessions.sessions.slice(0, 6).map((s) => h('button', {
+            key: s.id, className: 'mcw-btn ghost',
+            style: room && room.sessionId === s.id ? { borderColor: '#d4af37', color: '#d4af37' } : null,
+            title: 'افتح الجلسة ' + s.id + ' — تبقى داخل واجهة مروة',
+            onClick: () => onPickSession(s.id),
+          }, '💬 ' + String(s.title || '').slice(0, 24))),
+          h('button', { className: 'mcw-btn ghost', title: 'إنشاء جلسة جديدة داخل مساحة الوكيل', onClick: onNewSession }, '➕ جديدة')) : null,
         h(AgentContextCard, { agent, ctxData: agentCtx }),
         h('div', { className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
           (renderFactorySlot && room && room.sessionId)
@@ -630,6 +639,52 @@ window.__ModuleLoader__.load({
       const layout = useMemo(() => { try { return SVC.layout || undefined; } catch { return undefined; } }, [svcTick]);
       const uiWorkspace = useMemo(() => { try { return SVC.uiWorkspace || undefined; } catch { return undefined; } }, [svcTick]);
       const sessionsSvc = useMemo(() => { try { return SVC.sessions || undefined; } catch { return undefined; } }, [svcTick]);
+      const agentSessions = useMemo(() => {
+        try {
+          const wsvc = getSvc('workspaces');
+          const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
+          const key = String(activeId).toLowerCase();
+          const nm = String((AGENT_MAP[activeId] || {}).name || '').toLowerCase();
+          const ws = items.find((w) => String(w.path || '').toLowerCase().includes('squad/' + key))
+            || items.find((w) => String(w.title || '').toLowerCase() === nm);
+          if (!ws) return null;
+          const sl = getSvc('sessions');
+          const snap = (sl && sl.list && sl.list.getSnapshot) ? sl.list.getSnapshot() : null;
+          const byId = (snap && snap.byId) || {};
+          return {
+            workspaceId: ws.workspaceId, title: ws.title,
+            sessions: (ws.sessionIds || []).map((sid) => {
+              const s = byId[sid];
+              const t = s && (s.title || (s.header && s.header.title));
+              return { id: sid, title: t || ('جلسة #' + String(sid).slice(0, 6)) };
+            }).reverse(),
+          };
+        } catch { return null; }
+      }, [activeId, svcTick]);
+      function pickAgentSession(agentId, sid) {
+        saveRoom(agentId, { sessionId: sid });
+        try { localStorage.setItem('mcw.sid.' + agentId, sid); } catch {}
+        showToast('💬 جلسة #' + String(sid).slice(0, 8) + ' — داخل واجهة مروة');
+      }
+      async function newAgentSession(agentId) {
+        try {
+          const wsvc = getSvc('workspaces');
+          const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
+          const key = String(agentId).toLowerCase();
+          const nm = String((AGENT_MAP[agentId] || {}).name || '').toLowerCase();
+          let ws = items.find((w) => String(w.path || '').toLowerCase().includes('squad/' + key))
+            || items.find((w) => String(w.title || '').toLowerCase() === nm);
+          if (!ws) { const r = await ensureAgentSession(agentId); setSvcTick((t) => t + 1); showToast('⚡ جلسة جديدة #' + String(r.sessionId).slice(0, 8)); return; }
+          try { bridge.call('workspaces.ensure', { agent: agentId }).catch(() => {}); } catch {}
+          const presetId = PRESET_ID_MAP[agentId] || agentId;
+          const sid = await uiWorkspace.connectWorkspace(ws.workspaceId, { agentPreset: presetId });
+          saveRoom(agentId, { sessionId: sid });
+          try { localStorage.setItem('mcw.sid.' + agentId, sid); } catch {}
+          try { bridge.call('binding.ensure', { agent: agentId, workspaceId: ws.workspaceId, workspaceTitle: ws.title, workspacePath: ws.path, preset: presetId, sessionId: sid }).catch(() => {}); } catch {}
+          setSvcTick((t) => t + 1);
+          showToast('⚡ جلسة جديدة في «' + (ws.title || '') + '» — #' + String(sid).slice(0, 8));
+        } catch (err) { showToast('⚠ تعذّر إنشاء جلسة: ' + String((err && err.message) || err)); }
+      }
 
       const showToast = useCallback((t) => { setToast(t); setTimeout(() => setToast(null), 2600); }, []);
 
@@ -1087,7 +1142,8 @@ window.__ModuleLoader__.load({
                 tab === 'vision' ? h(VisionPane, { entries, onPreview, preview, onRefresh: refresh }) :
                   h(ContextPane, { pos, catalog, onRefresh: refresh })),
             h(RoomView, {
-              key: active.id, agent: active, room: activeRoom, agentCtx: agentCtx[activeId],
+              key: active.id, agent: active, room: activeRoom, agentCtx: agentCtx[activeId], agentSessions,
+              onPickSession: (sid) => pickAgentSession(activeId, sid), onNewSession: () => newAgentSession(activeId),
               renderFactorySlot: props.renderFactorySlot,
               onCopyPrompt, onOpenDSH: openDSH, onRebind: rebind,
             }),

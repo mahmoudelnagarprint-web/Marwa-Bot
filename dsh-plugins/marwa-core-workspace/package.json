@@ -1,6 +1,6 @@
 {
   "name": "@local/marwa-core-workspace",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "type": "module",
   "description": "غرفة عمليات مروة — Native DSH UI: 4-zone workspace + 10 live Agent Presets + Zero-Click session routing",
