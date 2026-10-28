@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Marwa Core Workspace — Client half: غرفة عمليات مروة (الهيكل الرباعي).
  *
  * الش
@@ -1030,7 +1030,7 @@ window.__ModuleLoader__.load({
             await ref.ready;
             saveRoom(agentId, { sessionId: sid });
             attachLive(agentId, ref.binding);
-            nav(sid);
+            // لا تنقّل تلقائياً — التضمين داخل اللوحة هو العرض الافتراضي (توجيه المالك القسم 3)
             return { sessionId: sid, created: false };
           } catch { sid = null; }
         }
@@ -1044,7 +1044,7 @@ window.__ModuleLoader__.load({
             await ref.ready;
             saveRoom(agentId, { sessionId: sid });
             attachLive(agentId, ref.binding);
-            nav(sid);
+            // لا تنقّل تلقائياً — التضمين داخل اللوحة هو العرض الافتراضي (توجيه المالك القسم 3)
             return { sessionId: sid, created: false, found: true };
           }
         } catch {}
@@ -1098,7 +1098,7 @@ window.__ModuleLoader__.load({
           } catch {}
         }
         if (sid) {
-          nav(sid);
+          // لا تنقّل تلقائياً — التضمين داخل اللوحة هو العرض الافتراضي
           try { localStorage.setItem('mcw.sid.' + agentId, sid); } catch {}
           try {
             const ref = sessionsSvc.retain(sid, { source: 'controllerOperation' });
@@ -1112,7 +1112,7 @@ window.__ModuleLoader__.load({
         if (!wsId) throw new Error('لا توجد مساحة عمل للوكيل — شغّل الجسر ثم أعد المحاولة');
         // 4) إنشاء جلسة DSH جديدة داخل مساحة الوكيل + تنقّل أصلي فوري إلى المحادثة
         const sessionId = await uiWorkspace.connectWorkspace(wsId, { agentPreset: presetId });
-        nav(sessionId);
+        // لا تنقّل تلقائياً — التضمين داخل اللوحة هو العرض الافتراضي
         try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
         try { bridge.call('binding.ensure', { agent: agentId, workspaceId: wsId, workspaceTitle: (boundHit && boundHit.title) || (wsInfo && wsInfo.title) || null, workspacePath: (boundHit && boundHit.path) || (wsInfo && wsInfo.path) || null, preset: presetId, sessionId: sessionId }).catch(() => {}); } catch {}
         try {
