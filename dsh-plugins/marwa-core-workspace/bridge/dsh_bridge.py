@@ -504,6 +504,56 @@ def squad_context(params):
     return out
 
 
+BINDINGS_PATH = REPO / "orchestrator" / "marwa_command_center" / "bindings.json"
+
+
+def _load_bindings():
+    """قراءة سجل الربط — ملف تالف يُعامل كأنه غير موجود (لا يكسر الجسر أبداً)."""
+    try:
+        with open(BINDINGS_PATH, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        if isinstance(data, dict) and isinstance(data.get("agents"), dict):
+            return data
+    except Exception:  # noqa: BLE001
+        pass
+    return {"version": 1, "agents": {}}
+
+
+def binding_get(params):
+    """قراءة سجل ربط وكيل واحد (Agent → Workspace/Session). قراءة فقط."""
+    aid = str(params.get("agent") or "").strip()
+    if not aid:
+        raise ValueError("agent required")
+    data = _load_bindings()
+    return {"agent": aid, "binding": data["agents"].get(aid)}
+
+
+def binding_ensure(params):
+    """تحديث سجل ربط وكيل بعد الربط الفعلي بمساحة/جلسة DSH.
+    كتابة ذرية (tmp + replace) داخل orchestrator/ فقط — لا يلمس أي ملف حالة جذري."""
+    aid = str(params.get("agent") or "").strip()
+    if not aid:
+        raise ValueError("agent required")
+    data = _load_bindings()
+    rec = {
+        "agent": aid,
+        "workspaceId": params.get("workspaceId"),
+        "workspaceTitle": params.get("workspaceTitle"),
+        "workspacePath": params.get("workspacePath"),
+        "preset": params.get("preset"),
+        "lastSessionId": params.get("sessionId"),
+        "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    data["version"] = 1
+    data["agents"][aid] = rec
+    BINDINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = BINDINGS_PATH.with_name(BINDINGS_PATH.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+    tmp.replace(BINDINGS_PATH)
+    return rec
+
+
 HANDLERS = {
     "notebook.list": notebook_list,
     "notebook.add": notebook_add,
@@ -516,6 +566,8 @@ HANDLERS = {
     "squad.prompts": squad_prompts,
     "squad.context": squad_context,
     "workspaces.ensure": workspaces_ensure,
+    "binding.get": binding_get,
+    "binding.ensure": binding_ensure,
 }
 
 

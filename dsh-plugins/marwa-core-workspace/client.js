@@ -956,16 +956,29 @@ window.__ModuleLoader__.load({
         let wsInfo = null;
         try { wsInfo = await ensureAgentWorkspace(agentId); } catch { wsInfo = null; }
         let wsId = (wsInfo && wsInfo.workspaceId) || null;
+        let boundHit = null;
+        // 3-أ) سجل الربط الدائم (الجسر) — أقوى إشارة قبل أي مطابقة اسم/مسار
+        if (!wsId) {
+          try {
+            const b = await bridge.call('binding.get', { agent: agentId });
+            const bid = b && b.binding && b.binding.workspaceId;
+            if (bid) {
+              const wsvc0 = getSvc('workspaces');
+              const items0 = (wsvc0 && wsvc0.list && wsvc0.list.getSnapshot) ? (wsvc0.list.getSnapshot().items || []) : [];
+              const hit0 = items0.find((w) => (w.workspaceId || w.id) === bid);
+              if (hit0) { boundHit = hit0; wsId = hit0.workspaceId || hit0.id || null; }
+            }
+          } catch {}
+        }
         if (!wsId) {
           try {
             const wsvc = getSvc('workspaces');
             const items = (wsvc && wsvc.list && wsvc.list.getSnapshot) ? (wsvc.list.getSnapshot().items || []) : [];
-            const key = String(agentId).toLowerCase();
-            const hit = items.find((w) => String(w.path || '').toLowerCase().includes('squad/' + key))
-              || items.find((w) => String(w.name || w.title || '').toLowerCase() === key)
-              || items.find((w) => String(w.path || '').toLowerCase().endsWith('\\' + key))
-              || items.find((w) => String(w.workspaceId || w.id || '').toLowerCase().includes(key));
-            if (hit) wsId = hit.workspaceId || hit.id || null;
+            const names = [String(agentId).toLowerCase(), String((AGENT_MAP[agentId] || {}).name || '').toLowerCase()].filter(Boolean);
+            const hit = items.find((w) => names.some((n) => String(w.path || '').toLowerCase().includes('squad/' + n)))
+              || items.find((w) => names.some((n) => String(w.title || w.name || '').toLowerCase() === n))
+              || items.find((w) => names.some((n) => String(w.path || '').toLowerCase().endsWith('\\\\' + n)));
+            if (hit) { boundHit = hit; wsId = hit.workspaceId || hit.id || null; }
           } catch {}
         }
         if (!wsId) {
@@ -997,6 +1010,7 @@ window.__ModuleLoader__.load({
             saveRoom(agentId, { sessionId: sid });
             attachLive(agentId, ref.binding);
           } catch {}
+          try { bridge.call('binding.ensure', { agent: agentId, workspaceId: wsId, workspaceTitle: (boundHit && boundHit.title) || null, workspacePath: (boundHit && boundHit.path) || null, preset: presetId, sessionId: sid }).catch(() => {}); } catch {}
           return { sessionId: sid, created: false, reused: true };
         }
         if (!wsId) throw new Error('لا توجد مساحة عمل للوكيل — شغّل الجسر ثم أعد المحاولة');
@@ -1004,6 +1018,7 @@ window.__ModuleLoader__.load({
         const sessionId = await uiWorkspace.connectWorkspace(wsId, { agentPreset: presetId });
         nav(sessionId);
         try { localStorage.setItem('mcw.sid.' + agentId, sessionId); } catch {}
+        try { bridge.call('binding.ensure', { agent: agentId, workspaceId: wsId, workspaceTitle: (boundHit && boundHit.title) || (wsInfo && wsInfo.title) || null, workspacePath: (boundHit && boundHit.path) || (wsInfo && wsInfo.path) || null, preset: presetId, sessionId: sessionId }).catch(() => {}); } catch {}
         try {
           const ref = sessionsSvc.retain(sessionId, { source: 'controllerOperation' });
           await ref.ready;
