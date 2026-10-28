@@ -357,10 +357,21 @@ STATE_FILES = {
 
 
 def _head(p: Path, chars: int = 900):
-    """قراءة رأس ملف نصي بأمان — بلا كتابة."""
+    """قراءة رأس ملف نصي بأمان — بلا كتابة؛ يُقطع عند آخر حد فقرة قبل السقف
+    (لا يقصّ كلمة في منتصفها) ويُختم بـ«…» عند الاقتطاع — مقروء دائماً."""
     try:
         text = p.read_text(encoding="utf-8", errors="replace")
-        return {"path": str(p), "chars": len(text), "head": text[:chars].strip(), "mtime": _mtime(p)}
+        total = len(text)
+        if total <= chars:
+            return {"path": str(p), "chars": total, "head": text.strip(), "mtime": _mtime(p), "truncated": False}
+        cut = text[:chars]
+        idx = cut.rfind("\n")
+        if idx > chars // 2:  # حد فقرة لائق في النصف الثاني — نقف عنده لا في منتصف كلمة
+            head = cut[:idx].rstrip("\n").rstrip() + "\n…"
+        else:  # فقرة واحدة أطول من السقف — نقف عند آخر مسافة قبل السقف
+            sp = cut.rfind(" ")
+            head = (cut[:sp].rstrip() if sp > 0 else cut) + " …"
+        return {"path": str(p), "chars": total, "head": head, "mtime": _mtime(p), "truncated": True}
     except OSError as exc:
         return {"path": str(p), "error": str(exc), "mtime": 0.0}
 
@@ -430,8 +441,12 @@ def workspaces_ensure(params):
     parts.append("## 📌 قرارات/ملاحظات المالك المثبتة (نوتبوك notebook.db)")
     if pnotes:
         for n in pnotes:
-            parts.append("- [#" + str(n.get("id")) + "][" + str(n.get("kind") or "note") + "] " +
-                         str(n.get("title") or "") + (":" + str(n.get("body") or "")[:260] if n.get("body") else ""))
+            title = str(n.get("title") or "").strip()
+            body = str(n.get("body") or "").strip()
+            line = "[#" + str(n.get("id")) + "][" + str(n.get("kind") or "note") + "] " + title
+            if body and body != title:  # العنوان قد يضمّن البدن مسبقاً — لا نكرّره
+                line += ":" + body[:260]
+            parts.append("- " + line)
     else:
         parts.append("- لا يوجد حالياً.")
     parts.append("")
