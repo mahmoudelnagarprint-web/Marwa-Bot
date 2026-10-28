@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")  # النص العربي في params — بلا surrogates
 
 def _detect_repo():
     """ترتيب الثقة: متغير البيئة من نصف المضيف ← جذر المستودع المعروف ← عقدة اللابتوب ← cwd.
