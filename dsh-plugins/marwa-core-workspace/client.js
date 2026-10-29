@@ -455,75 +455,125 @@ window.__ModuleLoader__.load({
     // ------------------------------------------------------------------ إرسال الرسالة لخدمة جلسات DSH مباشرة
     // الحل الجذري: لا نستعمل سلوت composer المحجوب؛ نرسل النص لخدمة الجلسات عبر
     // مسارات محمية (binding.session.prompt ← ctx.chat.send ← ss.prompt) ونرصد الفشل في الشريط.
+    // ------------------------------------------------------------------ قراءة الرسائل من session service + notification subscription
+    // protocol format for prompt: { sessionId, prompt: [{ type: "text", text }] }
+    // streaming via the returned stream (async iterator of message chunks)
+    function readSessionMessages(sid) {
+      const ss = getSvc('sessions');
+      if (!ss) return [];
+      try {
+        // ss.messages(sid) → array of message entries from the session buffer
+        if (typeof ss.messages === 'function') {
+          const entries = ss.messages(sid);
+          if (Array.isArray(entries)) return entries;
+        }
+      } catch {}
+      // fallback: chat.nodes
+      try {
+        const chat = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
+        if (chat && chat.nodes && typeof chat.nodes.values === 'function') {
+          return [...chat.nodes.values()];
+        }
+      } catch {}
+      return [];
+    }
+
     function sendNativePrompt(sid, text) {
       const ss = getSvc('sessions');
       if (!ss) throw new Error('خدمات الجلسات غير متاحة');
-      // 1) المسار الموثق: binding(sid).session.prompt(text)
+      // protocol format: { sessionId, prompt: [{ type: "text", text }] }
+      const protocolMsg = { sessionId: sid, prompt: [{ type: 'text', text }] };
+      // 1) binding(sid).session.prompt({ sessionId, prompt: [...] }) — مع format الصحيح
       try {
         const b = typeof ss.binding === 'function' ? ss.binding(sid) : null;
         const sess = b && (b.session || b);
-        if (sess && typeof sess.prompt === 'function') return Promise.resolve(sess.prompt(text));
-      } catch (e) { /* جرّب المسار التالي */ }
-      // 2) صيغة ctx.chat.send الموازية إن وُجدت خدمة chat
+        if (sess && typeof sess.prompt === 'function') return Promise.resolve(sess.prompt(protocolMsg));
+      } catch (e) { /* جرّب التالي */ }
+      // 2) ss.prompt(sid, text) — format أبسط
+      if (typeof ss.prompt === 'function') return Promise.resolve(ss.prompt(sid, text));
+      // 3) chat service إن وُجدت
       try {
         const c = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
         if (c && typeof c.send === 'function') return Promise.resolve(c.send(sid, text));
-      } catch (e) { /* جرّب المسار التالي */ }
-      // 3) ss.prompt(sid, text) مباشرة
-      if (typeof ss.prompt === 'function') return Promise.resolve(ss.prompt(sid, text));
+      } catch (e) { /* لا مسار */ }
       throw new Error('لا واجهة إرسال متاحة في خدمات DSH');
     }
 
-    // ------------------------------------------------------------------ قائمة رسائل مخصصة — تقرأ من chat.nodes مباشرة (بديل عن factory المحجوب)
-    // chat.nodes = Map-like collection; iteration via nodes.values() → each node:
-    //   kind="leaf"  → entries[] محتوى النص
-    //   kind="tool-call" → data.root معلومات الأداة
-    // polling كل 2 ثانية يلتقط رد الوكيل غير المتزامن
+    // ------------------------------------------------------------------ قائمة رسائل مخصصة — تقرأ من session buffer + chat.nodes
+    // session buffer (ss.messages): [{ method, params }] — إشعارات streamed من الوكيل
+    // chat.nodes: Map من nodeId → node objects (kind, entries, role)
+    // polling كل 1.5 ثانية يلتقط رد الوكيل غير المتزامن
     function CustomMessageList(props) {
-      const { room } = props || {};
+      const { room, onChunk } = props || {};
       const sid = room && room.sessionId;
-      const [nodes, setNodes] = useState([]);
+      const [items, setItems] = useState([]);
       useEffect(() => {
-        if (!sid) { setNodes([]); return; }
+        if (!sid) { setItems([]); return; }
         const tick = () => {
           try {
+            const ss = getSvc('sessions');
+            const newItems = [];
+            // 1) session buffer: ss.messages(sid) → [{ method, params }]
+            if (ss && typeof ss.messages === 'function') {
+              try {
+                const entries = ss.messages(sid);
+                if (Array.isArray(entries)) {
+                  for (const e of entries) {
+                    if (e && e.method === 'session/update' && e.params && e.params.update) {
+                      const upd = e.params.update;
+                      if (upd.sessionUpdate === 'agent_message_chunk' && upd.content && upd.content.text) {
+                        newItems.push({ id: 's-' + e.params.sessionId + '-' + (upd.content.text || '').length + Math.random(),
+                          role: 'agent', text: upd.content.text, raw: upd });
+                      }
+                    }
+                  }
+                }
+              } catch {}
+            }
+            // 2) chat.nodes: Map → node objects (kind, entries, role)
             const chat = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
-            if (!chat || !chat.nodes) return;
-            const vals = typeof chat.nodes.values === 'function' ? [...chat.nodes.values()] : [];
-            setNodes(vals);
+            if (chat && chat.nodes) {
+              try {
+                if (typeof chat.nodes.values === 'function') {
+                  for (const node of chat.nodes.values()) {
+                    if (!node) continue;
+                    const isUser = node.role === 'user' || node.kind === 'user';
+                    const isTool = node.kind === 'tool-call' || node.kind === 'tool';
+                    const isLeaf = !isTool && (node.kind === 'leaf' || !node.kind);
+                    let text = '';
+                    if (isLeaf && node.entries && node.entries.length) {
+                      text = node.entries.map((e) => typeof e === 'string' ? e : (e && e.text) || '').join('');
+                    } else if (isTool && node.data && node.data.root) {
+                      text = '🔧 ' + (node.data.name || node.data.root);
+                    } else if (node.text) {
+                      text = String(node.text);
+                    } else if (node.content) {
+                      text = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
+                    }
+                    if (text) newItems.push({ id: node.id || ('n-' + Math.random()), role: isUser ? 'user' : isTool ? 'tool' : 'agent', text, raw: node });
+                  }
+                }
+              } catch {}
+            }
+            setItems(newItems);
           } catch {}
         };
         tick();
-        const id = setInterval(tick, 2000);
+        const id = setInterval(tick, 1500);
         return () => clearInterval(id);
       }, [sid]);
       if (!sid) return h('div', { className: 'mcw-msglist-empty' }, 'لا جلسة مرتبطة');
-      if (nodes.length === 0) return h('div', { className: 'mcw-msglist-empty' }, '… جارٍ تحميل المحادثة');
+      if (items.length === 0) return h('div', { className: 'mcw-msglist-empty' }, '… جارٍ تحميل المحادثة');
       return h('div', { className: 'mcw-msglist' },
-        nodes.map((node, i) => {
-          if (!node) return null;
-          const isUser = node.role === 'user' || node.kind === 'user';
-          const isTool = node.kind === 'tool-call' || node.kind === 'tool';
-          const isLeaf = node.kind === 'leaf' || !isTool;
-          let text = '';
-          if (isLeaf && node.entries && node.entries.length) {
-            text = node.entries.map((e) => typeof e === 'string' ? e : (e && e.text) || '').join('');
-          } else if (isTool && node.data && node.data.root) {
-            text = '🔧 ' + (node.data.name || node.data.root);
-          } else if (node.text) {
-            text = String(node.text);
-          } else if (node.content) {
-            text = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
-          }
-          if (!text) return null;
-          return h('div', {
-            key: node.id || i,
-            className: 'mcw-msg ' + (isUser ? 'mcw-msg-user' : isTool ? 'mcw-msg-tool' : 'mcw-msg-agent'),
-          }, isUser
-            ? h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-user' }, text)
-            : isTool
-              ? h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-tool' }, text)
-              : h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-agent' }, text));
+        items.map((item, i) => {
+          const isUser = item.role === 'user';
+          const isTool = item.role === 'tool';
+          return h('div', { key: item.id || i, className: 'mcw-msg ' + (isUser ? 'mcw-msg-user' : isTool ? 'mcw-msg-tool' : 'mcw-msg-agent') },
+            isUser
+              ? h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-user' }, item.text)
+              : isTool
+                ? h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-tool' }, item.text)
+                : h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-agent' }, item.text));
         }));
     }
 
@@ -540,25 +590,49 @@ window.__ModuleLoader__.load({
         if (!sid) { setErr('لا جلسة مرتبطة — اضغط «⚡ ربط» أولاً'); return; }
         setBusy(true); setErr(null); setSent(false);
         Promise.resolve()
-          .then(() => {
-            // ضبط الجلسة النشطة في سياق React حتى يتعرّف renderFactorySlot على الجلسة
+          .then(async () => {
             const ss = getSvc('sessions');
+            // wake up the session context
             if (ss) {
               try { if (typeof ss.setActive === 'function') ss.setActive(sid); else ss.active = sid; } catch {}
               try { if (typeof ss.select === 'function') ss.select(sid); } catch {}
+              // try retain to hold session in memory
+              try { if (typeof ss.retain === 'function') ss.retain(sid); } catch {}
             }
-            return sendNativePrompt(sid, t);
+            // try startSession if uiWorkspace has it
+            try {
+              const uw = ctxRef && (ctxRef.get ? ctxRef.get('uiWorkspace') : ctxRef.uiWorkspace);
+              if (uw && typeof uw.startSession === 'function') uw.startSession(sid);
+            } catch {}
+            // send with protocol format + handle streaming response
+            const result = await sendNativePrompt(sid, t);
+            // if result has a stream (async iterator), collect chunks
+            if (result && result.stream && typeof result.stream[Symbol.asyncIterator] === 'function') {
+              try {
+                for await (const event of result.stream) {
+                  if (event && event.type === 'content_block_delta' && event.delta && event.delta.text) {
+                    // streaming chunk — could notify parent via onChunk if needed
+                    console.log('[Phase B Stream]', event.delta.text);
+                  }
+                  if (event && event.type === 'done') {
+                    console.log('[Phase B Done]', event.stopReason);
+                    break;
+                  }
+                }
+              } catch (e) { console.warn('[marwa-core] stream iterate', e); }
+            }
+            return result;
           })
           .then(() => {
             setBusy(false); setText(''); setSent(true);
             console.log('[Phase B Test] send -> Session: ' + sid);
-            setTimeout(() => setSent(false), 3000);
+            setTimeout(() => setSent(false), 4000);
           })
           .catch((e) => { setBusy(false); setErr(String((e && e.message) || e)); });
       };
       return h('div', { className: 'mcw-inputwrap' },
         err ? h('div', { className: 'mcw-inputerr' }, '⚠ ' + err) : null,
-        sent ? h('div', { className: 'mcw-inputok' }, '✓ أُرسلت — بانتظار رد الوكيل…') : null,
+        sent ? h('div', { className: 'mcw-inputok' }, '✓ أُرسلت — جارٍ توليد الرد…') : null,
         h('div', { className: 'mcw-inputbar' },
           h('textarea', {
             className: 'mcw-input', dir: 'rtl', rows: 2,
@@ -568,7 +642,7 @@ window.__ModuleLoader__.load({
             onKeyDown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } },
           }),
           h('button', { className: 'mcw-send', onClick: send, disabled: busy || !sid || !(text || '').trim() },
-            busy ? '…' : 'إرسال ➤')));
+            busy ? '⏳' : 'إرسال ➤')));
     }
 
     // ------------------------------------------------------------------ التضمين: قائمة رسائل مخصصة + شريط كتابة مخصص
