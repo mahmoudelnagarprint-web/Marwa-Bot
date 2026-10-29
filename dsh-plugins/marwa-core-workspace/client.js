@@ -107,7 +107,16 @@ window.__ModuleLoader__.load({
       '.mcw-center{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}',
       '.mcw-chatstack{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}',
       '.mcw-chatscroll{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}',
-      '.mcw-chatstack>.mcw-native-input{flex:none;border-top:1px solid rgba(212,175,55,.16);background:rgba(10,10,14,.9)}',
+      '.mcw-inputwrap{flex:none;border-top:1px solid rgba(212,175,55,.2);background:rgba(10,10,14,.92)}',
+      '.mcw-inputbar{display:flex;gap:6px;align-items:flex-end;padding:8px}',
+      '.mcw-inputbar textarea{flex:1;min-height:44px;max-height:120px;resize:none;background:#0d0d12;border:1px solid rgba(212,175,55,.35);border-radius:10px;color:#f2e7c3;font-family:inherit;font-size:12.5px;padding:8px 10px;direction:rtl;text-align:right}',
+      '.mcw-inputbar textarea:focus{outline:none;border-color:#d4af37;box-shadow:0 0 10px rgba(212,175,55,.25)}',
+      '.mcw-inputbar textarea:disabled{opacity:.55}',
+      '.mcw-send{background:linear-gradient(135deg,#d4af37,#8a6d1f);border:none;border-radius:8px;color:#09090b;font-weight:800;padding:9px 14px;cursor:pointer;font-family:inherit;font-size:12px}',
+      '.mcw-send:disabled{opacity:.5;cursor:default}',
+      '.mcw-inputerr{color:#f87171;font-size:10.5px;padding:6px 10px 0;direction:rtl}',
+      '.mcw-inputok{color:#8fd694;font-size:10.5px;padding:6px 10px 0;direction:rtl}',
+      '.mcw-safe-tab{display:flex;align-items:center;justify-content:center;min-height:110px;color:rgba(236,231,218,.45);font-size:12px;border:1px dashed rgba(212,175,55,.25);border-radius:10px;margin:10px}',
       '.mcw-roomhead{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(90deg,color-mix(in srgb,var(--mcw-accent,#d4af37) 12%,transparent),transparent)}',
       '.mcw-roomhead .mcw-emoji{width:38px;height:38px;border-radius:10px;background:color-mix(in srgb,var(--mcw-accent,#d4af37) 16%,#101014);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 12px color-mix(in srgb,var(--mcw-accent,#d4af37) 45%,transparent)}',
       '.mcw-roomhead h2{margin:0;font-size:16px;font-weight:800;color:#f2e7c3}',
@@ -433,6 +442,90 @@ window.__ModuleLoader__.load({
         h('div', { style: { fontSize: 11, opacity: 0.6 } }, 'اختر وكيلاً من الرصيف الأيسر · أو اضغط «⚡ ربط»'));
     }
 
+    // ------------------------------------------------------------------ إرسال الرسالة لخدمة جلسات DSH مباشرة
+    // الحل الجذري: لا نستعمل سلوت composer المحجوب؛ نرسل النص لخدمة الجلسات عبر
+    // مسارات محمية (binding.session.prompt ← ctx.chat.send ← ss.prompt) ونرصد الفشل في الشريط.
+    function sendNativePrompt(sid, text) {
+      const ss = getSvc('sessions');
+      if (!ss) throw new Error('خدمات الجلسات غير متاحة');
+      // 1) المسار الموثق: binding(sid).session.prompt(text)
+      try {
+        const b = typeof ss.binding === 'function' ? ss.binding(sid) : null;
+        const sess = b && (b.session || b);
+        if (sess && typeof sess.prompt === 'function') return Promise.resolve(sess.prompt(text));
+      } catch (e) { /* جرّب المسار التالي */ }
+      // 2) صيغة ctx.chat.send الموازية إن وُجدت خدمة chat
+      try {
+        const c = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
+        if (c && typeof c.send === 'function') return Promise.resolve(c.send(sid, text));
+      } catch (e) { /* جرّب المسار التالي */ }
+      // 3) ss.prompt(sid, text) مباشرة
+      if (typeof ss.prompt === 'function') return Promise.resolve(ss.prompt(sid, text));
+      throw new Error('لا واجهة إرسال متاحة في خدمات DSH');
+    }
+
+    function CustomChatInput(props) {
+      const { room } = props || {};
+      const sid = room && room.sessionId;
+      const [text, setText] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState(null);
+      const [sent, setSent] = useState(false);
+      const send = () => {
+        const t = (text || '').trim();
+        if (!t || busy) return;
+        if (!sid) { setErr('لا جلسة مرتبطة — اضغط «⚡ ربط» أولاً'); return; }
+        setBusy(true); setErr(null); setSent(false);
+        Promise.resolve()
+          .then(() => sendNativePrompt(sid, t))
+          .then(() => {
+            setBusy(false); setText(''); setSent(true);
+            console.log('[Phase B Test] send -> Session: ' + sid);
+            setTimeout(() => setSent(false), 2500);
+          })
+          .catch((e) => { setBusy(false); setErr(String((e && e.message) || e)); });
+      };
+      return h('div', { className: 'mcw-inputwrap' },
+        err ? h('div', { className: 'mcw-inputerr' }, '⚠ ' + err) : null,
+        sent ? h('div', { className: 'mcw-inputok' }, '✓ أُرسلت إلى الجلسة') : null,
+        h('div', { className: 'mcw-inputbar' },
+          h('textarea', {
+            className: 'mcw-input', dir: 'rtl', rows: 2,
+            placeholder: sid ? 'اكتب رسالتك…' : 'لا جلسة مرتبطة — اضغط «⚡ ربط»',
+            value: text, disabled: busy || !sid,
+            onChange: (e) => setText(e.target.value),
+            onKeyDown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } },
+          }),
+          h('button', { className: 'mcw-send', onClick: send, disabled: busy || !sid || !(text || '').trim() },
+            busy ? '…' : 'إرسال ➤')));
+    }
+
+    // ------------------------------------------------------------------ التضمين الأصلي: مساحة رسائل conversation.content فقط
+    // مكوّن حقيقي (h()) بحـhooks خاصة به — لا يتعارض ترتيبها مع RoomView عند تبديل
+    // التبويبات (كان الاستدعاء المباشر NativeMount() سبب «Rendered fewer hooks»).
+    function NativeMount(props) {
+      const { room, renderFactorySlot: rfs } = props || {};
+      const sid = room && room.sessionId;
+      useEffect(() => {
+        if (!sid) return;
+        try {
+          const ss = getSvc('sessions');
+          if (ss) {
+            if (typeof ss.setActive === 'function') { try { ss.setActive(sid); } catch {} }
+            else { try { ss.active = sid; } catch {} }
+          }
+        } catch (e) { console.warn('[marwa-core] set active session', e); }
+        console.log('[Phase B Test] Workspace: ' + (room && room.wsTitle ? room.wsTitle : '?') + ' | Session: ' + sid);
+      }, [sid]);
+      if (!rfs || !sid) return h(NativeChatFallback);
+      let body = null;
+      try { body = rfs('conversation.content'); } catch (e) { console.error('[marwa-core] conversation.content', e); }
+      if (body == null) return h(NativeChatFallback);
+      return h('div', { className: 'mcw-chatstack' },
+        h('div', { className: 'mcw-chatscroll' }, body),
+        h(CustomChatInput, { room: room }));
+    }
+
     function RoomView(props) {
       const { agent, room, agentCtx, agentSessions, renderFactorySlot, onCopyPrompt, onOpenDSH, onRebind, onPickSession, onNewSession, onLoadStats } = props;
       const accent = agent.color;
@@ -447,50 +540,9 @@ window.__ModuleLoader__.load({
           .catch((e) => { if (alive) setStats({ error: String((e && e.message) || e) }); });
         return () => { alive = false; };
       }, [vt, agent.id]);
-      // التضمين الأصلي للمحادثة: لا نمرر sessionId يدوياً (المحرك يحقنه من حالة
-      // الجلسة النشطة) — نضبط الجلسة النشطة برمجياً قبل الاستدعاء، ونرصدها للمرحلة B.
-      // ملاحظة (تحقّق من بنية DSH v3): لا يوجد سلوت مستقل «conversation.input» ولا
-      // «session.view» — مربع الكتابة child داخل conversation.content واسمه
-      // «conversation.composer» (scope: session، يُسلّح فقط لجلسة نشطة مقيمة).
-      // الطبقتان: المحتوى (يملأ) + المكوّن (أسفل) — الثانية محمية: تعود null
-      // بأمان لو لم تُسلّح الجلسة، فلا يتشوه الوضع القائم.
-      function InputMount() {
-        if (!renderFactorySlot) return null;
-        try {
-          const r = renderFactorySlot('conversation.composer');
-          if (!r) return null;
-          return h('div', { className: 'mcw-native-input' }, r);
-        } catch (e) {
-          console.warn('[marwa-core] composer', e);
-          return null;
-        }
-      }
-      function NativeMount() {
-        const sid = room && room.sessionId;
-        useEffect(() => {
-          if (!sid) return;
-          try {
-            const ss = getSvc('sessions');
-            if (ss) {
-              if (typeof ss.setActive === 'function') { try { ss.setActive(sid); } catch {} }
-              else if (typeof ss.active === 'object' && ss.active) { try { ss.active = sid; } catch {} }
-              else { try { ss.active = sid; } catch {} }
-              // مسار «الجلسة الحالية» الذي تسلّح به الصياغة (current/select) إن وُجد
-              if (typeof ss.setCurrent === 'function') { try { ss.setCurrent(sid); } catch {} }
-              else if (typeof ss.select === 'function') { try { ss.select(sid); } catch {} }
-              try { const c = ss.current; if (c && typeof c === 'object' && c !== null) { try { c.sessionId = sid; ss.current = c; } catch {} } } catch {}
-            }
-          } catch (e) { console.warn('[marwa-core] set active session', e); }
-          console.log('[Phase B Test] Workspace: ' + (room && room.wsTitle ? room.wsTitle : (room && room.workspaceId ? room.workspaceId : '?')) + ' | Session: ' + sid);
-        }, [sid]);
-        if (!renderFactorySlot) return null;
-        let body = null;
-        try { body = renderFactorySlot('conversation.content'); } catch (e) { console.error('[marwa-core] renderFactorySlot conversation.content', e); }
-        if (body == null) return null;
-        return h('div', { className: 'mcw-chatstack' },
-          h('div', { className: 'mcw-chatscroll' }, body),
-          h(InputMount));
-      }
+      // التضمين الأصلي للمحادثة أصبح على مستوى الوحدة (NativeMount + CustomChatInput):
+      // مساحة رسائل conversation.content فقط، وشريط كتابة مخصص يرسل لخدمة جلسات DSH —
+      // لا سلطات على سلوت composer المحجوب، ولا فرض جلسة نشطة عبر setCurrent/select.
       return h('div', { className: 'mcw-center' },
         h('div', { className: 'mcw-roomhead', style: { '--mcw-accent': accent } },
           h('div', { className: 'mcw-emoji' }, agent.emoji),
@@ -519,9 +571,7 @@ window.__ModuleLoader__.load({
           h('button', { className: cls('mcw-tab', vt === 'stats' && 'on'), onClick: () => setVt('stats') }, '📈 إحصائيات'),
           h('button', { className: cls('mcw-tab', vt === 'guide' && 'on'), onClick: () => setVt('guide') }, '📜 التعليمات')),
         vt === 'chat' ? h('div', { key: room ? room.sessionId : 'none', className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
-          (renderFactorySlot && room && room.sessionId)
-            ? NativeMount()
-            : h(NativeChatFallback))
+          h(NativeMount, { room: room, renderFactorySlot: renderFactorySlot }))
         : vt === 'tasks' ? h('div', { style: { flex: 1, overflow: 'auto', padding: '8px 12px', fontSize: 12 } },
             h('div', { className: 'mcw-group-title' }, '📋 مهام النوتبوك الموسومة للوكيل'),
             agentCtx && agentCtx.noteTasks && agentCtx.noteTasks.length
@@ -532,7 +582,9 @@ window.__ModuleLoader__.load({
             agentCtx && agentCtx.inbox && agentCtx.inbox.files && agentCtx.inbox.files.length
               ? agentCtx.inbox.files.map((f, i) => h('div', { key: i, style: { fontSize: 11, color: 'rgba(236,231,218,.6)' } }, '• ' + f.name))
               : h('div', { style: { opacity: 0.5 } }, 'الصندوق فارغ'))
-        : vt === 'data' ? h('div', { style: { flex: 1, overflow: 'auto' } }, h(AgentContextCard, { agent, ctxData: agentCtx }))
+        : vt === 'data' ? h('div', { style: { flex: 1, overflow: 'auto' } }, agentCtx
+            ? h(AgentContextCard, { agent, ctxData: agentCtx })
+            : h('div', { className: 'mcw-safe-tab' }, 'قيد التطوير — بيانات السياق غير محمّلة بعد'))
         : vt === 'stats' ? h('div', { style: { flex: 1, overflow: 'auto', padding: '8px 12px', fontSize: 12 } },
             !stats ? h('div', { style: { opacity: 0.5 } }, '⏳ جارٍ الحساب من السجلات الفعلية…')
             : stats.loading ? h('div', { style: { opacity: 0.5 } }, '⏳ …')

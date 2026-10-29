@@ -160,16 +160,24 @@
   بديلاً (composerBar) بلا محرر. هذه هي الآلية التي تجعل المحرر مختفياً في حالة
   الجلسة غير «المقيمة/الحالية».
 
-**الإصلاح المطبّق في `client.js`**:
-1. **لا داعي لسلوت خارجي** — المحرر يأتي من factory `conversation.content` نفسه إذا كانت
-   الجلسة «حالية»، لذا:
-2. **تقوية تعيين الجلسة الحالية**: بجانب `ss.active` أضفنا محاولات `setCurrent`/`select`
-   وكتابة `ss.current.sessionId` — كلها محمية بـtry/catch لا تكسر الرسم.
-3. **طبقة composer احتياطية**: `InputMount` يستدعي `renderFactorySlot('conversation.composer')`
-   أسفل المحتوى داخل `.mcw-native-input` (يثبت أسفل العمود) — إن أسلّحه المحرك ظهر شريط
-   الكتابة في مساحتنا، وإن لم يُسلّح عاد null بأمان دون تشويه.
-4. **CSS**: `.mcw-chatstack` (عمود مرن) + `.mcw-chatscroll` (الرسائل تمرّر) +
-   `.mcw-native-input` (المكوّن أسفل بحدود ذهبية).
+**الإصلاح المطبّق في `client.js`** (الحل الجذري):
+1. **حذف composer المحجوب بالكامل**: `InputMount` (استدعاء `renderFactorySlot('conversation.composer')`) —
+   محذوف. لا نستخدم سلوت `conversation.composer` البتة.
+2. **حذف فرض الجلسة via setCurrent/select**: محاولات `ss.setCurrent`/`ss.select`/`ss.current.sessionId` —
+   محذوفة. نترك فقط `ss.setActive`/`ss.active` (المصرّح به Phase B الأصلية).
+3. **جذر انهيار التبويبات — "Rendered fewer hooks than expected"**:
+   كان `NativeMount()` يُستدعى كدالة عادية داخل RoomView، وكان يحتوي `useEffect`. عند تبديل
+   `vt` من `'chat'` إلى `'tasks'` كان ترتيب hooks في RoomView يتغيّر → React يدمّر.
+   **الإصلاح**: نقل `NativeMount` إلى مستوى الوحدة كمكوّن حقيقي
+   (`h(NativeMount, {...})`) — hooks في نطاقها المستقل، وتُفكّك نظيفة عند التبديل.
+4. **شريط كتابة مخصص `CustomChatInput`**:
+   - textarea ذهبي/أسود RTL + زر إرسال; Enter=إرسال، Shift+Enter=سطر جديد
+   - الإرسال عبر مسارات محمية: ① `binding(sid).session.prompt(text)` (الموثّق)
+     ② `ctx.chat.send(sid, text)` ③ `ss.prompt(sid, text)`
+   - عرض الأخطاء、「✓ أُرسلت」ديناميكياً في الشريط.
+5. **حرس آمن لتبويب البيانات**: `agentCtx` null → يعرض `div.mcw-safe-tab` «قيد التطوير».
+6. **CSS**: `.mcw-inputwrap` + `.mcw-inputbar` + `.mcw-input` + `.mcw-send`
+   + `.mcw-inputerr` + `.mcw-inputok` + `.mcw-safe-tab`.
 
 **الفحص**: `node --check client.js` OK.
 **ملاحظة أمان**: لم نلمس طرداً/تنقلاً؛ المحاولات كلها داخل مساحتنا المركزية.
