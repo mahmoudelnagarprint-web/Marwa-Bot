@@ -444,6 +444,30 @@ window.__ModuleLoader__.load({
           .catch((e) => { if (alive) setStats({ error: String((e && e.message) || e) }); });
         return () => { alive = false; };
       }, [vt, agent.id]);
+      // التضمين الأصلي للمحادثة: لا نمرر sessionId يدوياً (المحرك يحقنه من حالة
+      // الجلسة النشطة) — نضبط الجلسة النشطة برمجياً قبل الاستدعاء، ونرصدها للمرحلة B.
+      function NativeMount() {
+        const sid = room && room.sessionId;
+        useEffect(() => {
+          if (!sid) return;
+          try {
+            const ss = getSvc('sessions');
+            if (ss) {
+              if (typeof ss.setActive === 'function') { try { ss.setActive(sid); } catch {} }
+              else if (typeof ss.active === 'object' && ss.active) { try { ss.active = sid; } catch {} }
+              else { try { ss.active = sid; } catch {} }
+            }
+          } catch (e) { console.warn('[marwa-core] set active session', e); }
+          console.log('[Phase B Test] Workspace: ' + (room && room.wsTitle ? room.wsTitle : (room && room.workspaceId ? room.workspaceId : '?')) + ' | Session: ' + sid);
+        }, [sid]);
+        if (!renderFactorySlot) return null;
+        try {
+          return renderFactorySlot('conversation.content');
+        } catch (e) {
+          console.error('[marwa-core] renderFactorySlot conversation.content', e);
+          return null;
+        }
+      }
       return h('div', { className: 'mcw-center' },
         h('div', { className: 'mcw-roomhead', style: { '--mcw-accent': accent } },
           h('div', { className: 'mcw-emoji' }, agent.emoji),
@@ -471,9 +495,9 @@ window.__ModuleLoader__.load({
           h('button', { className: cls('mcw-tab', vt === 'data' && 'on'), onClick: () => setVt('data') }, '📊 البيانات'),
           h('button', { className: cls('mcw-tab', vt === 'stats' && 'on'), onClick: () => setVt('stats') }, '📈 إحصائيات'),
           h('button', { className: cls('mcw-tab', vt === 'guide' && 'on'), onClick: () => setVt('guide') }, '📜 التعليمات')),
-        vt === 'chat' ? h('div', { className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
+        vt === 'chat' ? h('div', { key: room ? room.sessionId : 'none', className: 'mcw-native', style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 } },
           (renderFactorySlot && room && room.sessionId)
-            ? renderFactorySlot('conversation.content', { sessionId: room.sessionId })
+            ? NativeMount()
             : h(NativeChatFallback))
         : vt === 'tasks' ? h('div', { style: { flex: 1, overflow: 'auto', padding: '8px 12px', fontSize: 12 } },
             h('div', { className: 'mcw-group-title' }, '📋 مهام النوتبوك الموسومة للوكيل'),

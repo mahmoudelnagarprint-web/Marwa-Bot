@@ -99,3 +99,26 @@
      binding.get / binding.ensure round-trip (سجل وهمي يُحذف ذاتياً — لا يمسّ الربط الحقيقي).
    - التشغيل: **15/15 PASS** (دليل مخرجات 2026-10-28 20:57) — خروج 0.
    - `dsh_bridge.py` py_compile: OK.
+
+### إصلاح انهيار الواجهة (2026-10-29 ~04:30) — Duplicate Prop + التضمين الأصلي
+**الخطأ المرصود**: `factory 'conversation.content' occurrence received duplicate prop 'sessionId'`
+— محرك DSH يحقن `sessionId` تلقائياً في مصانع المحادثة، وتمريرنا اليدوي
+`renderFactorySlot('conversation.content', { sessionId: room.sessionId })` سبّب تعارضاً.
+
+**الإصلاح في `client.js` (5 بنود حسب توجيه المالك)**:
+1. **حذف التمرير اليدوي**: الاستدعاء أصبح `renderFactorySlot('conversation.content')` نظيفاً —
+   المحرك يأخذ الجلسة من حالته الخاصة (دليل: `grep` الصف اليدوي = False).
+2. **تعيين الجلسة النشطة**: مكوّن `NativeMount` الجديد داخل `RoomView` يضبط الجلسة النشطة
+   برمجياً قبل الرسم عبر خدمة `sessions` المحقونة (`setActive` إن وُجدت وإلا `ss.active = sid`)
+   — بأمان كامل try/catch لا يكسر الرسم.
+3. **حماية التضمين الأصلي**: فحص كامل — لا `router.push` ولا `openSession` تلقائي في مسار
+   الرسم؛ الاستدعاءان الموجودان (سطرا openDSH وnav) كلاهما خلف أزرار المستخدم فقط
+   («ملء الشاشة») — الشات الأصلي يُرسم حصرياً داخل `mcw-native` في المنتصف.
+4. **تنظيف الحالة**: `key={active.id}` على `RoomView` (كان موجوداً) + `key: room.sessionId`
+   على حاوية الشات الأصلي — إعادة تركيب نظيفة عند تبديل الوكيل أو الجلسة (لا نصوص متداخلة).
+5. **المراقبة**: `console.log('[Phase B Test] Workspace: X | Session: Y')` عند تحميل كل
+   غرفة وكل جلسة — لتأكيد دقة الربط في الـConsole.
+
+**الفحوصات**: `node --check client.js` OK · لا نص مبتور · الجسر لم يُمس.
+**ملاحظة تشغيل**: الإصلاح حي فوراً (النسخة المثبتة Junction → المصدر) — يتطلب
+إعادة تحميل صفحة DSH (Ctrl+R) فقط.
