@@ -117,6 +117,16 @@ window.__ModuleLoader__.load({
       '.mcw-inputerr{color:#f87171;font-size:10.5px;padding:6px 10px 0;direction:rtl}',
       '.mcw-inputok{color:#8fd694;font-size:10.5px;padding:6px 10px 0;direction:rtl}',
       '.mcw-safe-tab{display:flex;align-items:center;justify-content:center;min-height:110px;color:rgba(236,231,218,.45);font-size:12px;border:1px dashed rgba(212,175,55,.25);border-radius:10px;margin:10px}',
+      '.mcw-msglist{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px}',
+      '.mcw-msglist-empty{flex:1;display:flex;align-items:center;justify-content:center;color:rgba(236,231,218,.35);font-size:12px}',
+      '.mcw-msg{display:flex;flex-direction:column;max-width:78%}',
+      '.mcw-msg-agent{align-items:flex-start}',
+      '.mcw-msg-user{align-items:flex-end}',
+      '.mcw-msg-tool{align-items:center}',
+      '.mcw-msg-bubble{padding:9px 13px;border-radius:12px;line-height:1.6;font-size:12.5px;white-space:pre-wrap;word-break:break-word}',
+      '.mcw-msg-bubble-agent{background:rgba(20,20,28,.85);border:1px solid rgba(212,175,55,.22);color:#f2e7c3;border-radius:12px 12px 12px 4px}',
+      '.mcw-msg-bubble-user{background:rgba(212,175,55,.18);border:1px solid rgba(212,175,55,.45);color:#ecd58a;border-radius:12px 12px 4px 12px}',
+      '.mcw-msg-bubble-tool{background:rgba(255,255,255,.05);border:1px dashed rgba(212,175,55,.3);color:rgba(236,231,218,.6);font-size:11.5px;border-radius:8px}',
       '.mcw-roomhead{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(90deg,color-mix(in srgb,var(--mcw-accent,#d4af37) 12%,transparent),transparent)}',
       '.mcw-roomhead .mcw-emoji{width:38px;height:38px;border-radius:10px;background:color-mix(in srgb,var(--mcw-accent,#d4af37) 16%,#101014);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 12px color-mix(in srgb,var(--mcw-accent,#d4af37) 45%,transparent)}',
       '.mcw-roomhead h2{margin:0;font-size:16px;font-weight:800;color:#f2e7c3}',
@@ -464,6 +474,59 @@ window.__ModuleLoader__.load({
       throw new Error('لا واجهة إرسال متاحة في خدمات DSH');
     }
 
+    // ------------------------------------------------------------------ قائمة رسائل مخصصة — تقرأ من chat.nodes مباشرة (بديل عن factory المحجوب)
+    // chat.nodes = Map-like collection; iteration via nodes.values() → each node:
+    //   kind="leaf"  → entries[] محتوى النص
+    //   kind="tool-call" → data.root معلومات الأداة
+    // polling كل 2 ثانية يلتقط رد الوكيل غير المتزامن
+    function CustomMessageList(props) {
+      const { room } = props || {};
+      const sid = room && room.sessionId;
+      const [nodes, setNodes] = useState([]);
+      useEffect(() => {
+        if (!sid) { setNodes([]); return; }
+        const tick = () => {
+          try {
+            const chat = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
+            if (!chat || !chat.nodes) return;
+            const vals = typeof chat.nodes.values === 'function' ? [...chat.nodes.values()] : [];
+            setNodes(vals);
+          } catch {}
+        };
+        tick();
+        const id = setInterval(tick, 2000);
+        return () => clearInterval(id);
+      }, [sid]);
+      if (!sid) return h('div', { className: 'mcw-msglist-empty' }, 'لا جلسة مرتبطة');
+      if (nodes.length === 0) return h('div', { className: 'mcw-msglist-empty' }, '… جارٍ تحميل المحادثة');
+      return h('div', { className: 'mcw-msglist' },
+        nodes.map((node, i) => {
+          if (!node) return null;
+          const isUser = node.role === 'user' || node.kind === 'user';
+          const isTool = node.kind === 'tool-call' || node.kind === 'tool';
+          const isLeaf = node.kind === 'leaf' || !isTool;
+          let text = '';
+          if (isLeaf && node.entries && node.entries.length) {
+            text = node.entries.map((e) => typeof e === 'string' ? e : (e && e.text) || '').join('');
+          } else if (isTool && node.data && node.data.root) {
+            text = '🔧 ' + (node.data.name || node.data.root);
+          } else if (node.text) {
+            text = String(node.text);
+          } else if (node.content) {
+            text = typeof node.content === 'string' ? node.content : JSON.stringify(node.content);
+          }
+          if (!text) return null;
+          return h('div', {
+            key: node.id || i,
+            className: 'mcw-msg ' + (isUser ? 'mcw-msg-user' : isTool ? 'mcw-msg-tool' : 'mcw-msg-agent'),
+          }, isUser
+            ? h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-user' }, text)
+            : isTool
+              ? h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-tool' }, text)
+              : h('div', { className: 'mcw-msg-bubble mcw-msg-bubble-agent' }, text));
+        }));
+    }
+
     function CustomChatInput(props) {
       const { room } = props || {};
       const sid = room && room.sessionId;
@@ -477,17 +540,25 @@ window.__ModuleLoader__.load({
         if (!sid) { setErr('لا جلسة مرتبطة — اضغط «⚡ ربط» أولاً'); return; }
         setBusy(true); setErr(null); setSent(false);
         Promise.resolve()
-          .then(() => sendNativePrompt(sid, t))
+          .then(() => {
+            // ضبط الجلسة النشطة في سياق React حتى يتعرّف renderFactorySlot على الجلسة
+            const ss = getSvc('sessions');
+            if (ss) {
+              try { if (typeof ss.setActive === 'function') ss.setActive(sid); else ss.active = sid; } catch {}
+              try { if (typeof ss.select === 'function') ss.select(sid); } catch {}
+            }
+            return sendNativePrompt(sid, t);
+          })
           .then(() => {
             setBusy(false); setText(''); setSent(true);
             console.log('[Phase B Test] send -> Session: ' + sid);
-            setTimeout(() => setSent(false), 2500);
+            setTimeout(() => setSent(false), 3000);
           })
           .catch((e) => { setBusy(false); setErr(String((e && e.message) || e)); });
       };
       return h('div', { className: 'mcw-inputwrap' },
         err ? h('div', { className: 'mcw-inputerr' }, '⚠ ' + err) : null,
-        sent ? h('div', { className: 'mcw-inputok' }, '✓ أُرسلت إلى الجلسة') : null,
+        sent ? h('div', { className: 'mcw-inputok' }, '✓ أُرسلت — بانتظار رد الوكيل…') : null,
         h('div', { className: 'mcw-inputbar' },
           h('textarea', {
             className: 'mcw-input', dir: 'rtl', rows: 2,
@@ -500,11 +571,11 @@ window.__ModuleLoader__.load({
             busy ? '…' : 'إرسال ➤')));
     }
 
-    // ------------------------------------------------------------------ التضمين الأصلي: مساحة رسائل conversation.content فقط
-    // مكوّن حقيقي (h()) بحـhooks خاصة به — لا يتعارض ترتيبها مع RoomView عند تبديل
-    // التبويبات (كان الاستدعاء المباشر NativeMount() سبب «Rendered fewer hooks»).
+    // ------------------------------------------------------------------ التضمين: قائمة رسائل مخصصة + شريط كتابة مخصص
+    // لا نستعمل factory المحجوب (conversation.content) لأنه يقرأ من React Context غير متوفر;
+    //代わりに CustomMessageList تقرأ chat.nodes مباشرة مع polling كل 2 ثانية.
     function NativeMount(props) {
-      const { room, renderFactorySlot: rfs } = props || {};
+      const { room } = props || {};
       const sid = room && room.sessionId;
       useEffect(() => {
         if (!sid) return;
@@ -517,12 +588,10 @@ window.__ModuleLoader__.load({
         } catch (e) { console.warn('[marwa-core] set active session', e); }
         console.log('[Phase B Test] Workspace: ' + (room && room.wsTitle ? room.wsTitle : '?') + ' | Session: ' + sid);
       }, [sid]);
-      if (!rfs || !sid) return h(NativeChatFallback);
-      let body = null;
-      try { body = rfs('conversation.content'); } catch (e) { console.error('[marwa-core] conversation.content', e); }
-      if (body == null) return h(NativeChatFallback);
+      if (!sid) return h(NativeChatFallback);
       return h('div', { className: 'mcw-chatstack' },
-        h('div', { className: 'mcw-chatscroll' }, body),
+        h('div', { className: 'mcw-chatscroll' },
+          h(CustomMessageList, { room: room })),
         h(CustomChatInput, { room: room }));
     }
 
