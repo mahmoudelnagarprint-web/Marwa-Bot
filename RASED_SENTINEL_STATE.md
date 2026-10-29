@@ -237,13 +237,14 @@
 
 ## 🔄 رصد المزامنة اليومي (توليد آلي — rased_daily_autosync)
 ## 🔄 رصد المزامنة اليومي (توليد آلي — rased_daily_autosync)
-- تشغيل: 2026-10-28 19:41 (عقدة WORKSHOP)
-- الفرع: main — السحابة⇒محلي (متخلف 0) / محلي⇒السحابة (متقدم 1)
+- تشغيل: 2026-10-28 19:45 (عقدة WORKSHOP)
+- الفرع: main — السحابة⇒محلي (متخلف 0) / محلي⇒السحابة (متقدم 2)
 - فشل fetch (غير متصل؟): fatal: unable to access 'https://github.com/mahmoudelnagarprint-web/Marwa-Bot.git/': Could not resolve host: github.com
 - رفع فشل (هيُعاد لاحقاً): fatal: unable to access 'https://github.com/mahmoudelnagarprint-web/Marwa-Bot.git/': Could not resolve host: github.com
-- سحب السحابة فشل: 2026-10-28T16:41:29+00:00 [ERROR] fatal: [Errno 11001] getaddrinfo failed | رفع السحابة فشل: 2026-10-28T16:41:32+00:00 [WARN] cloud introspection failed -> SAFE_FALLBACK columns (ConnectionError) | 2026-10-28T16:41:32+00:00 [ERROR] fatal: [Errno 11001] getaddrinfo failed
+- سحب السحابة فشل: 2026-10-28T16:45:45+00:00 [ERROR] fatal: [Errno 11001] getaddrinfo failed | رفع السحابة فشل: 2026-10-28T16:45:47+00:00 [WARN] cloud introspection failed -> SAFE_FALLBACK columns (ConnectionError) | 2026-10-28T16:45:48+00:00 [ERROR] fatal: [Errno 11001] getaddrinfo failed
 - لا نشاط لابتوب في آخر 24 ساعة
 - لا نشاط ورشة في آخر 24 ساعة
+---
 ---
 ---
 ---
