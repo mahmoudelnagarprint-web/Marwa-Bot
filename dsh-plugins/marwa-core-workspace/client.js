@@ -105,6 +105,9 @@ window.__ModuleLoader__.load({
       '.mcw-tab.on{color:#f2e7c3;border-bottom-color:#d4af37;background:rgba(212,175,55,.06)}',
       '.mcw-tabpane{flex:1;overflow:auto;padding:10px}',
       '.mcw-center{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}',
+      '.mcw-chatstack{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}',
+      '.mcw-chatscroll{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}',
+      '.mcw-chatstack>.mcw-native-input{flex:none;border-top:1px solid rgba(212,175,55,.16);background:rgba(10,10,14,.9)}',
       '.mcw-roomhead{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(90deg,color-mix(in srgb,var(--mcw-accent,#d4af37) 12%,transparent),transparent)}',
       '.mcw-roomhead .mcw-emoji{width:38px;height:38px;border-radius:10px;background:color-mix(in srgb,var(--mcw-accent,#d4af37) 16%,#101014);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 12px color-mix(in srgb,var(--mcw-accent,#d4af37) 45%,transparent)}',
       '.mcw-roomhead h2{margin:0;font-size:16px;font-weight:800;color:#f2e7c3}',
@@ -446,6 +449,22 @@ window.__ModuleLoader__.load({
       }, [vt, agent.id]);
       // التضمين الأصلي للمحادثة: لا نمرر sessionId يدوياً (المحرك يحقنه من حالة
       // الجلسة النشطة) — نضبط الجلسة النشطة برمجياً قبل الاستدعاء، ونرصدها للمرحلة B.
+      // ملاحظة (تحقّق من بنية DSH v3): لا يوجد سلوت مستقل «conversation.input» ولا
+      // «session.view» — مربع الكتابة child داخل conversation.content واسمه
+      // «conversation.composer» (scope: session، يُسلّح فقط لجلسة نشطة مقيمة).
+      // الطبقتان: المحتوى (يملأ) + المكوّن (أسفل) — الثانية محمية: تعود null
+      // بأمان لو لم تُسلّح الجلسة، فلا يتشوه الوضع القائم.
+      function InputMount() {
+        if (!renderFactorySlot) return null;
+        try {
+          const r = renderFactorySlot('conversation.composer');
+          if (!r) return null;
+          return h('div', { className: 'mcw-native-input' }, r);
+        } catch (e) {
+          console.warn('[marwa-core] composer', e);
+          return null;
+        }
+      }
       function NativeMount() {
         const sid = room && room.sessionId;
         useEffect(() => {
@@ -456,17 +475,21 @@ window.__ModuleLoader__.load({
               if (typeof ss.setActive === 'function') { try { ss.setActive(sid); } catch {} }
               else if (typeof ss.active === 'object' && ss.active) { try { ss.active = sid; } catch {} }
               else { try { ss.active = sid; } catch {} }
+              // مسار «الجلسة الحالية» الذي تسلّح به الصياغة (current/select) إن وُجد
+              if (typeof ss.setCurrent === 'function') { try { ss.setCurrent(sid); } catch {} }
+              else if (typeof ss.select === 'function') { try { ss.select(sid); } catch {} }
+              try { const c = ss.current; if (c && typeof c === 'object' && c !== null) { try { c.sessionId = sid; ss.current = c; } catch {} } } catch {}
             }
           } catch (e) { console.warn('[marwa-core] set active session', e); }
           console.log('[Phase B Test] Workspace: ' + (room && room.wsTitle ? room.wsTitle : (room && room.workspaceId ? room.workspaceId : '?')) + ' | Session: ' + sid);
         }, [sid]);
         if (!renderFactorySlot) return null;
-        try {
-          return renderFactorySlot('conversation.content');
-        } catch (e) {
-          console.error('[marwa-core] renderFactorySlot conversation.content', e);
-          return null;
-        }
+        let body = null;
+        try { body = renderFactorySlot('conversation.content'); } catch (e) { console.error('[marwa-core] renderFactorySlot conversation.content', e); }
+        if (body == null) return null;
+        return h('div', { className: 'mcw-chatstack' },
+          h('div', { className: 'mcw-chatscroll' }, body),
+          h(InputMount));
       }
       return h('div', { className: 'mcw-center' },
         h('div', { className: 'mcw-roomhead', style: { '--mcw-accent': accent } },
