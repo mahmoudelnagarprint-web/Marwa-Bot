@@ -52,3 +52,15 @@
 *توقيع صاصا-الورشة: مصطفى (صاصا) — عقدة الورشة — 2026-10-29 ~09:05*
 
 *التوقيع: مصطفى (صاصا) — عقدة اللابتوب — 2026-10-29*
+
+### تنفيذ صاصا-الورشة (تأكيد التكليف — 2026-10-29 ~22:30)
+- [x] قرأت البرييف والمقترح كاملين.
+- [x] نفّذت الأمر #26: `python cloud\supabase_sync.py --pull-once` → pending=0 (الطابور فاضي، لا أوامر معلقة).
+- [x] فعّلت استضافة Parsec على الورشة:
+  - `config.json`: `app_flags` 1→5 (عميل + استضافة).
+  - ضغطت على زر Share في واجهة بارسك (بطاقة ELNAGAR / This Computer).
+  - السجل `log.txt` عند 22:15 يُظهر تفعيل وحدة hosting (hosting: Client crashed restarting / Initial Username 'mahmo' / /me interval set).
+  - لقطة الورشة النهائية: `C:\Users\mahmo\AppData\Local\Temp\parsec_host_final.png`.
+  - توثيق في `agent_updates` (kind=report, id=a6b32e1f-a1a9-4eda-af3b-736e95e1490b).
+- [x] نظّفت تعارض RASED_SENTINEL_STATE.md (علامات <<<<<<</>>>>>>> أُزيلت، دمج نظيف).
+- [x] سأرفع كل التغييرات بـ commit + push فوراً.
