@@ -78,7 +78,23 @@ def main():
         check("squad.stats(%s) مساحة عمل موجودة" % aid, has_ws,
               "path=%s" % (s.get("workspace") or {}).get("path"))
 
-    # 4) binding.get — قراءة السجل
+    # 4) تغطية السرب — كل وكلاء السرب يملكون AGENTS.md سليماً (المرحلة C: التعميم)
+    squad_agents = ["marwa", "fares", "salma", "koko", "bibo", "sasa", "rased", "hakim"]
+    for aid in squad_agents:
+        ws = dsh_bridge.WORKSPACE_DIRS.get(aid)
+        md = (dsh_bridge.REPO / ws / "AGENTS.md") if ws else None
+        ok = md is not None and md.exists() and ("مولّد من جسر marwa-core-workspace" in md.read_text(encoding="utf-8", errors="replace"))
+        broken = None
+        if ok:
+            txt = md.read_text(encoding="utf-8", errors="replace")
+            for pat in ("علاقتها بالفر", "اقتراح ي$", "عاجل:خد"):
+                if re.search(pat, txt):
+                    broken = pat
+                    break
+        check("تغطية السرب: AGENTS.md سليم (%s)" % aid, md is not None and md.exists() and ok and broken is None,
+              "نظيف" if (md is not None and md.exists() and ok and broken is None) else ("ناقص/مبتور: %s" % (broken or "غير موجود")))
+
+    # 5) binding.get — قراءة السجل
     g = call("binding.get", {"agent": "marwa"})
     b = g.get("binding") or {}
     check("binding.get(marwa) يعيد الربط المحفوظ", bool(b.get("workspaceId")) and b.get("preset") == "marwa",
