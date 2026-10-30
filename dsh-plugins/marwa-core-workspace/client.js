@@ -114,6 +114,17 @@ window.__ModuleLoader__.load({
       '.mcw-inputbar textarea:disabled{opacity:.55}',
       '.mcw-send{background:linear-gradient(135deg,#d4af37,#8a6d1f);border:none;border-radius:8px;color:#09090b;font-weight:800;padding:9px 14px;cursor:pointer;font-family:inherit;font-size:12px}',
       '.mcw-send:disabled{opacity:.5;cursor:default}',
+      // ── Model Selector ──
+      '.mcw-modelsel-wrap{position:relative;flex:none}',
+      '.mcw-modelsel-btn{background:rgba(255,255,255,.07);border:1px solid rgba(212,175,55,.35);color:#ecd58a;border-radius:8px;padding:8px 10px;font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap;min-width:46px;text-align:center}',
+      '.mcw-modelsel-btn:hover{background:rgba(212,175,55,.15)}',
+      '.mcw-modelsel-dropdown{position:absolute;bottom:calc(100% + 6px);right:0;background:#13131a;border:1px solid rgba(212,175,55,.4);border-radius:10px;padding:8px;min-width:200px;max-height:260px;overflow-y:auto;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.7)}',
+      '.mcw-modelsel-group{margin-bottom:8px}',
+      '.mcw-modelsel-grouplabel{font-size:10px;font-weight:800;color:#d4af37;padding:2px 6px 4px;text-transform:uppercase;letter-spacing:.08em}',
+      '.mcw-modelsel-opt{width:100%;text-align:start;background:transparent;border:none;color:rgba(236,231,218,.75);padding:5px 8px;border-radius:6px;font-size:11.5px;font-family:inherit;cursor:pointer}',
+      '.mcw-modelsel-opt:hover{background:rgba(212,175,55,.12);color:#f2e7c3}',
+      '.mcw-modelsel-opt.active{background:rgba(212,175,55,.2);color:#d4af37;font-weight:700}',
+      '.mcw-input{flex:1;min-height:44px;max-height:120px;resize:none;background:#0d0d12;border:1px solid rgba(212,175,55,.35);border-radius:10px;color:#f2e7c3;font-family:inherit;font-size:12.5px;padding:8px 10px;direction:rtl;text-align:right}',
       '.mcw-inputerr{color:#f87171;font-size:10.5px;padding:6px 10px 0;direction:rtl}',
       '.mcw-inputok{color:#8fd694;font-size:10.5px;padding:6px 10px 0;direction:rtl}',
       '.mcw-safe-tab{display:flex;align-items:center;justify-content:center;min-height:110px;color:rgba(236,231,218,.45);font-size:12px;border:1px dashed rgba(212,175,55,.25);border-radius:10px;margin:10px}',
@@ -458,6 +469,18 @@ window.__ModuleLoader__.load({
     // ------------------------------------------------------------------ قراءة الرسائل من session service + notification subscription
     // protocol format for prompt: { sessionId, prompt: [{ type: "text", text }] }
     // streaming via the returned stream (async iterator of message chunks)
+
+    // ── Streaming Buffer (module-level, cross-component) ──────────────────
+    // Allows CustomChatInput to push chunks and CustomMessageList to read them
+    // immediately without waiting for the next poll interval.
+    const STREAM_BUFFER   = new Map(); // sid → { text: string, done: boolean, lastUpdate: number }
+    let   STREAM_RENDER_FN = null;      // injected by CustomMessageList
+
+    function streamBufferGet(sid) {
+      if (!STREAM_BUFFER.has(sid)) STREAM_BUFFER.set(sid, { text: '', done: false, lastUpdate: 0 });
+      return STREAM_BUFFER.get(sid);
+    }
+
     function readSessionMessages(sid) {
       const ss = getSvc('sessions');
       if (!ss) return [];
@@ -481,38 +504,130 @@ window.__ModuleLoader__.load({
     function sendNativePrompt(sid, text) {
       const ss = getSvc('sessions');
       if (!ss) throw new Error('خدمات الجلسات غير متاحة');
-      // protocol format: { sessionId, prompt: [{ type: "text", text }] }
       const protocolMsg = { sessionId: sid, prompt: [{ type: 'text', text }] };
-      // 1) binding(sid).session.prompt({ sessionId, prompt: [...] }) — مع format الصحيح
+      // 1) chat.completion (binary confirmed ✓) — نهاية حرة للموديل
+      try {
+        const c = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
+        if (c && typeof c.completion === 'function') {
+          console.log('[marwa-core] → chat.completion');
+          return Promise.resolve(c.completion({ sessionId: sid, prompt: text }));
+        }
+      } catch {}
+      // 2) chat.send (binary confirmed ✓)
+      try {
+        const c = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
+        if (c && typeof c.send === 'function') return Promise.resolve(c.send(sid, text));
+      } catch {}
+      // 3) binding(sid).session.prompt — protocol format
       try {
         const b = typeof ss.binding === 'function' ? ss.binding(sid) : null;
         const sess = b && (b.session || b);
         if (sess && typeof sess.prompt === 'function') return Promise.resolve(sess.prompt(protocolMsg));
-      } catch (e) { /* جرّب التالي */ }
-      // 2) ss.prompt(sid, text) — format أبسط
+      } catch {}
+      // 4) ss.prompt(sid, text)
       if (typeof ss.prompt === 'function') return Promise.resolve(ss.prompt(sid, text));
-      // 3) chat service إن وُجدت
-      try {
-        const c = ctxRef && (ctxRef.get ? ctxRef.get('chat') : ctxRef.chat);
-        if (c && typeof c.send === 'function') return Promise.resolve(c.send(sid, text));
-      } catch (e) { /* لا مسار */ }
       throw new Error('لا واجهة إرسال متاحة في خدمات DSH');
     }
 
-    // ------------------------------------------------------------------ قائمة رسائل مخصصة — تقرأ من session buffer + chat.nodes
+    // ── Custom Model Selector ──────────────────────────────────────────────
+    // يُحضر النماذج المتاحة من ss.models() / ss.listModels() ثم يعرض dropdown
+    const MODEL_PRESETS = [
+      { id: 'glm-5.3-flash-free',   label: 'GLM-5.3-Flash (مجاني)',     group: 'Zhipu' },
+      { id: 'glm-4-flash',          label: 'GLM-4-Flash',                group: 'Zhipu' },
+      { id: 'deepseek-ai/DeepSeek-V4-Flash-0731', label: 'DeepSeek-V4-Flash', group: 'DeepSeek' },
+      { id: 'deepseek-chat',        label: 'DeepSeek-Chat',              group: 'DeepSeek' },
+      { id: 'gpt-4o-mini',          label: 'GPT-4o-mini',               group: 'OpenAI' },
+      { id: 'gpt-4o',               label: 'GPT-4o',                     group: 'OpenAI' },
+      { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4',         group: 'Anthropic' },
+    ];
+    let SELECTED_MODEL_ID = 'glm-5.3-flash-free';
+
+    function CustomModelSelector() {
+      const [open, setOpen] = useState(false);
+      const [models, setModels] = useState(MODEL_PRESETS);
+      const currentLabel = models.find(m => m.id === SELECTED_MODEL_ID)?.label || SELECTED_MODEL_ID;
+      useEffect(() => {
+        try {
+          const ss = getSvc('sessions');
+          if (!ss) return;
+          const listFn = ss.listModels || ss.models ||
+            (typeof ss.models === 'function' ? ss.models : null);
+          if (!listFn) return;
+          Promise.resolve(typeof listFn === 'function' ? listFn() : listFn)
+            .then(dynamic => {
+              if (Array.isArray(dynamic) && dynamic.length) {
+                const mapped = dynamic.map(m => ({
+                  id: typeof m === 'string' ? m : (m.id || m.model || m.name),
+                  label: typeof m === 'string' ? m : (m.label || m.name || m.id),
+                  group: m.group || 'عامة',
+                }));
+                setModels([
+                  ...mapped,
+                  ...MODEL_PRESETS.filter(p => !mapped.find(m => m.id === p.id))
+                ]);
+              }
+            }).catch(() => {});
+        } catch {}
+      }, []);
+      const grouped = {};
+      for (const m of models) {
+        (grouped[m.group] = grouped[m.group] || []).push(m);
+      }
+      const groups = Object.entries(grouped);
+      const dropdownContent = groups.length === 0 ? null : groups.map(([group, ms]) =>
+        h('div', { key: group, className: 'mcw-modelsel-group' },
+          h('div', { className: 'mcw-modelsel-grouplabel' }, group),
+          ms.map(m =>
+            h('button', {
+              key: m.id,
+              className: 'mcw-modelsel-opt' + (m.id === SELECTED_MODEL_ID ? ' active' : ''),
+              onClick: () => { SELECTED_MODEL_ID = m.id; setOpen(false); },
+            }, m.label)
+          )
+        )
+      );
+      return h('div', { className: 'mcw-modelsel-wrap' },
+        h('button', {
+          className: 'mcw-modelsel-btn',
+          onClick: () => setOpen(o => !o),
+          title: 'اختر النموذج: ' + currentLabel,
+        }, '🤖 ' + currentLabel),
+        open && dropdownContent
+          ? h('div', { className: 'mcw-modelsel-dropdown' }, dropdownContent)
+          : null
+      );
+    }
+
+    // ------------------------------------------------------------------ قائمة رسائل مخصصة — تقرأ من session buffer + chat.nodes + streaming buffer
     // session buffer (ss.messages): [{ method, params }] — إشعارات streamed من الوكيل
     // chat.nodes: Map من nodeId → node objects (kind, entries, role)
+    // STREAM_BUFFER: chunks وصلت للتو (من streaming) — تُعرض فوراً via STREAM_RENDER_FN
     // polling كل 1.5 ثانية يلتقط رد الوكيل غير المتزامن
     function CustomMessageList(props) {
       const { room, onChunk } = props || {};
       const sid = room && room.sessionId;
       const [items, setItems] = useState([]);
+      // Register forceRender fn so CustomChatInput can trigger immediate re-render
+      useEffect(() => {
+        STREAM_RENDER_FN = () => {
+          if (sid) tick();
+        };
+        return () => { STREAM_RENDER_FN = null; };
+      }, [sid]);
       useEffect(() => {
         if (!sid) { setItems([]); return; }
+        // Clear any stale streaming state for a fresh session
+        STREAM_BUFFER.delete(sid);
         const tick = () => {
           try {
             const ss = getSvc('sessions');
             const newItems = [];
+            // 0) STREAMING BUFFER — أولوية قبل الـ buffer العادي
+            const sb = streamBufferGet(sid);
+            if (sb.text) {
+              newItems.push({ id: 'stream-' + sid, role: 'agent', text: sb.text,
+                raw: { method: 'streaming', done: sb.done } });
+            }
             // 1) session buffer: ss.messages(sid) → [{ method, params }]
             if (ss && typeof ss.messages === 'function') {
               try {
@@ -589,6 +704,8 @@ window.__ModuleLoader__.load({
         if (!t || busy) return;
         if (!sid) { setErr('لا جلسة مرتبطة — اضغط «⚡ ربط» أولاً'); return; }
         setBusy(true); setErr(null); setSent(false);
+        // Clear any previous streaming state for this session
+        STREAM_BUFFER.delete(sid);
         Promise.resolve()
           .then(async () => {
             const ss = getSvc('sessions');
@@ -598,36 +715,60 @@ window.__ModuleLoader__.load({
               try { if (typeof ss.select === 'function') ss.select(sid); } catch {}
               try { if (typeof ss.retain === 'function') ss.retain(sid); } catch {}
             }
-            // send with protocol format + handle streaming response
+            // ── 1) ابدأ التوليد عبر chat.completion (binary confirmed ✓)
             const result = await sendNativePrompt(sid, t);
-            // if result has a stream (async iterator), collect chunks
+            // ── 2) لو عندها stream → accumulates في STREAM_BUFFER + فوري re-render
             if (result && result.stream && typeof result.stream[Symbol.asyncIterator] === 'function') {
               try {
                 for await (const event of result.stream) {
                   if (event && event.type === 'content_block_delta' && event.delta && event.delta.text) {
-                    // streaming chunk — could notify parent via onChunk if needed
-                    console.log('[Phase B Stream]', event.delta.text);
+                    const txt = event.delta.text;
+                    console.log('[Phase B Stream]', txt);
+                    // Push to streaming buffer
+                    const sb = streamBufferGet(sid);
+                    sb.text += txt;
+                    sb.lastUpdate = Date.now();
+                    // Force immediate re-render of CustomMessageList
+                    if (STREAM_RENDER_FN) STREAM_RENDER_FN();
                   }
                   if (event && event.type === 'done') {
+                    const sb = streamBufferGet(sid);
+                    sb.done = true;
                     console.log('[Phase B Done]', event.stopReason);
                     break;
                   }
                 }
               } catch (e) { console.warn('[marwa-core] stream iterate', e); }
+            } else if (result && typeof result === 'object') {
+              // ── 3) Non-streaming response — maybe direct text
+              const directText = result.text || result.content || result.message || result.response;
+              if (directText) {
+                const sb = streamBufferGet(sid);
+                sb.text = String(directText);
+                sb.done = true;
+                if (STREAM_RENDER_FN) STREAM_RENDER_FN();
+              }
             }
             return result;
           })
           .then(() => {
             setBusy(false); setText(''); setSent(true);
-            console.log('[Phase B Test] send -> Session: ' + sid);
-            setTimeout(() => setSent(false), 4000);
+            console.log('[Phase B] send → Session: ' + sid + ' | Model: ' + SELECTED_MODEL_ID);
+            setTimeout(() => setSent(false), 5000);
           })
-          .catch((e) => { setBusy(false); setErr(String((e && e.message) || e)); });
+          .catch((e) => {
+            setBusy(false);
+            setErr(String((e && e.message) || e));
+            const sb = streamBufferGet(sid);
+            sb.done = true;
+            if (STREAM_RENDER_FN) STREAM_RENDER_FN();
+          });
       };
       return h('div', { className: 'mcw-inputwrap' },
         err ? h('div', { className: 'mcw-inputerr' }, '⚠ ' + err) : null,
-        sent ? h('div', { className: 'mcw-inputok' }, '✓ أُرسلت — جارٍ توليد الرد…') : null,
+        sent ? h('div', { className: 'mcw-inputok' }, busy ? '⏳ جارٍ التوليد…' : '✓ أُرسلت') : null,
         h('div', { className: 'mcw-inputbar' },
+          h(CustomModelSelector),
           h('textarea', {
             className: 'mcw-input', dir: 'rtl', rows: 2,
             placeholder: sid ? 'اكتب رسالتك…' : 'لا جلسة مرتبطة — اضغط «⚡ ربط»',
