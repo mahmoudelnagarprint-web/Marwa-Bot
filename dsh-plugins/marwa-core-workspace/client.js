@@ -562,8 +562,8 @@ window.__ModuleLoader__.load({
         const id = setInterval(tick, 1500);
         return () => clearInterval(id);
       }, [sid]);
-      if (!sid) return h('div', { className: 'mcw-msglist-empty' }, 'لا جلسة مرتبطة');
-      if (items.length === 0) return h('div', { className: 'mcw-msglist-empty' }, '… جارٍ تحميل المحادثة');
+      if (!sid) return h('div', { className: 'mcw-msglist-empty' }, 'لا جلسة مرتبطة — اضغط «⚡ ربط» أولاً');
+      if (items.length === 0) return h('div', { className: 'mcw-msglist-empty' }, 'لا رسائل بعد — ابدأ المحادثة بالرسالة أدناه 👇');
       return h('div', { className: 'mcw-msglist' },
         items.map((item, i) => {
           const isUser = item.role === 'user';
@@ -592,18 +592,12 @@ window.__ModuleLoader__.load({
         Promise.resolve()
           .then(async () => {
             const ss = getSvc('sessions');
-            // wake up the session context
+            // wake up the session context (backend-only — لا uiWorkspace هنا)
             if (ss) {
               try { if (typeof ss.setActive === 'function') ss.setActive(sid); else ss.active = sid; } catch {}
               try { if (typeof ss.select === 'function') ss.select(sid); } catch {}
-              // try retain to hold session in memory
               try { if (typeof ss.retain === 'function') ss.retain(sid); } catch {}
             }
-            // try startSession if uiWorkspace has it
-            try {
-              const uw = ctxRef && (ctxRef.get ? ctxRef.get('uiWorkspace') : ctxRef.uiWorkspace);
-              if (uw && typeof uw.startSession === 'function') uw.startSession(sid);
-            } catch {}
             // send with protocol format + handle streaming response
             const result = await sendNativePrompt(sid, t);
             // if result has a stream (async iterator), collect chunks
