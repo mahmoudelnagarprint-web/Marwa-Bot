@@ -237,52 +237,11 @@
 
 ## 🔄 رصد المزامنة اليومي (توليد آلي — rased_daily_autosync)
 ## 🔄 رصد المزامنة اليومي (توليد آلي — rased_daily_autosync)
-- تشغيل: 2026-10-29 18:53 (عقدة WORKSHOP)
-- الفرع: main — السحابة⇒محلي (متخلف 0) / محلي⇒السحابة (متقدم 0)
-- لا جديد في GitHub (محدث)
-- رفع 1 ملف من WORKSHOP إلى GitHub ✓
+- تشغيل: 2026-10-30 17:55 (عقدة WORKSHOP)
+- الفرع: main — السحابة⇒محلي (متخلف 0) / محلي⇒السحابة (متقدم 4)
+- سحب 29 commit من GitHub ✓
+- لا تغييرات محلية للرفع
 - سحب السحابة ✓ (أوامر قادمة: 0) | رفع السحابة ✓ (استجابة غير JSON)
 - لا نشاط لابتوب في آخر 24 ساعة
 - لا نشاط ورشة في آخر 24 ساعة
-## 🔄 رصد المزامنة اليومي — 2026-10-27 09:45
-
-### الورشة (WORKSHOP) ← المصدر الرسمي
-| المسار | الحالة |
-|--------|--------|
-| Git push | ✅ 1ba337 — experience_ledger — 09:40 |
-| Supabase Push | ✅ 7 جداول upserted |
-| Supabase Pull | ✅ 0 pending |
-
-### اللابتوب (LAPTOP) — عقدة فرعية
-| المسار | الحالة |
-|--------|--------|
-| Git auto-sync | ⏳ آخر sync 08:12 — محتاج يسحب 1ba337 |
-| Supabase | مقصورة على pull فقط |
-
-### ⚠️ ملاحظة
-- Vision-Lab/projects/MarwaNotebook: تطبيق Flask بمساره الخاص (gitlab nested) — لا يتبع الـ parent
-- **إجراء مطلوب من اللابتوب**: git pull origin main لجلب 1ba337
-
-## 14) تنبيه إلى راصد-الورشة: لوج rased_daily_autosync غائب على اللابتوب (أمر مروة — تنفيذ اللابتوب 2026-10-27 ~10:12)
-
-**الأمر المنفذ (بأمر مروة: فحص ومزامنة فورية):**
-1. `git fetch origin` + `git rebase origin/main` → **"Current branch main is up to date"** — بلا أي تعارض (unmerged=0)، الشجرة نظيفة.
-2. ✅ كوميت `e1ba337` «feat: update experience_ledger with agent lessons (RASED 2026-10-27 09:40)» **موجود** وسلف (ancestor) لرأس الفرع.
-3. ⚠️ **التنبيه الجوهري:** `logs/rased_daily_autosync.log` **غير موجود على عقدة اللابتوب** — رغم أن `scripts/rased_daily_autosync.py` مُعدّ للكتابة فيه (`LOG_FILE = logs/rased_daily_autosync.log`)، وموجود بجواره قفل `LOGS/rased_daily_autosync.lock` بالتصميم. آخر تقرير «توليد آلي» بالدفتر أعلاه صادر من **عقدة WORKSHOP 01:22** — أي أن السكربت لا يعمل/لا يسجّل على اللابتوب. ملفات اللوج الفعلية على اللابتوب: `git_autosync.log` (سليم — آخر دورة 10:12 push OK) و`autopull.log` و`proactive_alerts.log` و`notebook_bot.log`.
-4. نظافة: أُزيل غياران (stash) قديمان يخصان ملفات وقت تشغيل سريعة التغيرة (`proactive_alerts_state.json` وأثر rebase تعارض قديم من 10/18) — المستودع نظيف: HEAD `3d4f088` = origin/main، ahead=0/behind=0.
-5. **المطلوب من راصد-الورشة:** مراجعة سبب عدم إنشاء اللوج على اللابتوب (هل `rased_daily_autosync.py` مجدول على الورشة فقط عمداً؟ أم يلزم جدولته على اللابتوب؟) وتوثيق القرار في هذا الدفتر.
-
-*التوقيع: راصد اللابتوب (حارس النظام) — 2026-10-27 ~10:12 — تنفيذاً لأمر مروة*
-
-
-## 🔄 رصد المزامنة — 2026-10-28 09:45 Cairo
-**حدث**: sync طوارئ + تصحيح divergence مع LAPTOP
-
-| النظام | الحالة |
-|---------|--------|
-| GitHub | ✅ LAPTOP syncing every 5 min (v1.6.x) |
-| Supabase | ✅ 7 tables synced |
-| AGENTS.md | ✅ restored (hakim/marwa/rased/fares) |
-| marwa_command_center | ➡️ added to .gitignore (session binding) |
-
-**ملاحظة**: بسبب divergence — تم reset لـ origin/main ثم إعادة بناء local changes.
+---
