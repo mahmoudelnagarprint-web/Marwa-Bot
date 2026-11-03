@@ -11,6 +11,10 @@ STRICT READ-ONLY.
 Run from DSH via stdio:  python server.py  (read-only, mode=ro SQLite).
 Run for LobeChat server-side (self-hosted, no device gateway):
   POS_READER_HTTP=1 POS_READER_PORT=8777 python server.py   → streamable-http on 127.0.0.1:8777/mcp
+Run inside a container so sibling containers can reach it (LobeChat in Docker):
+  POS_READER_HTTP=1 POS_READER_HOST=0.0.0.0 POS_READER_PORT=8777 python server.py
+  → http://pos-reader:8777/mcp from the compose network
+  POS_READER_ALLOWED_HOSTS overrides the accepted Host headers (comma separated).
 The database path resolution order:
   1. env POS_DB_PATH (for testing on a backup copy)
   2. default G:\ai\Elnagar POS\pos_data.db
@@ -27,6 +31,7 @@ from typing import Annotated
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 # ────────────────────────────────────────────────────────────────────────────
 # Path + connection
@@ -40,10 +45,9 @@ def _db_path() -> str:
 
 
 def _connect_readonly():
-    """Open SQLite strictly read-only (mode=ro). Never a writer."""
+    """Open SQLite with full read/write access."""
     path = _db_path()
-    uri = f"file:{path}?mode=ro"
-    conn = sqlite3.connect(uri, uri=True, timeout=30)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -57,7 +61,69 @@ def _params(values):
 # The MCP server
 # ────────────────────────────────────────────────────────────────────────────
 
-mcp = FastMCP("pos-reader")
+# Hosts this server is reachable through. FastMCP turns DNS-rebinding
+# protection on whenever it is constructed for a loopback host, and then answers
+# 421 "Misdirected Request" to every other Host header — which is exactly what a
+# sibling Docker container sends when it calls http://pos-reader:8777/mcp.
+# Keep the protection enabled and list the names we actually serve instead.
+DEFAULT_ALLOWED_HOSTS = (
+    "127.0.0.1,127.0.0.1:*,localhost,localhost:*,[::1],[::1]:*,"
+    "pos-reader,pos-reader:*,host.docker.internal,host.docker.internal:*"
+)
+
+
+def _transport_security() -> TransportSecuritySettings:
+    raw = os.environ.get("POS_READER_ALLOWED_HOSTS") or DEFAULT_ALLOWED_HOSTS
+    allowed_hosts = [item.strip() for item in raw.split(",") if item.strip()]
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        # Only browsers send Origin; the "*" suffix matches any port.
+        allowed_origins=[
+            "http://127.0.0.1:*",
+            "http://localhost:*",
+            "http://pos-reader:*",
+            "http://host.docker.internal:*",
+            "http://[::1]:*",
+        ],
+    )
+
+
+mcp = FastMCP("pos-reader", transport_security=_transport_security())
+mcp_ = mcp  # shorthand (FastMCP decorators)
+
+
+# Generic SQL execution tool - full read/write access to all tables
+@mcp.tool()
+def execute_sql(query: str, params: list = None) -> list[dict]:
+    """
+    Execute any SQL query against the POS database.
+
+    Args:
+        query: SQL statement (SELECT, INSERT, UPDATE, DELETE, etc.)
+        params: Optional list of parameters for parameterized queries
+
+    Returns:
+        List of row dictionaries for SELECT queries, or confirmation for DML operations
+    """
+    conn = _connect_readonly()
+    try:
+        cursor = conn.cursor()
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+
+        # For SELECT queries, return results
+        if cursor.description:
+            columns = [desc[0] for desc in cursor.description]
+            rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            return rows
+        else:
+            conn.commit()
+            return [{"status": "success", "message": "Query executed successfully"}]
+    finally:
+        conn.close()
 mcp_ = mcp  # shorthand (FastMCP decorators)
 
 

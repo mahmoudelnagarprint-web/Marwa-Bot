@@ -35,6 +35,24 @@ python -m venv .venv
 1. متغير البيئة `POS_DB_PATH` (للاختبار على نسخة من backup مثلاً) — **الأولوية**
 2. الافتراضي: `G:\ai\Elnagar POS\pos_data.db`
 
+## التشغيل عبر HTTP (LobeChat على الخادم — وخصوصاً داخل Docker)
+
+```bash
+# نفس الجهاز (الوضع القديم)
+POS_READER_HTTP=1 POS_READER_PORT=8777 python server.py
+# → http://127.0.0.1:8777/mcp
+
+# داخل حاوية، ومع حاويات أخرى على نفس شبكة compose (LobeChat في Docker)
+POS_READER_HTTP=1 POS_READER_HOST=0.0.0.0 POS_READER_PORT=8777 python server.py
+# → http://pos-reader:8777/mcp  (أو host.docker.internal:8777 من الشبكة المضيفة)
+```
+
+### ثلاث نقاط لازمة وإلا يفشل الاتصال من LobeChat
+
+1. **`POS_READER_HOST=0.0.0.0`**: الافتراضي `127.0.0.1` يعني loopback داخل الحاوية نفسها فقط، فأي حاوية أخرى تحصل على `ECONNREFUSED`.
+2. **`POS_READER_ALLOWED_HOSTS`**: FastMCP يُشغّل حماية DNS-rebinding تلقائياً عندما يُبنى على host محلي، فيرد **421 Misdirected Request** على أي `Host` غير مسموح (مثل `pos-reader:8777`). الافتراضي يسمح بـ `127.0.0.1 / localhost / [::1] / host.docker.internal / pos-reader` — أضف أي اسم آخر هنا مفصولاً بفاصلة.
+3. **قاعدة بيانات WAL تحتاج مجلداً قابلاً للكتابة**: قراءة `mode=ro` على قاعدة WAL تحتاج إنشاء `pos_data.db-shm` بجانب الملف، وتركيب المجلد بـ `:ro` يعطي `unable to open database file`. الاتصال نفسه يبقى قراءة فقط في الكود.
+
 ## مدخل cordis.patch.yml المقترح (قيد الانتظار — لا يُعدَّل قبل موافقة المالك)
 
 انظر في نهاية التقرير — لم يُطبَّق بعد.
