@@ -11,232 +11,338 @@
 <body>
 
   <!-- Header & Controls -->
-  <div class="header-controls"
-    style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:#f0f2f5; border-bottom:1px solid #ddd;">
-    <h3 style="margin:0; font-size:14px; display:flex; align-items:center; gap:5px;">
-      <span>📦</span> Elnagar POS
+  <div class="app-header">
+    <h3>
+      <span>📦</span> Elnagar POS <span id="system-status" class="status-badge offline">○ غير متصل</span>
     </h3>
-    <button id="btn-open-window" class="btn btn-sm"
-      style="font-size:11px; padding:4px 8px; background:#fff; color:#333; border:1px solid #ccc;">🗖 تكبير
-      (نافذة)</button>
+    <div class="btn-group">
+      <button id="btn-zoom-out" class="btn btn-sm btn-secondary" title="تصغير الواجهة">➖</button>
+      <span id="zoom-level" class="zoom-badge" title="نسبة العرض الحالية">100%</span>
+      <button id="btn-zoom-in" class="btn btn-sm btn-secondary" title="تكبير الواجهة">➕</button>
+      <button id="btn-start-server" class="btn btn-sm btn-warning">🚀 تشغيل النظام</button>
+      <button id="btn-clear-draft" class="btn btn-sm btn-secondary">🧹 مسودة</button>
+      <button id="btn-open-window" class="btn btn-sm btn-secondary">🗖 نافذة</button>
+    </div>
   </div>
+
+  <!-- Connection banner -->
+  <div id="conn-banner" class="">
+    <span id="conn-banner-text">جارٍ التحقق من الاتصال...</span>
+    <span class="banner-actions">
+      <button id="btn-retry-conn" class="btn btn-sm">إعادة المحاولة</button>
+      <button id="btn-dismiss-banner" class="btn btn-sm btn-secondary">✕</button>
+    </span>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
 
   <!-- Navigation -->
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="tab-start">الرئيسية</button>
-    <button class="tab-btn" data-tab="tab-customers">العملاء</button>
-    <button class="tab-btn" data-tab="tab-orders">الطلبات</button>
-    <button class="tab-btn" data-tab="tab-products">المنتجات</button>
-    <button class="tab-btn" data-tab="tab-laser">🔴 الليزر</button>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="tab-home" role="tab" aria-selected="true">
+      <span>🏠</span> الرئيسية
+    </button>
+    <button class="tab-btn" data-tab="tab-customers" role="tab" aria-selected="false">
+      <span>👥</span> العملاء
+    </button>
+    <button class="tab-btn" data-tab="tab-orders" role="tab" aria-selected="false">
+      <span>📋</span> الطلبات
+    </button>
+    <button class="tab-btn" data-tab="tab-ai" role="tab" aria-selected="false">
+      <span>🤖</span> الذكي
+    </button>
+    <button class="tab-btn" data-tab="tab-financial" role="tab" aria-selected="false">
+      <span>💰</span> المالي
+    </button>
   </div>
 
-  <!-- Tab 1: Start/Sync -->
-  <div id="tab-start" class="tab-content active">
+  <!-- ================= Tab 1: Home = إنشاء طلب جديد ================= -->
+  <div id="tab-home" class="tab-content active" role="tabpanel">
 
-    <div class="sync-header">
-      <button id="btn-autofill" class="btn btn-sm">سحب البيانات من واتساب</button>
-      <span style="font-size: 11px; color: var(--text-sub)">اسم الجروب والصور</span>
+    <!-- WhatsApp Quick Actions -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">سحب من واتساب</h4>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
+        <button id="btn-autofill" class="btn btn-sm">📥 بيانات المحادثة</button>
+        <button id="btn-grab-messages" class="btn btn-sm btn-secondary">💬 الرسائل</button>
+        <button id="btn-start-server-tab" class="btn btn-sm btn-secondary">🚀 تشغيل النظام</button>
+      </div>
     </div>
 
-    <form id="sync-form">
-      <div class="form-group">
-        <label>اسم العميل / الجروب</label>
-        <div style="display:flex; gap:5px; margin-bottom: 5px;">
-          <!-- Client Name -->
-          <input list="clients-datalist" id="client-name" name="client_name" placeholder="ابحث أو اكتب اسم جديد"
-            required autocomplete="off" style="flex:2;" title="اسم العميل">
-          <datalist id="clients-datalist">
-            <!-- Populated via JS -->
-          </datalist>
-        </div>
-        <!-- Phone Input -->
-        <input type="text" id="client-phone" name="client_phone" placeholder="رقم الهاتف (اختياري)"
-          style="width:100%; direction:ltr; text-align:right;" title="رقم الهاتف">
-        <small style="color:#aaa; font-size:10px;">ابحث بالاسم أو الرقم</small>
+    <!-- Client Info Form -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">بيانات العميل</h4>
       </div>
+      <form id="sync-form">
+        <div class="form-group">
+          <label>اسم العميل</label>
+          <input list="clients-datalist" id="client-name" name="client_name" placeholder="ابحث أو اكتب اسم جديد" autocomplete="off" required>
+          <datalist id="clients-datalist"></datalist>
+        </div>
+        <div class="form-group">
+          <label>رقم الهاتف</label>
+          <input type="text" id="client-phone" name="client_phone" placeholder="رقم الهاتف (اختياري)" style="direction:ltr; text-align:right;">
+        </div>
+        <div class="form-group">
+          <label>نوع العميل</label>
+          <select id="client-type" name="client_type">
+            <option value="Retail">قطاعي (Retail)</option>
+            <option value="Wholesale">جملة (Wholesale)</option>
+          </select>
+        </div>
 
-      <div class="form-group">
-        <label>نوع العميل</label>
-        <select id="client-type" name="client_type" title="نوع العميل">
-          <option value="Retail">قطاعي (Retail)</option>
-          <option value="Wholesale">جملة (Wholesale)</option>
+        <!-- Last Order Warning -->
+        <div id="last-order-info" class="last-order-card" style="display:none;">
+          <div class="lo-head">⚠️ آخر طلب للعميل (<span id="last-order-date"></span>):</div>
+          <ul id="last-order-items" style="list-style:disc; margin-right:20px; padding:0;"></ul>
+        </div>
+
+        <!-- Order Items (inside form so submit includes rows) -->
+        <div class="form-group">
+          <label>منتجات الطلب</label>
+          <div id="order-items-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <button type="button" id="btn-add-row" class="btn btn-sm" style="width:100%; margin-top:8px; background:#10B981; color:#fff;">+ إضافة منتج</button>
+        </div>
+
+        <!-- Totals -->
+        <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:rgba(30,41,59,0.5); border-radius:6px;">
+          <strong>الإجمالي:</strong>
+          <strong id="total-amount" style="color:#10B981; font-size:16px;">0.00</strong>
+        </div>
+
+        <!-- Notes -->
+        <div class="form-group">
+          <label>ملاحظات الطلب</label>
+          <textarea id="notes" name="notes" rows="3" placeholder="ملاحظات: المقاسات، الألوان، الخامات، المواصفات..."></textarea>
+        </div>
+
+        <!-- Images -->
+        <div class="form-group">
+          <label>الصور</label>
+          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px;">
+            <label for="img-input" class="btn btn-sm btn-secondary" style="cursor:pointer;">📁 رفع من الجهاز</label>
+            <input type="file" id="img-input" accept="image/*" multiple style="display:none;">
+            <button type="button" id="btn-grab-images" class="btn btn-sm btn-secondary">🖼️ صور واتساب</button>
+            <button type="button" id="btn-clear-images" class="btn btn-sm btn-secondary">🗑️ مسح الصور</button>
+          </div>
+          <div id="img-count" style="font-size:11px; color:var(--text-tertiary); margin-bottom:4px;">0 صور</div>
+          <div id="image-preview-area" style="display:flex; flex-wrap:wrap; gap:6px; min-height:40px; border:1px dashed var(--border-primary); border-radius:6px; padding:6px;">
+            <span style="color:var(--text-tertiary); font-size:11px;">اسحب الصور هنا أو استخدم الأزرار أعلاه</span>
+          </div>
+        </div>
+
+        <!-- Submit INSIDE the form -->
+        <button type="submit" id="btn-submit-order" class="btn btn-success" style="width:100%;">✅ إنشاء الطلب</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= Tab 2: Customers = العملاء الحقيقيون ================= -->
+  <div id="tab-customers" class="tab-content" role="tabpanel">
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">قائمة العملاء</h4>
+      </div>
+      <div style="display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap;">
+        <input type="text" id="search-clients" class="form-control" placeholder="ابحث بالاسم أو الرقم" style="flex:1; min-width:110px;">
+        <select id="sort-clients" class="form-control" style="width:auto;">
+          <option value="name">بالاسم</option>
+          <option value="retail">قطاعي أولاً</option>
+          <option value="wholesale">جملة أولاً</option>
+          <option value="debt">الأكثر مديونية</option>
         </select>
       </div>
-
-      <!-- Last Order Info -->
-      <div id="last-order-info" style="display:none; background:#fff7ed; border:1px solid #fdba74; padding:10px; border-radius:5px; margin-bottom:10px; font-size:12px;">
-         <div style="font-weight:bold; color:#c2410c; margin-bottom:5px;">⚠️ آخر طلب للعميل (<span id="last-order-date"></span>):</div>
-         <ul id="last-order-items" style="list-style:disc; margin-right:20px; color:#555; padding:0;"></ul>
-      </div>
-
-      <div class="form-group">
-        <label>المنتجات</label>
-
-        <!-- Filter is useful for the dropdowns inside rows too, or we keep it global? -->
-        <!-- Let's keep a global product search that helps filter the dropdowns when adding? -->
-        <!-- Better: Each row has its own searchable dropdown. -->
-
-        <div id="order-items-container" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
-          <!-- Dynamic Rows Will Be Added Here -->
-        </div>
-
-        <button type="button" id="btn-add-row" class="btn btn-sm"
-          style="width:100%; background:#10B981; color:white; margin-bottom:10px;">
-          ➕ إضافة منتج
-        </button>
-
-        <!-- New Product Toggle (Global for now, or per row? Stick to Global for simplicity for "Quick Add") -->
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-quick-prod-toggle"
-          style="width:100%; margin-bottom:10px; font-size:11px;">
-          منتج جديد غير موجود بالقائمة؟
-        </button>
-      </div>
-
-      <!-- Hidden Section for New Product Name (For Quick Add) -->
-      <div class="form-group" id="new-product-group"
-        style="display:none; background:#f0fdf4; padding:10px; border-radius:5px; border:1px solid #bbf7d0;">
-        <label style="color:#166534;">اسم المنتج الجديد</label>
-        <input type="text" id="new-product-name" placeholder="أدخل اسم المنتج">
-        
-        <div style="display:flex; gap:5px; margin-top:5px; align-items:center;">
-             <input list="ext-cat-list" id="new-product-cat" placeholder="التصنيف" style="flex:1;">
-             <datalist id="ext-cat-list"></datalist>
-             <button type="button" id="btn-ext-add-cat" class="btn btn-sm" style="background:#fff; color:#166534; border:1px solid #166534;" title="إضافة تصنيف">+</button>
-        </div>
-
-        <div style="display:flex; gap:5px; margin-top:5px;">
-          <input type="number" id="new-product-price-retail" placeholder="سعر قطاعي" style="flex:1;">
-          <input type="number" id="new-product-price-wholesale" placeholder="سعر جملة" style="flex:1;">
-          <button type="button" id="btn-save-new-prod" class="btn btn-sm" style="background:#15803d; color:white;">حفظ
-            وإضافة</button>
-        </div>
-      </div>
-
-      <div class="form-group"
-        style="background:#f9fafb; padding:10px; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:bold;">الإجمالي:</span>
-        <span id="total-amount" style="font-weight:bold; font-size:16px; color:#2563EB;">0.00</span>
-      </div>
-
-      <div class="form-group">
-        <label>ملاحظات (اسحب النص هنا 👇)</label>
-        <textarea id="notes" name="notes" rows="2" placeholder="تفاصيل الطلب..." class="droppable-area"></textarea>
-      </div>
-
-      <div class="form-group">
-        <label>الصور</label>
-        <div class="btn-row">
-          <button type="button" id="btn-grab-images" class="btn btn-secondary btn-sm">سحب الصور فقط</button>
-          <span id="img-count" style="font-size: 12px; align-self: center;">0 صور</span>
-          <button type="button" id="btn-clear-images" class="btn btn-sm"
-            style="background:#fee2e2; color:#ef4444; border:1px solid #fca5a5; padding:2px 8px; font-size:10px;">مسح
-            الكل</button>
-        </div>
-        <div id="image-preview-area" class="image-grid"
-          style="min-height:60px; border:2px dashed #ccc; padding:10px; border-radius:5px; margin-top:5px; transition:0.2s;">
-          <!-- Images will appear here -->
-        </div>
-      </div>
-
-      <button type="submit" class="btn">إنشاء الطلب والمزامنة</button>
-    </form>
-  </div>
-
-  <!-- Tab 2: Customers -->
-  <div id="tab-customers" class="tab-content">
-    <div class="form-group" style="display:flex; gap:5px;">
-      <input type="text" id="search-clients" placeholder="بحث عن عميل..." style="flex:1;">
-      <select id="sort-clients" style="width:110px;" title="ترتيب العملاء" aria-label="ترتيب العملاء">
-        <option value="wholesale" selected>جملة أولاً</option>
-        <option value="retail">قطاعي أولاً</option>
-        <option value="debt">الأكثر ديناً</option>
-      </select>
-    </div>
-    <div id="clients-list" class="card-list">
-      <!-- Client Items -->
-    </div>
-  </div>
-
-  <!-- Tab 3: Orders -->
-  <div id="tab-orders" class="tab-content">
-    <div style="text-align:center; margin-bottom:10px;">
-      <button class="btn btn-sm btn-secondary" id="btn-refresh-orders">تحديث القائمة 🔄</button>
-    </div>
-
-    <div class="order-section-title">⏳ جاري التجهيز</div>
-    <div id="orders-prep" class="card-list"></div>
-
-    <div class="order-section-title" style="color:#2563EB; border-color:#2563EB;">✅ جاهز للتسليم</div>
-    <div id="orders-ready" class="card-list"></div>
-
-    <div class="order-section-title" style="color:#10B981; border-color:#10B981;">🚀 تم التسليم</div>
-    <div id="orders-done" class="card-list"></div>
-  </div>
-
-  <!-- Tab 4: Products -->
-  <div id="tab-products" class="tab-content">
-    <div class="form-group"
-      style="display:flex; flex-direction:column; gap:10px; background:#f9f9f9; padding:10px; border-radius:8px;">
-
-      <!-- Search & Filter -->
       <div style="display:flex; gap:5px;">
-        <input type="text" id="search-products" placeholder="بحث منتج..." style="flex:2;" title="بحث عن منتج">
-        <select id="filter-category" style="flex:1;" title="فلتر الأقسام">
-          <option value="">كل الأقسام</option>
-          <!-- JS Populated -->
+        <button id="btn-add-client" class="btn btn-sm btn-primary" style="flex:1;">➕ إضافة عميل</button>
+        <button id="btn-refresh-clients" class="btn btn-sm btn-secondary">🔄 تحديث</button>
+      </div>
+    </div>
+    <div id="clients-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+  </div>
+
+  <!-- ================= Tab 3: Orders = عرض الطلبات الحقيقية ================= -->
+  <div id="tab-orders" class="tab-content" role="tabpanel">
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">الطلبات (من قاعدة البيانات)</h4>
+      </div>
+      <div style="display:flex; gap:5px; flex-wrap:wrap;">
+        <input type="text" id="search-orders" class="form-control" placeholder="ابحث برقم الطلب أو العميل" style="flex:1; min-width:110px;">
+        <button id="btn-refresh-orders" class="btn btn-sm btn-secondary">🔄 تحديث</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <h4 style="margin:0 0 6px 0; font-size:13px; color:#F59E0B;">🔧 تحت التجهيز (<span id="count-prep">0</span>)</h4>
+      <div id="orders-prep" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <h4 style="margin:0 0 6px 0; font-size:13px; color:#3B82F6;">✅ تم التنفيذ - جاهز (<span id="count-ready">0</span>)</h4>
+      <div id="orders-ready" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <h4 style="margin:0 0 6px 0; font-size:13px; color:#10B981;">📦 تم التسليم (<span id="count-done">0</span>)</h4>
+      <div id="orders-done" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+  </div>
+
+  <!-- ================= Tab 4: AI = تحليل واتساب الذكي ================= -->
+  <div id="tab-ai" class="tab-content" role="tabpanel">
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">تحليل المحادثة الذكي</h4>
+      </div>
+      <p style="color:var(--text-secondary); font-size:12px; margin-top:0;">
+        افتح محادثة واتساب ثم اضغط تحليل. راجع البيانات المستخرجة قبل إضافتها للطلب.
+      </p>
+      <button id="btn-analyze-chat" class="btn" style="width:100%;">🧠 تحليل المحادثة</button>
+    </div>
+
+    <div id="ai-loading" style="display:none; text-align:center; padding:12px;">
+      ⏳ جارٍ التحليل...
+    </div>
+
+    <div id="ai-analysis-result" style="display:none;">
+      <div class="card mb-lg">
+        <div class="card-header"><h4 class="card-title">بيانات العميل</h4></div>
+        <div id="ai-client-info"></div>
+      </div>
+      <div class="card mb-lg">
+        <div class="card-header"><h4 class="card-title">المنتجات المستخرجة</h4></div>
+        <div id="ai-products-list"></div>
+      </div>
+      <div class="card mb-lg">
+        <div class="card-header"><h4 class="card-title">البيانات الناقصة</h4></div>
+        <div id="ai-missing-info"></div>
+      </div>
+      <div class="card mb-lg">
+        <div class="card-header"><h4 class="card-title">ملاحظات</h4></div>
+        <div id="ai-notes"></div>
+      </div>
+      <button id="btn-create-from-analysis" class="btn btn-success" style="width:100%; display:none;">
+        ➕ إضافة للطلب في الرئيسية
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= Tab 5: Financial = المالي الحقيقي ================= -->
+  <div id="tab-financial" class="tab-content" role="tabpanel">
+    <div class="dashboard-grid" style="margin-bottom:12px;">
+      <div class="card" style="padding:10px;">
+        <div style="font-size:11px; color:var(--text-secondary);">الإيرادات</div>
+        <div id="financial-income" style="font-size:18px; font-weight:bold; color:#10B981;">0.00</div>
+      </div>
+      <div class="card" style="padding:10px;">
+        <div style="font-size:11px; color:var(--text-secondary);">المصروفات</div>
+        <div id="financial-expense" style="font-size:18px; font-weight:bold; color:#f87171;">0.00</div>
+      </div>
+      <div class="card" style="padding:10px;">
+        <div style="font-size:11px; color:var(--text-secondary);">الصافي</div>
+        <div id="financial-net" style="font-size:18px; font-weight:bold;">0.00</div>
+      </div>
+    </div>
+
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">تسجيل عمليات مالية</h4>
+      </div>
+      <div style="display:flex; gap:5px; flex-wrap:wrap;">
+        <button id="btn-add-income" class="btn btn-sm btn-success" style="flex:1;">➕ إيراد</button>
+        <button id="btn-add-expense" class="btn btn-sm btn-warning" style="flex:1;">➖ مصروف</button>
+        <button id="btn-add-obligation" class="btn btn-sm btn-secondary" style="flex:1;">📋 التزام</button>
+      </div>
+    </div>
+
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">حركات اليوم</h4>
+      </div>
+      <div id="financial-transactions-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+  </div>
+
+  <!-- ================= Modals (Financial) ================= -->
+  <div id="income-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center; padding:12px;">
+    <div class="card" style="width:100%; max-width:320px;">
+      <div class="card-header"><h4 class="card-title">➕ إيراد جديد</h4></div>
+      <div class="form-group">
+        <label>النوع</label>
+        <input type="text" id="income-type" placeholder="نوع الإيراد">
+      </div>
+      <div class="form-group">
+        <label>المبلغ</label>
+        <input type="number" id="income-amount" placeholder="0.00" min="0">
+      </div>
+      <div class="form-group">
+        <label>ملاحظة</label>
+        <input type="text" id="income-note" placeholder="وصف (اختياري)">
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button id="btn-save-income" class="btn btn-success" style="flex:1;">حفظ</button>
+        <button id="btn-cancel-income" class="btn btn-secondary" style="flex:1;">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="expense-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center; padding:12px;">
+    <div class="card" style="width:100%; max-width:320px;">
+      <div class="card-header"><h4 class="card-title">➖ مصروف جديد</h4></div>
+      <div class="form-group">
+        <label>التصنيف</label>
+        <input type="text" id="expense-category" placeholder="نوع المصروف">
+      </div>
+      <div class="form-group">
+        <label>المبلغ</label>
+        <input type="number" id="expense-amount" placeholder="0.00" min="0">
+      </div>
+      <div class="form-group">
+        <label>ملاحظة</label>
+        <input type="text" id="expense-note" placeholder="وصف (اختياري)">
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button id="btn-save-expense" class="btn btn-warning" style="flex:1;">حفظ</button>
+        <button id="btn-cancel-expense" class="btn btn-secondary" style="flex:1;">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="obligation-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:center; justify-content:center; padding:12px;">
+    <div class="card" style="width:100%; max-width:320px;">
+      <div class="card-header"><h4 class="card-title">📋 التزام جديد</h4></div>
+      <div class="form-group">
+        <label>النوع</label>
+        <select id="obligation-type">
+          <option value="receivable">مستحق لي</option>
+          <option value="payable">مستحق عليّ</option>
         </select>
       </div>
-
-      <!-- Price Toggle -->
-      <div style="display:flex; align-items:center; justify-content:space-between;">
-        <label style="font-size:12px; color:#555;">عرض السعر:</label>
-        <div style="display:flex; gap:10px; font-size:12px;">
-          <label style="cursor:pointer;"><input type="radio" name="price_mode" value="retail" checked> قطاعي</label>
-          <label style="cursor:pointer;"><input type="radio" name="price_mode" value="wholesale"> جملة</label>
-        </div>
+      <div class="form-group">
+        <label>الطرف</label>
+        <input type="text" id="obligation-party" placeholder="اسم الطرف">
+      </div>
+      <div class="form-group">
+        <label>المبلغ</label>
+        <input type="number" id="obligation-amount" placeholder="0.00" min="0">
+      </div>
+      <div class="form-group">
+        <label>الوصف</label>
+        <input type="text" id="obligation-description" placeholder="وصف (اختياري)">
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button id="btn-save-obligation" class="btn btn-primary" style="flex:1;">حفظ</button>
+        <button id="btn-cancel-obligation" class="btn btn-secondary" style="flex:1;">إلغاء</button>
       </div>
     </div>
-
-    <div id="products-grid" class="product-grid">
-      <!-- Product Items -->
-    </div>
   </div>
 
-  <!-- Tab 5: Laser Ops -->
-  <div id="tab-laser" class="tab-content" style="display:none;">
-    
-    <!-- Sub Sub-navigation -->
-    <div style="display:flex; gap:5px; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:5px;">
-        <button id="subtab-laser-list" class="btn btn-sm active" style="flex:1; background:#e5e7eb; color:#374151; border:none;">📋 المطلوب (Queue)</button>
-        <button id="subtab-laser-defect" class="btn btn-sm" style="flex:1; background:#fee2e2; color:#b91c1c; border:none;">⚠️ إبلاغ عن نقص</button>
-    </div>
-
-    <!-- VIEW 1: Queue List -->
-    <div id="view-laser-list" style="display:block;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h4 style="margin:0;">📦 جاري التجهيز</h4>
-            <button id="btn-refresh-laser" class="btn btn-sm" style="font-size:16px;">🔄</button>
-        </div>
-        <div id="laser-queue-list" style="display:flex; flex-direction:column; gap:8px; max-height:400px; overflow-y:auto;">
-            <!-- JS Populated -->
-    </div>
-
-    <div id="laser-content-area">
-        <h4 style="margin:5px 0; font-size:13px; border-bottom:1px solid #eee;">📦 المنتجات (Products)</h4>
-        <div id="laser-product-list" class="product-list">
-          <!-- JS Populated -->
-        </div>
-
-        <h4 style="margin:10px 0 5px 0; font-size:13px; border-bottom:1px solid #eee;">🖼️ الصور (Images & Visuals)</h4>
-        <div id="laser-image-list" class="product-list" style="max-height:300px; overflow-y:auto;">
-          <!-- JS Populated -->
-        </div>
-    </div>
-  </div>
-
-  </div>
-
+  <script src="core.js"></script>
   <script src="sidepanel.js"></script>
+
 </body>
 
 </html>

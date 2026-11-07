@@ -17,6 +17,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
+    else if (request.action === "get_chat_messages") {
+        const messages = getVisibleMessages();
+        sendResponse({ messages });
+        return true;
+    }
 });
 
 function getChatInfoSmart() {
@@ -140,6 +145,35 @@ async function getViewportImages() {
     }
 
     return base64List;
+}
+
+function getVisibleMessages() {
+    const messages = [];
+    const msgContainers = document.querySelectorAll('[data-pre-plain-text]');
+    
+    msgContainers.forEach(msg => {
+        // Check if message is in viewport
+        const rect = msg.getBoundingClientRect();
+        if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
+            const text = msg.innerText?.trim();
+            if (text) {
+                messages.push(text);
+            }
+        }
+    });
+    
+    // Fallback: Get messages from message bubbles
+    if (messages.length === 0) {
+        const bubbles = document.querySelectorAll('[data-possible-moved-virtualized-bottom]');
+        bubbles.forEach(bubble => {
+            const text = bubble.innerText?.trim();
+            if (text) {
+                messages.push(text);
+            }
+        });
+    }
+    
+    return messages.slice(-50); // Last 50 messages
 }
 
 async function blobUrlToBase64(blobUrl) {
