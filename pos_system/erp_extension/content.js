@@ -24,67 +24,84 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
+const _NOT_NAME = new Set([
+    'Contact info', 'Profile details', 'WhatsApp', 'Message',
+    'معلومات جهة الاتصال', 'تفاصيل الملف الشخصي', 'معلومات الاتصال'
+]);
+
+function isPhoneLike(t) {
+    const d = (t || '').replace(/\D/g, '');
+    return d.length > 9 && d.length >= (t || '').length - 3 && d.length <= 15;
+}
+
+function cleanName(t) {
+    return (t || '').split('\n')[0].trim();
+}
+
 function getChatInfoSmart() {
     let title = "";
     let phone = "";
 
-    // 1. Dedicated SIDE PANE Strategy (Anchor: Phone Number)
-    // The user screenshot shows Name above Phone. Use Phone as the anchor.
-    // Scan all text nodes for the phone format e.g., +20 1x xxxx or 01xxxx
-
-    // Helper to find text node
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-    let node;
-    let phoneNode = null;
-
-    while (node = walker.nextNode()) {
-        const txt = node.nodeValue.trim();
-        // Strict Phone Check: +20 followed by digits, spaces valid
-        if (txt.match(/^\+20\s?1\d([\s\d]{6,})$/) || txt.match(/^01[0125]\d{8}$/)) {
-            // Found a phone-like text. Is it in a side pane? 
-            // In WA Web, side pane usually has specific classes or is inside a drawer.
-            // Let's assume the first valid phone found in the DOM (checking end-to-start or specific container)
-            // Actually, if the user just opened Contact Info, it's likely the last one rendered or visible.
-            phoneNode = node;
-            // Don't break immediately, might find better? usually unique in side pane context.
-            // But let's prioritize one that is NOT in the main header (header phone is usually "online" or "last seen", which isn't a phone number).
-            // This regex specifically targets KEYS (digits).
+    // A) Contact-info drawer (يفتح عندما تضغط على اسم المحادثة/البروفايل)
+    //    الاسم عادة أول نص بارز، والرقم أو "About" تحته
+    const dialog = document.querySelector('div[role="dialog"]');
+    if (dialog) {
+        const els = dialog.querySelectorAll('span[title], div[title], header span, h1, h2, span[dir="auto"]');
+        for (const el of els) {
+            const raw = (el.getAttribute && el.getAttribute('title')) || el.innerText || '';
+            const t = cleanName(raw);
+            if (!t || t.length < 2) continue;
+            if (_NOT_NAME.has(t)) continue;
+            if (isPhoneLike(t)) { if (!phone) phone = t.replace(/\D/g, ''); continue; }
+            if (!title && !/^\d+$/.test(t)) { title = t; }
+            if (title && phone) break;
         }
     }
 
-    if (phoneNode) {
-        phone = phoneNode.nodeValue.trim().replace(/\D/g, ''); // Clean digits
+    // B) Header of the OPEN conversation — the saved contact name is always here
+    if (!title) {
+        for (const sel of ['#main header span[title]', '#main header div[title]', '#main header [title]']) {
+            const el = document.querySelector(sel);
+            if (!el) continue;
+            const t = cleanName(el.getAttribute('title') || '');
+            if (!t || t.length < 2 || _NOT_NAME.has(t)) continue;
+            if (isPhoneLike(t)) { if (!phone) phone = t.replace(/\D/g, ''); }
+            else { title = t; }
+            break;
+        }
+    }
 
-        // Find Name: The element physically ABOVE the phone node.
-        // It could be the previous Sibling of the parent, or the parent's previous sibling.
-        let curr = phoneNode.parentElement;
-        let nameCandidate = "";
-
-        // Go up a few levels to find a block container, then check previous siblings?
-        // In the screenshot there is a large gap. Name is likely an h2 or span block.
-        // Try Previous Element Sibling of the Phone's Container
-        if (curr) {
-            // Try 1: Previous Sibling
-            let prev = curr.previousElementSibling;
-            if (prev) nameCandidate = prev.innerText;
-            else {
-                // Try 2: Parent's Previous Sibling (if Phone is wrapped tightly)
-                let parentPrev = curr.parentElement?.previousElementSibling;
-                if (parentPrev) nameCandidate = parentPrev.innerText;
+    // C) Phone from any visible pane (side pane / drawer) — strict Egyptian formats
+    if (!phone) {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        let node;
+        while ((node = walker.nextNode())) {
+            const txt = node.nodeValue.trim();
+            if (txt.match(/^\+20\s?1\d([\s\d]{6,})$/) || txt.match(/^01[0125]\d{8}$/)) {
+                phone = txt.replace(/\D/g, '');
+                break;
             }
         }
-
-        if (nameCandidate && nameCandidate.length > 1 && !nameCandidate.match(/\d{5}/)) {
-            title = nameCandidate.split('\n')[0].trim(); // Take first line if multiple
-        }
     }
 
-    // Fallback: Main Header
-    if (!title || title === "Contact info" || title === "Profile details") {
-        const mainHeader = document.querySelector('#main header');
-        if (mainHeader) {
-            const titleEl = mainHeader.querySelector('span[title]');
-            if (titleEl) title = titleEl.getAttribute('title');
+    // D) Name found physically above the phone (side pane layout: Name above Phone)
+    if (!title && phone) {
+        let phoneNode = null;
+        const walker2 = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        while ((node = walker2.nextNode())) {
+            if (node.nodeValue.replace(/\D/g, '') === phone) { phoneNode = node; break; }
+        }
+        if (phoneNode) {
+            let curr = phoneNode.parentElement;
+            for (let up = 0; up < 3 && curr && !title; up++) {
+                let prev = curr.previousElementSibling;
+                while (prev && !title) {
+                    const cand = cleanName(prev.innerText || '');
+                    if (cand && cand.length > 1 && !isPhoneLike(cand) && !_NOT_NAME.has(cand)) title = cand;
+                    else prev = prev.previousElementSibling;
+                }
+                curr = curr.parentElement;
+            }
         }
     }
 

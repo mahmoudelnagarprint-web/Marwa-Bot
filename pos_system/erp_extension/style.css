@@ -325,6 +325,51 @@ input::placeholder, textarea::placeholder {
   user-select: none;
 }
 
+/* Invoice (فاتورة المراجعة) */
+.invoice-box {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  background: rgba(30, 41, 59, 0.35);
+}
+
+.invoice-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-primary);
+  min-width: 300px;
+  font-size: 12px;
+}
+
+.invoice-row:last-child { border-bottom: none; }
+
+.invoice-head {
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(51, 65, 85, 0.4);
+  font-size: 11px;
+}
+
+.invoice-row-warn { background: rgba(245, 158, 11, 0.12); }
+
+.inv-idx { width: 18px; flex-shrink: 0; color: var(--text-tertiary); }
+.inv-name { flex: 1; min-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-qty { width: 34px; text-align: center; flex-shrink: 0; }
+.inv-price { width: 56px; text-align: center; flex-shrink: 0; }
+.inv-total { width: 60px; text-align: center; font-weight: 700; flex-shrink: 0; }
+.inv-img { width: 34px; text-align: center; flex-shrink: 0; font-size: 11px; }
+
+.invoice-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(51, 65, 85, 0.4);
+  font-weight: 600;
+}
+
 /* Connection Banner */
 #conn-banner {
   display: flex;

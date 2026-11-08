@@ -58,86 +58,138 @@
 
   <!-- ================= Tab 1: Home = إنشاء طلب جديد ================= -->
   <div id="tab-home" class="tab-content active" role="tabpanel">
+    <form id="sync-form">
 
-    <!-- WhatsApp Quick Actions -->
+    <!-- 1) WhatsApp Quick Actions -->
     <div class="card mb-lg">
       <div class="card-header">
         <h4 class="card-title">سحب من واتساب</h4>
       </div>
       <div style="display: flex; flex-wrap: wrap; gap: var(--spacing-sm);">
-        <button id="btn-autofill" class="btn btn-sm">📥 بيانات المحادثة</button>
-        <button id="btn-grab-messages" class="btn btn-sm btn-secondary">💬 الرسائل</button>
-        <button id="btn-start-server-tab" class="btn btn-sm btn-secondary">🚀 تشغيل النظام</button>
+        <button type="button" id="btn-autofill" class="btn btn-sm">📥 بيانات المحادثة</button>
+        <button type="button" id="btn-grab-messages" class="btn btn-sm btn-secondary">💬 الرسائل</button>
+        <button type="button" id="btn-start-server-tab" class="btn btn-sm btn-secondary">🚀 تشغيل النظام</button>
       </div>
     </div>
 
-    <!-- Client Info Form -->
+    <!-- 2) بيانات العميل -->
     <div class="card mb-lg">
       <div class="card-header">
         <h4 class="card-title">بيانات العميل</h4>
       </div>
-      <form id="sync-form">
-        <div class="form-group">
-          <label>اسم العميل</label>
-          <input list="clients-datalist" id="client-name" name="client_name" placeholder="ابحث أو اكتب اسم جديد" autocomplete="off" required>
-          <datalist id="clients-datalist"></datalist>
-        </div>
-        <div class="form-group">
-          <label>رقم الهاتف</label>
-          <input type="text" id="client-phone" name="client_phone" placeholder="رقم الهاتف (اختياري)" style="direction:ltr; text-align:right;">
-        </div>
-        <div class="form-group">
-          <label>نوع العميل</label>
-          <select id="client-type" name="client_type">
-            <option value="Retail">قطاعي (Retail)</option>
-            <option value="Wholesale">جملة (Wholesale)</option>
-          </select>
-        </div>
-
-        <!-- Last Order Warning -->
-        <div id="last-order-info" class="last-order-card" style="display:none;">
-          <div class="lo-head">⚠️ آخر طلب للعميل (<span id="last-order-date"></span>):</div>
-          <ul id="last-order-items" style="list-style:disc; margin-right:20px; padding:0;"></ul>
-        </div>
-
-        <!-- Order Items (inside form so submit includes rows) -->
-        <div class="form-group">
-          <label>منتجات الطلب</label>
-          <div id="order-items-container" style="display:flex; flex-direction:column; gap:8px;"></div>
-          <button type="button" id="btn-add-row" class="btn btn-sm" style="width:100%; margin-top:8px; background:#10B981; color:#fff;">+ إضافة منتج</button>
-        </div>
-
-        <!-- Totals -->
-        <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:rgba(30,41,59,0.5); border-radius:6px;">
-          <strong>الإجمالي:</strong>
-          <strong id="total-amount" style="color:#10B981; font-size:16px;">0.00</strong>
-        </div>
-
-        <!-- Notes -->
-        <div class="form-group">
-          <label>ملاحظات الطلب</label>
-          <textarea id="notes" name="notes" rows="3" placeholder="ملاحظات: المقاسات، الألوان، الخامات، المواصفات..."></textarea>
-        </div>
-
-        <!-- Images -->
-        <div class="form-group">
-          <label>الصور</label>
-          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px;">
-            <label for="img-input" class="btn btn-sm btn-secondary" style="cursor:pointer;">📁 رفع من الجهاز</label>
-            <input type="file" id="img-input" accept="image/*" multiple style="display:none;">
-            <button type="button" id="btn-grab-images" class="btn btn-sm btn-secondary">🖼️ صور واتساب</button>
-            <button type="button" id="btn-clear-images" class="btn btn-sm btn-secondary">🗑️ مسح الصور</button>
-          </div>
-          <div id="img-count" style="font-size:11px; color:var(--text-tertiary); margin-bottom:4px;">0 صور</div>
-          <div id="image-preview-area" style="display:flex; flex-wrap:wrap; gap:6px; min-height:40px; border:1px dashed var(--border-primary); border-radius:6px; padding:6px;">
-            <span style="color:var(--text-tertiary); font-size:11px;">اسحب الصور هنا أو استخدم الأزرار أعلاه</span>
-          </div>
-        </div>
-
-        <!-- Submit INSIDE the form -->
-        <button type="submit" id="btn-submit-order" class="btn btn-success" style="width:100%;">✅ إنشاء الطلب</button>
-      </form>
+      <div class="form-group">
+        <label>اسم العميل</label>
+        <input list="clients-datalist" id="client-name" name="client_name" placeholder="ابحث أو اكتب اسم جديد" autocomplete="off" required>
+        <datalist id="clients-datalist"></datalist>
+      </div>
+      <div class="form-group">
+        <label>رقم الهاتف</label>
+        <input type="text" id="client-phone" name="client_phone" placeholder="رقم الهاتف (اختياري)" style="direction:ltr; text-align:right;">
+      </div>
+      <div class="form-group">
+        <label>نوع العميل</label>
+        <select id="client-type" name="client_type">
+          <option value="Retail">قطاعي (Retail)</option>
+          <option value="Wholesale">جملة (Wholesale)</option>
+        </select>
+      </div>
+      <div id="last-order-info" class="last-order-card" style="display:none;">
+        <div class="lo-head">⚠️ آخر طلب للعميل (<span id="last-order-date"></span>):</div>
+        <ul id="last-order-items" style="list-style:disc; margin-right:20px; padding:0;"></ul>
+      </div>
     </div>
+
+    <!-- 3) منتجات الطلب -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">منتجات الطلب</h4>
+      </div>
+      <div id="order-items-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <button type="button" id="btn-add-row" class="btn btn-sm" style="width:100%; margin-top:8px; background:#10B981; color:#fff;">+ إضافة منتج للطلب</button>
+
+      <!-- إضافة منتج جديد سريعًا (مستعادة من النسخة القديمة) -->
+      <button type="button" id="btn-quick-prod-toggle" class="btn btn-sm btn-secondary" style="width:100%; margin-top:6px;">⚡ إضافة منتج جديد سريعًا</button>
+      <div id="new-product-group" style="display:none; border:1px solid var(--border-primary); border-radius:6px; padding:8px; margin-top:6px; background:rgba(30,41,59,0.35);">
+        <div class="form-group">
+          <label>اسم المنتج</label>
+          <input type="text" id="new-product-name" placeholder="اسم المنتج الجديد">
+        </div>
+        <div style="display:flex; gap:5px;">
+          <div class="form-group" style="flex:1;">
+            <label>سعر قطاعي</label>
+            <input type="number" id="new-product-price-retail" placeholder="0.00" min="0" step="any">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>سعر جملة</label>
+            <input type="number" id="new-product-price-wholesale" placeholder="0.00" min="0" step="any">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>التصنيف</label>
+          <div style="display:flex; gap:5px;">
+            <input type="text" id="new-product-cat" list="ext-cat-list" placeholder="التصنيف" style="flex:1;">
+            <button type="button" id="btn-ext-add-cat" class="btn btn-sm btn-secondary">+ تصنيف</button>
+          </div>
+          <datalist id="ext-cat-list"></datalist>
+        </div>
+        <button type="button" id="btn-save-new-prod" class="btn btn-sm" style="width:100%; background:#10B981; color:#fff;">💾 حفظ المنتج الجديد</button>
+      </div>
+    </div>
+
+    <!-- 4) الفاتورة (مراجعة قبل الحفظ) -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">🧾 الفاتورة</h4>
+      </div>
+      <div id="invoice-box" class="invoice-box">
+        <div class="invoice-row invoice-head">
+          <span class="inv-idx">#</span>
+          <span class="inv-name">المنتج</span>
+          <span class="inv-qty">كمية</span>
+          <span class="inv-price">سعر</span>
+          <span class="inv-total">إجمالي</span>
+          <span class="inv-img">صور</span>
+        </div>
+        <div id="invoice-rows"></div>
+        <div class="invoice-footer">
+          <span id="invoice-images" style="font-size:11px; color:var(--text-tertiary);"></span>
+          <span style="font-size:13px;">الإجمالي: <strong id="total-amount" style="color:#10B981; font-size:16px;">0.00</strong></span>
+        </div>
+      </div>
+      <div id="invoice-warn" style="display:none; margin-top:6px; font-size:11px; color:#F59E0B;">
+        ⚠️ يوجد أسطر ناقصة (منتج غير محدد أو كمية/سعر = صفر) — لن تُحفظ حتى تكتمل
+      </div>
+    </div>
+
+    <!-- 5) الصور -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">الصور</h4>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px;">
+        <label for="img-input" class="btn btn-sm btn-secondary" style="cursor:pointer;">📁 رفع من الجهاز</label>
+        <input type="file" id="img-input" accept="image/*" multiple style="display:none;">
+        <button type="button" id="btn-grab-images" class="btn btn-sm btn-secondary">🖼️ صور واتساب</button>
+        <button type="button" id="btn-clear-images" class="btn btn-sm btn-secondary">🗑️ مسح الصور</button>
+      </div>
+      <div id="img-count" style="font-size:11px; color:var(--text-tertiary); margin-bottom:4px;">0 صور</div>
+      <div id="image-preview-area" style="display:flex; flex-wrap:wrap; gap:6px; min-height:40px; border:1px dashed var(--border-primary); border-radius:6px; padding:6px;">
+        <span style="color:var(--text-tertiary); font-size:11px;">اسحب الصور هنا أو استخدم الأزرار أعلاه — ثم اضغط 📷 بجوار المنتج لإرفاقها به</span>
+      </div>
+    </div>
+
+    <!-- 6) ملاحظات الطلب -->
+    <div class="card mb-lg">
+      <div class="card-header">
+        <h4 class="card-title">ملاحظات الطلب</h4>
+      </div>
+      <textarea id="notes" name="notes" rows="3" placeholder="ملاحظات: المقاسات، الألوان، الخامات، المواصفات..."></textarea>
+    </div>
+
+    <!-- زر الحفظ داخل النموذج -->
+    <button type="submit" id="btn-submit-order" class="btn btn-success" style="width:100%; margin-bottom:16px;">✅ إنشاء الطلب وحفظه في النظام</button>
+
+    </form>
   </div>
 
   <!-- ================= Tab 2: Customers = العملاء الحقيقيون ================= -->

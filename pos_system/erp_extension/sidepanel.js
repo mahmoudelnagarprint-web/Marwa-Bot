@@ -13,6 +13,8 @@ let allProducts = [];
 let allClients = [];
 let allOrders = [];
 let allOrdersGrouped = { prep: [], ready: [], done: [] };
+let draftTimer = null;          // draft autosave timer (was undeclared -> ReferenceError)
+let connFailed = false;         // connection monitor flag (was undeclared)
 let selectedImages = [];
 let editingOrderId = null;
 let allProductsFull = [];
@@ -713,6 +715,7 @@ async function loadData(force) {
 
         allProducts = (pJson && pJson.success) ? pJson.products : [];
         allProductsFull = allProducts.slice();
+        productOptionsHtmlCache = null; // refresh row dropdowns after data reload
         allClients = (cJson && cJson.customers) ? cJson.customers : [];
         allOrders = (oJson && oJson.orders) ? oJson.orders : [];
         // Server-side real status grouping (app.py /api/mobile/orders): prep/ready/done
@@ -723,6 +726,7 @@ async function loadData(force) {
         if (force) showToast('تم تحديث البيانات', 'success');
 
         populateClientDatalist(allClients);
+        loadCategoriesForExt();
 
         if (orderItems.length === 0) addOrderItem();
         else renderOrderRows();
@@ -767,6 +771,7 @@ async function loadCategoriesForExt() {
         const json = await apiGet('/get_categories', { silent: true });
         if (json.success) {
             const list = document.getElementById('ext-cat-list');
+            if (!list) return;
             list.innerHTML = '';
             json.categories.forEach(c => {
                 const opt = document.createElement('option');
@@ -940,7 +945,7 @@ function addOrderItem(product = null) {
 }
 
 function assignImagesToItem(uid) {
-    const item = orderItems.find(i => i._uid === uid);
+    const item = orderItems.find(i => String(i._uid) === String(uid));
     if (!item) return;
     if (selectedImages.length === 0) {
         showToast('لا توجد صور محددة! اسحب الصور أولاً ثم اضغط هنا.', 'warn');
@@ -956,13 +961,13 @@ function assignImagesToItem(uid) {
 }
 
 function removeOrderItem(uid) {
-    orderItems = orderItems.filter(i => i._uid !== uid);
+    orderItems = orderItems.filter(i => String(i._uid) !== String(uid));
     renderOrderRows();
     scheduleDraftSave();
 }
 
 function updateItemProduct(uid, productId) {
-    const item = orderItems.find(i => i._uid === uid);
+    const item = orderItems.find(i => String(i._uid) === String(uid));
     if (!item) return;
     const product = allProductsFull.find(p => p.id == productId);
     if (product) {
@@ -1010,6 +1015,7 @@ function getProductOptionsHtml() {
 
 function renderOrderRows() {
     const container = document.getElementById('order-items-container');
+    if (!container) return;
     container.innerHTML = '';
     orderItems.forEach((item, idx) => {
         const div = document.createElement('div');
@@ -1034,6 +1040,52 @@ function renderOrderRows() {
         container.appendChild(div);
     });
     calculateTotal();
+    renderInvoice();
+}
+
+// ================= Invoice (فاتورة مراجعة قبل الحفظ) =================
+function renderInvoice() {
+    const rowsEl = document.getElementById('invoice-rows');
+    const totalEl = document.getElementById('invoice-total');
+    const imgEl = document.getElementById('invoice-images');
+    if (!rowsEl || !totalEl) return;
+
+    rowsEl.innerHTML = '';
+    let totalImages = 0;
+    let hasInvalid = false;
+
+    orderItems.forEach((it, idx) => {
+        const product = allProductsFull.find(p => p.id == it.product_id);
+        const name = it.name || (product ? product.name : (it.product_id ? '#' + it.product_id : '— منتج غير محدد —'));
+        const qty = Number(it.qty) || 0;
+        const price = Number(it.price) || 0;
+        const imgs = it.images ? it.images.length : 0;
+        totalImages += imgs;
+        if (!it.product_id || qty <= 0 || price <= 0) hasInvalid = true;
+
+        const row = document.createElement('div');
+        row.className = 'invoice-row' + (hasInvalid && (!it.product_id || qty <= 0 || price <= 0) ? ' invoice-row-warn' : '');
+        row.innerHTML = `
+            <span class="inv-idx">${idx + 1}</span>
+            <span class="inv-name">${escapeHtml(name)}</span>
+            <span class="inv-qty">${escapeHtml(qty)}</span>
+            <span class="inv-price">${price.toFixed(2)}</span>
+            <span class="inv-total">${(qty * price).toFixed(2)}</span>
+            ${imgs > 0 ? `<span class="inv-img" title="صور مرفقة">📷${imgs}</span>` : '<span class="inv-img"></span>'}
+        `;
+        rowsEl.appendChild(row);
+    });
+
+    const total = CORE ? CORE.computeTotal(orderItems)
+        : orderItems.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+    totalEl.textContent = total.toFixed(2);
+    if (imgEl) {
+        imgEl.textContent = totalImages > 0 ? `📷 إجمالي الصور: ${totalImages}` : '';
+    }
+    const warnEl = document.getElementById('invoice-warn');
+    if (warnEl) {
+        warnEl.style.display = (hasInvalid && orderItems.length > 0) ? 'block' : 'none';
+    }
 }
 
 // Event delegation for order rows (performance: no re-render per keystroke)
@@ -1119,14 +1171,16 @@ async function onFormSubmit(e) {
         const requestId = CORE ? CORE.makeRequestId() : (Date.now() + '-' + Math.random());
         formData.append('client_request_id', requestId);
 
-        let url = `${API_URL}/whatsapp_sync`;
+        // apiPostForm prepends API_URL itself — pass PATH ONLY
+        let url = '/whatsapp_sync';
         if (editingOrderId) {
-            url = `${API_URL}/update_order`;
+            url = '/update_order';
             formData.append('order_id', editingOrderId);
         }
 
         isSubmitting = true;
-        const json = await apiPostForm(url, formData);
+        // Long timeout: first save may take longer (image upload + WAL + cold start)
+        const json = await apiPostForm(url, formData, { timeoutMs: 60000 });
 
         if (json.success) {
             showToast(editingOrderId ? "تم تعديل الطلب" : "تم إنشاء الطلب #" + json.order_id, 'success');
