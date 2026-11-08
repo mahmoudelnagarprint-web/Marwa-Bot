@@ -1,17 +1,6 @@
 {
-  "time": "2026-11-01T06:00:01",
+  "time": "2026-11-08T09:07:00",
   "ok": false,
-<<<<<<< Updated upstream
   "root": "G:\\Marwa-Bot",
   "error": "G:\\ai\\Elnagar POS\\pos_data.db"
-=======
-  "root": "G:\\ai\\Naggar Print POS Agent",
-  "notebook_file": "notebook_2026-11-01_0600.db",
-  "notebook_bytes": 40960,
-  "notebook_rows": {
-    "notes": 5,
-    "categories": 13
-  },
-  "error": "[WinError 3] The system cannot find the path specified: 'G:\\\\ai\\\\Naggar Print POS Agent\\\\tsmym-wajht-marwa-core\\\\node_modules\\\\.pnpm\\\\@monaco-editor+react@4.7.0__99a0f5f0a549c0d05d2e42512471d949\\\\node_modules\\\\monaco-editor\\\\esm\\\\vs\\\\editor\\\\contrib\\\\inlineCompletions\\\\browser\\\\view\\\\inlineEdits\\\\inlineEditsViews\\\\longDistanceHint'"
->>>>>>> Stashed changes
 }
